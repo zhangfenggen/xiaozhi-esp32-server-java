@@ -8,7 +8,7 @@ Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32 Server](https://github.com/xinnan-t
 
 ---
 
-## 功能模块
+## 功能模块（设计中）
 
 ### 1. **设备管理**
    - 查看已接入的所有设备列表。
@@ -26,11 +26,11 @@ Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32 Server](https://github.com/xinnan-t
    - 聊天数据可视化（如聊天频率统计图表）。
 
 ### 4. **唤醒词修改**
-  -- 查看与修改唤醒词。
+  - 查看与修改唤醒词。
 
 ### 5. **角色切换**
-  -- 预设角色切换（AI老师、男/女朋友、智能家居助手）
-  -- 混合模式
+  - 预设角色切换（AI老师、男/女朋友、智能家居助手）
+  - 混合模式
 
 ---
 
@@ -54,6 +54,7 @@ Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32 Server](https://github.com/xinnan-t
 ## 贡献指南
 
 欢迎任何形式的贡献！如果你有好的想法或发现问题，请联系反馈
-![示例图片](./docs/images/wechat.png)
+
+<img src="./docs/images/wechat.jpg" alt="微信" width="200" />
 
 ---
