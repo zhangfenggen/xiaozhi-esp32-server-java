@@ -55,6 +55,6 @@ Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32 Server](https://github.com/xinnan-t
 
 欢迎任何形式的贡献！如果你有好的想法或发现问题，请联系反馈
 
-<img src="./docs/images/wechat.jpg" alt="微信" width="200" />
+<img src="./web/static/img/wechat.jpg" alt="微信" width="200" />
 
 ---

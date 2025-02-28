@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaozhi.dao.DeviceMapper">
+
+    <sql id="deviceSql">
+        sys_device.deviceId, sys_device.deviceName, sys_device.principalId, sys_device.createTime
+    </sql>
+
+    <select id="query" resultType="com.xiaozhi.entity.SysDevice">
+        SELECT
+        <include refid="deviceSql"></include>
+        FROM
+            sys_device
+            LEFT JOIN sys_user ON sys_device.principalId = sys_user.userId 
+        WHERE
+            sys_device.principalId = sys_user.userId
+        <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
+        <if test="deviceName != null and deviceName != ''">AND deviceName LIKE CONCAT('%', #{deviceName}, '%')</if>
+        <if test="state != null and state != ''">AND state = #{state}</if>
+    </select>
+
+    <update id="update" parameterType="com.xiaozhi.entity.SysDevice">
+        UPDATE
+            sys_device
+        <set>
+            <if test="deviceName != null or deviceName != ''">deviceName = #{deviceName},</if>
+        </set>
+        WHERE
+            deviceId = #{deviceId}
+    </update>
+
+    <insert id="add" useGeneratedKeys="true" keyProperty="deviceName" parameterType="com.xiaozhi.entity.SysDevice">
+        INSERT INTO sys_device ( deviceName, mac, principalId ) (
+            #{deviceName}, #{mac}, #{principalId}
+        )
+    </insert>
+
+</mapper>

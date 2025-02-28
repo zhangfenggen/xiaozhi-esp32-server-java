@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaozhi.dao.UserMapper">
+
+    <sql id="userSql">
+        sys_user.userId, sys_user.username, sys_user.`name`, sys_user.tel, sys_user.email, sys_user.password, sys_user.state, sys_user.isAdmin, sys_user.loginIp, sys_user.loginTime, sys_user.createTime
+    </sql>
+
+    <select id="selectUserByUsername" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            username = #{username}
+    </select>
+
+    <select id="query" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>,
+        (
+            SELECT count(*) FROM sys_device WHERE sys_device.principalId = sys_user.userId
+        ) AS totalDevice,
+        (
+            SELECT
+                count(*)
+            FROM
+                sys_message
+                LEFT JOIN sys_device ON sys_device.deviceId = sys_message.deviceId
+            WHERE
+                sys_device.principalId = sys_user.userId
+                <if test="startTime != null and startTime != ''">
+                    AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
+                </if>
+        ) AS messageNumber,
+        (
+            SELECT count(*) FROM sys_device WHERE sys_device.principalId = sys_user.userId and sys_device.state = 1
+        ) AS aliveNumber
+        FROM
+            sys_user
+        WHERE
+            username = #{username}
+    </select>
+
+    <select id="selectUserByUserId" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            userId = #{userId}
+    </select>
+
+    <update id="update" parameterType="com.xiaozhi.entity.SysUser">
+        UPDATE
+            sys_user
+        <set>
+            <if test="name != null or name == ''">`name` = #{name},</if>
+            <if test="tel != null or tel == ''">tel = #{tel},</if>
+            <if test="email != null or email == ''">email = #{email},</if>
+            <if test="password != null or password == ''">password = #{password},</if>
+            <if test="avatar != null or avatar != ''">avatar = #{avatar},</if>
+            <if test="state != null or state == ''">state = ${state},</if>
+        </set>
+        WHERE
+            username = #{username}
+    </update>
+</mapper>
