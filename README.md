@@ -32,6 +32,11 @@ Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32 Server](https://github.com/xinnan-t
   - 预设角色切换（AI老师、男/女朋友、智能家居助手）
   - 混合模式
 
+## UI样式
+<img src="docs/image/dashboard.jpg" alt="dashboard" width="200" />
+<img src="docs/image/device.jpg" alt="device" width="200" />
+<img src="docs/image/message.jpg" alt="message" width="200" />
+
 ---
 
 ## 技术栈
