@@ -3,7 +3,7 @@ package com.xiaozhi.controller;
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
 import com.xiaozhi.entity.*;
-import com.xiaozhi.service.*;
+import com.xiaozhi.service.SysMessageService;
 import com.xiaozhi.ultis.CmsUtils;
 
 import org.slf4j.Logger;

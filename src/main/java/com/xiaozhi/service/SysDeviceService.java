@@ -29,6 +29,21 @@ public interface SysDeviceService {
   public List<SysDevice> query(SysDevice device);
 
   /**
+   * 查询验证码
+   */
+  public SysDevice queryVerifyCode(SysDevice device);
+
+  /**
+   * 查询并生成验证码
+   */
+  public SysDevice generateCode(SysDevice device);
+
+  /**
+   * 关系设备验证码语音路径
+   */
+  public int updateCode(SysDevice device);
+
+  /**
    * 更新设备信息
    * 
    * @param device

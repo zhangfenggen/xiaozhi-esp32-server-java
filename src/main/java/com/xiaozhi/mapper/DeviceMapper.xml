@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.DeviceMapper">
 
     <sql id="deviceSql">
-        sys_device.deviceId, sys_device.deviceName, sys_device.principalId, sys_device.createTime
+        sys_device.deviceId, sys_device.deviceName, sys_device.userId, sys_device.createTime
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysDevice">
@@ -11,13 +11,46 @@
         <include refid="deviceSql"></include>
         FROM
             sys_device
-            LEFT JOIN sys_user ON sys_device.principalId = sys_user.userId 
+            LEFT JOIN sys_user ON sys_device.userId = sys_user.userId 
         WHERE
-            sys_device.principalId = sys_user.userId
+            sys_device.userId = sys_user.userId
         <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
         <if test="deviceName != null and deviceName != ''">AND deviceName LIKE CONCAT('%', #{deviceName}, '%')</if>
         <if test="state != null and state != ''">AND state = #{state}</if>
     </select>
+
+    <select id="queryVerifyCode" parameterType="com.xiaozhi.entity.SysDevice" resultType="com.xiaozhi.entity.SysDevice">
+        SELECT
+            code, audioPath, deviceId
+        FROM
+            sys_code
+        WHERE
+            1 = 1
+            <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
+            <if test="sessionId != null and sessionId != ''">AND sessionId = #{sessionId}</if>
+            <if test="code != null and code != ''">AND code = #{code}</if>
+            ORDER BY createTime DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateCode" parameterType="com.xiaozhi.entity.SysDevice">
+        UPDATE
+            sys_code
+        SET
+            audioPath = #{audioPath}
+        WHERE
+            deviceId = #{deviceId}
+            AND sessionId = #{sessionId}
+            AND code = #{code}
+    </update>
+
+    <insert id="generateCode" parameterType="com.xiaozhi.entity.SysDevice">
+        <selectKey keyProperty="code" order="BEFORE" resultType="java.lang.String">
+            SELECT LPAD(FLOOR(RAND() * 1000000), 6, '0') as code
+        </selectKey>
+        INSERT INTO sys_code (deviceId, sessionId, code, createTime)
+        VALUES (#{deviceId}, #{sessionId}, #{code}, NOW())
+    </insert>
 
     <update id="update" parameterType="com.xiaozhi.entity.SysDevice">
         UPDATE
@@ -30,8 +63,8 @@
     </update>
 
     <insert id="add" useGeneratedKeys="true" keyProperty="deviceName" parameterType="com.xiaozhi.entity.SysDevice">
-        INSERT INTO sys_device ( deviceName, mac, principalId ) (
-            #{deviceName}, #{mac}, #{principalId}
+        INSERT INTO sys_device ( deviceId, deviceName, userId ) VALUES (
+            #{deviceId}, #{deviceName}, #{userId}
         )
     </insert>
 

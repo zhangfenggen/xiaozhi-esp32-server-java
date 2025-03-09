@@ -22,7 +22,7 @@ public class SysMessage extends SysDevice {
     /**
      * 语音文件路径
      */
-    private String filePath;
+    private String audioPath;
 
     public Integer getMessageId() {
         return this.messageId;
@@ -48,12 +48,12 @@ public class SysMessage extends SysDevice {
         this.message = message;
     }
 
-    public String getFilePath() {
-        return filePath;
+    public String getAudioPath() {
+        return audioPath;
     }
 
-    public void setFilePath(String filePath) {
-        this.filePath = filePath;
+    public void setAudioPath(String audioPath) {
+        this.audioPath = audioPath;
     }
 
 }

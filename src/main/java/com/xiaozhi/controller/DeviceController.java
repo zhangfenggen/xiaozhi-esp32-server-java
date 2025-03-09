@@ -73,4 +73,30 @@ public class DeviceController {
 
     }
 
+    /**
+     * 添加设备
+     * 
+     * @param code
+     */
+    @PostMapping("/add")
+    public AjaxResult add(String code, HttpServletRequest request) {
+        try {
+            SysDevice device = new SysDevice();
+            device.setCode(code);
+            SysDevice query = deviceService.queryVerifyCode(device);
+            if (query == null) {
+                return AjaxResult.error("无效验证码");
+            }
+            device.setUserId(CmsUtils.getUserId(request));
+            System.out.println(query.toString());
+            device.setDeviceId(query.getDeviceId());
+            device.setDeviceName("小智");
+            deviceService.add(device);
+            return AjaxResult.success();
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return AjaxResult.error();
+        }
+    }
+
 }

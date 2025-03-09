@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @MapperScan("com.xiaozhi.dao")
-public class xiaozhiApplication {
+public class XiaozhiApplication {
     public static void main(String[] args) {
-        SpringApplication.run(xiaozhiApplication.class, args);
+        SpringApplication.run(XiaozhiApplication.class, args);
     }
 }

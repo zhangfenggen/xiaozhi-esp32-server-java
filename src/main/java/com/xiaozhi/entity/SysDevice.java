@@ -8,10 +8,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * @author Joey
  * 
  */
-@JsonIgnoreProperties({ "startTime", "endTime", "start", "limit", "userId" })
+@JsonIgnoreProperties({ "startTime", "endTime", "start", "limit", "userId", "code" })
 public class SysDevice extends Base {
 
-    private Integer deviceId;
+    private String deviceId;
+
+    private String sessionId;
 
     /**
      * 设备名称
@@ -29,23 +31,36 @@ public class SysDevice extends Base {
     private Integer totalMessage;
 
     /**
-     * 建立人ID
+     * 验证码
      */
-    private Integer principalId;
+    private String code;
 
-    public Integer getdeviceId() {
+    /**
+     * 音频文件
+     */
+    private String audioPath;
+
+    public String getDeviceId() {
         return deviceId;
     }
 
-    public void setdeviceId(Integer deviceId) {
+    public void setDeviceId(String deviceId) {
         this.deviceId = deviceId;
     }
 
-    public String getdeviceName() {
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getDeviceName() {
         return deviceName;
     }
 
-    public void setdeviceName(String deviceName) {
+    public void setDeviceName(String deviceName) {
         this.deviceName = deviceName;
     }
 
@@ -65,12 +80,26 @@ public class SysDevice extends Base {
         this.totalMessage = totalMessage;
     }
 
-    public Integer getPrincipalId() {
-        return principalId;
+    public String getCode() {
+        return code;
     }
 
-    public void setPrincipalId(Integer principalId) {
-        this.principalId = principalId;
+    public void setCode(String code) {
+        this.code = code;
     }
 
+    public String getAudioPath() {
+        return audioPath;
+    }
+
+    public void setAudioPath(String audioPath) {
+        this.audioPath = audioPath;
+    }
+
+    @Override
+    public String toString() {
+        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", deviceName=" + deviceName
+                + ", state=" + state + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath
+                + "]";
+    }
 }

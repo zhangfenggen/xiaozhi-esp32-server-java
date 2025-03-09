@@ -136,7 +136,7 @@ export default {
         },
         {
           title: "语音",
-          dataIndex: "filePath",
+          dataIndex: "audioPath",
           align: "center",
           ellipsis: true,
         },

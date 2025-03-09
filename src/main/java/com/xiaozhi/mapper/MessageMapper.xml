@@ -3,11 +3,11 @@
 <mapper namespace="com.xiaozhi.dao.MessageMapper">
 
     <sql id="messageSql">
-        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.filePath, sys_message.createTime
+        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.audioPath, sys_message.createTime
     </sql>
 
     <sql id="deviceSql">
-        sys_device.deviceName, sys_device.deviceName, sys_device.principalId
+        sys_device.deviceName, sys_device.deviceName, sys_device.userId
     </sql>
 
 
@@ -19,15 +19,15 @@
             sys_message
             LEFT JOIN sys_device ON sys_message.deviceId = sys_device.deviceId
         WHERE
-            sys_device.principalId = #{userId}
+            sys_device.userId = #{userId}
             <if test="startTime != null and startTime != ''">
                 AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
             </if>
     </select>
 
     <insert id="add" parameterType="com.xiaozhi.entity.SysMessage">
-        INSERT INTO sys_message ( deviceId, sender, message, filePath )
-        SELECT #{deviceId}, #{sender}, #{message}, #{filePath}
+        INSERT INTO sys_message ( deviceId, sender, message, audioPath )
+        SELECT #{deviceId}, #{sender}, #{message}, #{audioPath}
     </insert>
 
 </mapper>

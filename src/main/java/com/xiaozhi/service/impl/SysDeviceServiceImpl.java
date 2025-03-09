@@ -57,6 +57,37 @@ public class SysDeviceServiceImpl implements SysDeviceService {
     }
 
     /**
+     * 查询验证码
+     */
+    @Override
+    public SysDevice queryVerifyCode(SysDevice device) {
+        return deviceMapper.queryVerifyCode(device);
+    }
+
+    /**
+     * 查询并生成验证码
+     * 
+     */
+    @Override
+    public SysDevice generateCode(SysDevice device) {
+        SysDevice result = deviceMapper.queryVerifyCode(device);
+        if (result == null) {
+            result = new SysDevice();
+            deviceMapper.generateCode(device);
+            result.setCode(device.getCode());
+        }
+        return result;
+    }
+
+    /**
+     * 关系设备验证码语音路径
+     */
+    @Override
+    public int updateCode(SysDevice device) {
+        return deviceMapper.updateCode(device);
+    }
+
+    /**
      * 更新设备信息
      *
      * @param device

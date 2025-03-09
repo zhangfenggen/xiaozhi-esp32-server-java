@@ -165,7 +165,7 @@ export default {
           title: '设备编号',
           dataIndex: 'deviceId',
           scopedSlots: { customRender: 'deviceId' },
-          width: 100,
+          width: 200,
           fixed: 'left',
           align: 'center'
         },
@@ -260,6 +260,30 @@ export default {
         })
         .catch(() => {
           this.loading = false
+          this.$message.error('服务器维护/重启中，请稍后再试')
+        })
+    },
+    // 添加设备
+    addDevice(value, event) {
+      if (value === '') {
+        this.$message.info('请输入设备编号')
+        return
+      }
+      axios
+        .post({
+          url: api.device.add,
+          data: {
+            code: value
+          }
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.getData()
+          } else {
+            this.$message.error(res.message)
+          }
+        })
+        .catch(() => {
           this.$message.error('服务器维护/重启中，请稍后再试')
         })
     }
