@@ -9,7 +9,7 @@ import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.service.SysDeviceService;
-import com.xiaozhi.ultis.CmsUtils;
+import com.xiaozhi.utils.CmsUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

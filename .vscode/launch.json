@@ -2,16 +2,16 @@
   "configurations": [
     {
       "type": "java",
-      "name": "XiaozhiApplication",
+      "name": "ApplicationTest",
       "request": "launch",
-      "mainClass": "com.xiaozhi.XiaozhiApplication",
+      "mainClass": "com.xiaozhi.ApplicationTest",
       "projectName": "xiaozhi.webui"
     },
     {
       "type": "java",
-      "name": "ApplicationTest",
+      "name": "XiaozhiApplication",
       "request": "launch",
-      "mainClass": "com.xiaozhi.ApplicationTest",
+      "mainClass": "com.xiaozhi.XiaozhiApplication",
       "projectName": "xiaozhi.webui"
     },
     {

@@ -1,23 +1,12 @@
 package com.xiaozhi.websocket.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.xiaozhi.websocket.WebSocketHandler;
-import com.xiaozhi.websocket.service.MessageService;
+import com.xiaozhi.utils.audio.OpusProcessor;
+import com.xiaozhi.utils.audio.VadDetector;
+import com.xiaozhi.websocket.handler.WebSocketHandler;
 
-import io.github.jaredmdobson.concentus.OpusEncoder;
-import io.github.jaredmdobson.concentus.OpusApplication;
-import io.github.jaredmdobson.concentus.OpusException;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +21,7 @@ public class AudioService {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
 
-    // 帧持续时间（毫秒）
+    // 播放帧持续时间（毫秒）
     private static final int FRAME_DURATION_MS = 60;
 
     @Autowired
@@ -40,7 +29,10 @@ public class AudioService {
     private MessageService messageService;
 
     @Autowired
-    private TextToSpeechService textToSpeechService;
+    private OpusProcessor opusProcessor;
+
+    @Autowired
+    private VadDetector vadDetector;
 
     /**
      * 音频处理结果类
@@ -64,6 +56,44 @@ public class AudioService {
     }
 
     /**
+     * 初始化会话的音频处理
+     */
+    public void initializeSession(String sessionId) {
+        vadDetector.initializeSession(sessionId);
+    }
+
+    /**
+     * 处理接收到的音频数据
+     * 
+     * @param sessionId 会话ID，用于区分不同设备
+     * @param opusData  Opus编码的音频数据
+     * @return 如果语音结束，返回完整的音频数据；否则返回null
+     */
+    public byte[] processIncomingAudio(String sessionId, byte[] opusData) {
+        try {
+            // 1. 解码Opus数据为PCM
+            byte[] pcmData = opusProcessor.decodeOpusFrameToPcm(opusData);
+
+            // 2. 使用VAD处理PCM数据
+            byte[] completeAudio = vadDetector.processAudio(sessionId, pcmData);
+
+            // 3. 如果检测到语音结束，返回完整的音频数据
+            return completeAudio;
+
+        } catch (Exception e) {
+            logger.error("处理音频数据时发生错误 - SessionId: {}", sessionId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 清理会话的音频处理状态
+     */
+    public void cleanupSession(String sessionId) {
+        vadDetector.resetSession(sessionId);
+    }
+
+    /**
      * 处理音频文件，提取PCM数据并转换为Opus格式
      * 
      * @param audioFilePath 音频文件路径
@@ -77,7 +107,7 @@ public class AudioService {
         long durationMs = calculateDuration(pcmData, sampleRate, channels);
 
         // 转换为Opus格式
-        List<byte[]> opusFrames = convertToOpus(pcmData, sampleRate, channels);
+        List<byte[]> opusFrames = opusProcessor.convertPcmToOpus(pcmData, sampleRate, channels, FRAME_DURATION_MS);
 
         return new AudioProcessResult(opusFrames, durationMs);
     }
@@ -132,45 +162,6 @@ public class AudioService {
         int bytesPerSample = 2;
         int totalSamples = pcmData.length / (bytesPerSample * channels);
         return (long) (totalSamples * 1000.0 / sampleRate);
-    }
-
-    /**
-     * 将PCM数据转换为Opus格式
-     */
-    private List<byte[]> convertToOpus(byte[] pcmData, int sampleRate, int channels) throws OpusException {
-        // 创建Opus编码器
-        OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_VOIP);
-
-        // 设置比特率 (16kbps)
-        encoder.setBitrate(16000);
-
-        // 每帧样本数 (60ms帧长)
-        int frameSize = sampleRate * FRAME_DURATION_MS / 1000;
-
-        // 处理PCM数据
-        List<byte[]> opusFrames = new ArrayList<>();
-        short[] shortBuffer = new short[frameSize * channels];
-
-        for (int i = 0; i < pcmData.length / 2; i += frameSize * channels) {
-            // 将字节数据转换为short
-            for (int j = 0; j < frameSize * channels && (i + j) < pcmData.length / 2; j++) {
-                int byteIndex = (i + j) * 2;
-                if (byteIndex + 1 < pcmData.length) {
-                    shortBuffer[j] = (short) ((pcmData[byteIndex] & 0xFF) | (pcmData[byteIndex + 1] << 8));
-                }
-            }
-
-            // 编码
-            byte[] opusBuffer = new byte[1275]; // 最大Opus帧大小
-            int opusLength = encoder.encode(shortBuffer, 0, frameSize, opusBuffer, 0, opusBuffer.length);
-
-            // 创建正确大小的帧并添加到列表
-            byte[] opusFrame = new byte[opusLength];
-            System.arraycopy(opusBuffer, 0, opusFrame, 0, opusLength);
-            opusFrames.add(opusFrame);
-        }
-
-        return opusFrames;
     }
 
     /**

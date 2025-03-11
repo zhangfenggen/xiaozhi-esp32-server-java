@@ -10,7 +10,7 @@ import com.xiaozhi.common.web.HttpStatus;
 import com.xiaozhi.common.web.ResponseUtils;
 import com.xiaozhi.entity.SysUser;
 import com.xiaozhi.service.SysUserService;
-import com.xiaozhi.ultis.CmsUtils;
+import com.xiaozhi.utils.CmsUtils;
 
 import net.sf.json.JSONObject;
 import org.slf4j.Logger;

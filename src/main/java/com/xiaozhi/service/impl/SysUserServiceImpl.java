@@ -6,7 +6,7 @@ import com.xiaozhi.dao.UserMapper;
 import com.xiaozhi.entity.SysUser;
 import com.xiaozhi.security.AuthenticationService;
 import com.xiaozhi.service.SysUserService;
-import com.xiaozhi.ultis.DateUtil;
+import com.xiaozhi.utils.DateUtils;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,8 +24,8 @@ import javax.annotation.Resource;
 @Service
 public class SysUserServiceImpl implements SysUserService {
 
-  private static final String dayOfMonthStart = DateUtil.dayOfMonthStart();
-  private static final String dayOfMonthEnd = DateUtil.dayOfMonthEnd();
+  private static final String dayOfMonthStart = DateUtils.dayOfMonthStart();
+  private static final String dayOfMonthEnd = DateUtils.dayOfMonthEnd();
 
   @Resource
   private UserMapper userMapper;

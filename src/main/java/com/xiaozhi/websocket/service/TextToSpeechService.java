@@ -5,9 +5,7 @@ import io.github.whitemagic2014.tts.TTS;
 import io.github.whitemagic2014.tts.TTSVoice;
 import io.github.whitemagic2014.tts.bean.Voice;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

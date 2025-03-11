@@ -1,6 +1,5 @@
-package com.xiaozhi.websocket;
+package com.xiaozhi.websocket.handler;
 
-import com.alibaba.fastjson.JSONArray;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -10,12 +9,8 @@ import com.xiaozhi.service.SysDeviceService;
 import com.xiaozhi.websocket.service.TextToSpeechService;
 import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.MessageService;
+import com.xiaozhi.websocket.service.SpeechToTextService;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.util.StringUtils;
@@ -28,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +41,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     private TextToSpeechService textToSpeechService;
+
+    @Autowired
+    private SpeechToTextService speechToTextService;
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
 
@@ -113,12 +110,37 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
-        byte[] payload = message.getPayload().array();
-        logger.info("收到二进制消息 - SessionId: {}, 大小: {} 字节", session.getId(), payload.length);
+        String sessionId = session.getId();
+        byte[] opusData = message.getPayload().array();
+        try {
+
+            // 将所有音频处理逻辑委托给AudioService
+            byte[] completeAudio = audioService.processIncomingAudio(sessionId, opusData);
+
+            if (completeAudio != null) {
+                logger.info("检测到语音结束 - SessionId: {}, 音频大小: {} 字节", sessionId, completeAudio.length);
+                // 调用 SpeechToTextService 进行语音识别
+                String jsonResult = speechToTextService.processAudio(completeAudio);
+                JsonNode resultNode = objectMapper.readTree(jsonResult);
+                String result = resultNode.path("text").asText("");
+                if (StringUtils.hasText(result)) {
+                    logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
+                    messageService.sendMessage(session, "stt", "stop", result);
+                    Thread.sleep(10);
+                    messageService.sendMessage(session, "listen", "stop");
+                } else {
+                    logger.warn("语音识别失败 - SessionId: {}", sessionId);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("处理二进制消息失败", e);
+        }
+        // 使用VAD处理器处理音频数据
 
         // 处理音频数据（Opus编码）
-        // 这里应该将数据转发给语音处理服务或进行其他处理
-        processAudioData(session, payload);
+        // 如果语音未完成会返回 null，只有语音接收结束会返回完整的音频数据
+        // byte[] completeAudio = audioService.processIncomingAudio(sessionId, payload);
+
     }
 
     @Override
@@ -258,19 +280,6 @@ public class WebSocketHandler extends TextWebSocketHandler {
             JsonNode states = jsonNode.path("states");
             logger.info("收到设备状态更新: {}", states);
             // 处理设备状态更新的逻辑
-        }
-    }
-
-    // 处理音频数据
-    private void processAudioData(WebSocketSession session, byte[] audioData) {
-        // 这里应该将音频数据发送给语音识别服务
-        // 例如调用STT服务进行识别
-
-        // 示例：模拟语音识别结果
-        // 实际应用中，这里应该是异步的，识别结果通过回调返回
-        String deviceId = SESSION_DEVICES.get(session.getId());
-        if (deviceId != null) {
-            logger.info("处理来自设备 {} 的音频数据，大小: {} 字节", deviceId, audioData.length);
         }
     }
 

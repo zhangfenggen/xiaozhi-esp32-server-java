@@ -1,4 +1,4 @@
-package com.xiaozhi.ultis;
+package com.xiaozhi.utils;
 
 import org.apache.commons.lang.StringUtils;
 

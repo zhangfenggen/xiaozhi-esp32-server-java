@@ -1,16 +1,20 @@
-package java.com.xiaozhi;
+package com.xiaozhi;
 
 import io.github.whitemagic2014.tts.TTS;
 import io.github.whitemagic2014.tts.TTSVoice;
 import io.github.whitemagic2014.tts.bean.Voice;
+
 import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+
 @SpringBootTest
 @ActiveProfiles("test")
 public class ApplicationTest {
+
     @Test
     public void testTTS() {
         // Voice can be found in file "voicesList.json"
@@ -27,4 +31,5 @@ public class ApplicationTest {
 
         System.out.println("Generated audio file: " + fileName);
     }
+
 }

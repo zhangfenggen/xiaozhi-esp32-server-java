@@ -1,14 +1,15 @@
-package com.xiaozhi.common.config;
+package com.xiaozhi.websocket.config;
 
-import com.xiaozhi.websocket.WebSocketHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
+
+import com.xiaozhi.websocket.handler.WebSocketHandler;
+
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
-
 
 @Configuration
 @EnableWebSocket
@@ -30,5 +31,5 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public WebSocketHandler webSocketHandler() {
         return new WebSocketHandler();
     }
-}
 
+}
