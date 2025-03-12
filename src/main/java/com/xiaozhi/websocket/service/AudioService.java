@@ -25,7 +25,7 @@ public class AudioService {
     private static final int FRAME_DURATION_MS = 60;
 
     @Autowired
-    @Qualifier("webSocketMessageService")
+    @Qualifier("WebSocketMessageService")
     private MessageService messageService;
 
     @Autowired

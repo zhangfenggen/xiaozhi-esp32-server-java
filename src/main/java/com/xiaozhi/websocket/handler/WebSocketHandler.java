@@ -36,7 +36,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private AudioService audioService;
 
     @Autowired
-    @Qualifier("webSocketMessageService")
+    @Qualifier("WebSocketMessageService")
     private MessageService messageService;
 
     @Autowired

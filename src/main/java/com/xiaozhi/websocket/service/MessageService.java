@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-@Service("webSocketMessageService")
+@Service("WebSocketMessageService")
 public class MessageService {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
