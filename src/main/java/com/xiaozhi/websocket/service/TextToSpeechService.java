@@ -1,6 +1,5 @@
 package com.xiaozhi.websocket.service;
 
-import com.xiaozhi.service.SysDeviceService;
 import io.github.whitemagic2014.tts.TTS;
 import io.github.whitemagic2014.tts.TTSVoice;
 import io.github.whitemagic2014.tts.bean.Voice;
@@ -8,7 +7,6 @@ import io.github.whitemagic2014.tts.bean.Voice;
 import java.io.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.stream.Collectors;
@@ -18,10 +16,8 @@ public class TextToSpeechService {
     private static final Logger logger = LoggerFactory.getLogger(TextToSpeechService.class);
     private boolean isRateLimited = true;
 
-    private final String filePath = "storage";
-
-    @Autowired
-    private SysDeviceService deviceService;
+    // 语音生成文件保存地址
+    private final String filePath = "audio/";
 
     /**
      * 将文本转换为语音，生成MP3文件
@@ -67,7 +63,7 @@ public class TextToSpeechService {
                 .formatMp3()
                 .trans();
 
-        return filePath + "/" + fileName;
+        return filePath + fileName;
     }
 
     /**

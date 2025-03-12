@@ -1,4 +1,4 @@
-package com.xiaozhi.utils.audio;
+package com.xiaozhi.audio.detector;
 
 /**
  * 语音活动检测器接口

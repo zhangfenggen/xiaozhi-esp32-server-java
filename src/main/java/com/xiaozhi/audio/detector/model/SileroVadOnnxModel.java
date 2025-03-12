@@ -1,4 +1,4 @@
-package com.xiaozhi.utils.audio;
+package com.xiaozhi.audio.detector.model;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;

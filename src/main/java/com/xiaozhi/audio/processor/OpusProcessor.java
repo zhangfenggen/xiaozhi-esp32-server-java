@@ -1,4 +1,4 @@
-package com.xiaozhi.utils.audio;
+package com.xiaozhi.audio.processor;
 
 import io.github.jaredmdobson.concentus.OpusEncoder;
 import io.github.jaredmdobson.concentus.OpusApplication;

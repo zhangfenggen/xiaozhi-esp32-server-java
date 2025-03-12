@@ -1,4 +1,4 @@
-package com.xiaozhi.utils.audio;
+package com.xiaozhi.audio.detector.impl;
 
 import ai.onnxruntime.OrtException;
 import java.util.ArrayList;
@@ -7,6 +7,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+
+import com.xiaozhi.audio.detector.VadDetector;
+import com.xiaozhi.audio.detector.model.SileroVadOnnxModel;
 
 @Component
 public class SileroVadDetector implements VadDetector {

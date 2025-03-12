@@ -1,7 +1,7 @@
 package com.xiaozhi.websocket.service;
 
-import com.xiaozhi.utils.audio.OpusProcessor;
-import com.xiaozhi.utils.audio.VadDetector;
+import com.xiaozhi.audio.detector.VadDetector;
+import com.xiaozhi.audio.processor.OpusProcessor;
 import com.xiaozhi.websocket.handler.WebSocketHandler;
 
 import java.io.File;

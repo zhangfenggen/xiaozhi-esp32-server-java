@@ -2,6 +2,11 @@ package com.xiaozhi.websocket.service;
 
 import org.vosk.Model;
 import org.vosk.Recognizer;
+import org.bytedeco.ffmpeg.global.avcodec;
+import org.bytedeco.ffmpeg.global.avutil;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.FrameRecorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +15,7 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -24,6 +30,8 @@ public class SpeechToTextService {
     private static final Logger logger = LoggerFactory.getLogger(SpeechToTextService.class);
 
     private Model model;
+
+    private final String filePath = "audio/";
 
     /**
      * 初始化 Vosk 模型，只加载一次
@@ -56,17 +64,18 @@ public class SpeechToTextService {
         // 保存音频文件到storage目录
         try {
             // 确保storage目录存在
-            File storageDir = new File("storage");
+            File storageDir = new File(filePath);
             if (!storageDir.exists()) {
                 storageDir.mkdirs();
             }
 
+            String fileName = UUID.randomUUID().toString().replace("-", "");
+
             // 将原始音频数据转换为WAV格式并保存
-            saveAsWavFile(audioData, new File(storageDir, "语音识别结果.wav"));
-            logger.info("音频文件已保存至: {}", new File(storageDir, "语音识别结果.wav").getAbsolutePath());
+            saveAsMp3File(audioData, new File(storageDir, fileName + ".mp3"));
+            logger.info("音频文件已保存至: {}", new File(storageDir, fileName + ".mp3").getAbsolutePath());
         } catch (IOException e) {
             logger.error("保存音频文件时发生错误！", e);
-            // 即使保存失败，我们仍然继续进行语音识别
         }
 
         long startTime = System.currentTimeMillis(); // 记录开始时间
@@ -135,6 +144,64 @@ public class SpeechToTextService {
 
             // 写入音频数据
             dos.write(audioData);
+        }
+    }
+
+    /**
+     * 将PCM音频数据直接保存为MP3文件，不经过临时WAV文件
+     * 
+     * @param pcmData    PCM格式的音频数据
+     * @param outputFile 输出MP3文件
+     * @throws IOException 如果保存过程中发生IO错误
+     */
+    private void saveAsMp3File(byte[] pcmData, File outputFile) throws IOException {
+        int sampleRate = 16000; // 采样率
+        int channels = 1; // 单声道
+
+        try {
+            // 创建内存中的帧记录器，直接输出到MP3文件
+            FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(outputFile, channels);
+            recorder.setAudioChannels(channels);
+            recorder.setSampleRate(sampleRate);
+            recorder.setAudioCodec(avcodec.AV_CODEC_ID_MP3);
+            recorder.setAudioQuality(0); // 高质量
+            recorder.setAudioBitrate(128000); // 128kbps比特率
+            recorder.setSampleFormat(avutil.AV_SAMPLE_FMT_S16); // 16位PCM
+            recorder.start();
+
+            // 创建音频帧
+            Frame audioFrame = new Frame();
+
+            // 将PCM数据转换为短整型数组
+            short[] samples = new short[pcmData.length / 2];
+            ByteArrayInputStream bais = new ByteArrayInputStream(pcmData);
+            for (int i = 0; i < samples.length; i++) {
+                // 读取两个字节，组合成一个short (小端序)
+                int low = bais.read() & 0xff;
+                int high = bais.read() & 0xff;
+                samples[i] = (short) (low | (high << 8));
+            }
+
+            // 创建ShortBuffer并填充数据
+            java.nio.ShortBuffer shortBuffer = java.nio.ShortBuffer.wrap(samples);
+
+            // 设置音频帧数据
+            audioFrame.samples = new java.nio.Buffer[] { shortBuffer };
+            audioFrame.sampleRate = sampleRate;
+            audioFrame.audioChannels = channels;
+
+            // 记录音频帧
+            recorder.record(audioFrame);
+
+            // 关闭记录器
+            recorder.stop();
+            recorder.release();
+            recorder.close();
+
+            logger.info("PCM数据已直接编码为MP3格式并保存");
+        } catch (FrameRecorder.Exception e) {
+            logger.error("编码MP3时发生错误", e);
+            throw new IOException("无法将PCM数据编码为MP3: " + e.getMessage(), e);
         }
     }
 
