@@ -87,6 +87,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
         if (deviceId != null) {
             SysDevice device = new SysDevice();
             device.setDeviceId(deviceId);
+            device.setState(1);
             device.setLastLogin(new Date());
             deviceService.update(device);
         }
@@ -157,6 +158,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
             if (deviceId != null) {
                 SysDevice device = new SysDevice();
                 device.setDeviceId(deviceId);
+                device.setState(0);
                 device.setLastLogin(new Date());
                 deviceService.update(device);
             }
