@@ -108,6 +108,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    // 处理客户端发送的音频
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
         String sessionId = session.getId();
@@ -126,20 +127,13 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 if (StringUtils.hasText(result)) {
                     logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
                     messageService.sendMessage(session, "stt", "stop", result);
-                    Thread.sleep(10);
-                    messageService.sendMessage(session, "listen", "stop");
-                } else {
-                    logger.warn("语音识别失败 - SessionId: {}", sessionId);
+                    // 将识别到的用户的对话发送给模型进行推测
+
                 }
             }
         } catch (Exception e) {
             logger.error("处理二进制消息失败", e);
         }
-        // 使用VAD处理器处理音频数据
-
-        // 处理音频数据（Opus编码）
-        // 如果语音未完成会返回 null，只有语音接收结束会返回完整的音频数据
-        // byte[] completeAudio = audioService.processIncomingAudio(sessionId, payload);
 
     }
 

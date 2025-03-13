@@ -61,7 +61,7 @@
               导出
             </a-button>
             <template
-              v-for="col in ['deviceName', 'wifiName', 'wifiPassword']"
+              v-for="col in ['deviceName', 'wifiName', 'roleName']"
               :slot="col"
               slot-scope="text, record"
             >
@@ -184,9 +184,9 @@ export default {
           ellipsis: true
         },
         {
-          title: 'WIFI密码',
-          dataIndex: 'wifiPassword',
-          scopedSlots: { customRender: 'wifiPassword' },
+          title: '设备角色',
+          dataIndex: 'roleName',
+          scopedSlots: { customRender: 'roleName' },
           align: 'center'
         },
         {

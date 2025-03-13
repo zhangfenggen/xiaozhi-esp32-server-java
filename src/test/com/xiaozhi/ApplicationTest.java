@@ -1,35 +1,26 @@
 package com.xiaozhi;
 
-import io.github.whitemagic2014.tts.TTS;
-import io.github.whitemagic2014.tts.TTSVoice;
-import io.github.whitemagic2014.tts.bean.Voice;
-
-import java.util.stream.Collectors;
-
-import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.agentsflex.core.llm.Llm;
+import com.agentsflex.llm.ollama.OllamaLlm;
+import com.agentsflex.llm.ollama.OllamaLlmConfig;
 
 @SpringBootTest
 @ActiveProfiles("test")
 public class ApplicationTest {
 
-    @Test
-    public void testTTS() {
-        // Voice can be found in file "voicesList.json"
-        Voice voice = TTSVoice.provides().stream().filter(v -> v.getShortName().equals("zh-CN-XiaoyiNeural"))
-                .collect(Collectors.toList()).get(0);
-        String content = "你好，有什么可以帮助你的吗";
-        String fileName = new TTS(voice, content)
-                .findHeadHook()
-                .isRateLimited(true) // Set to true to resolve the rate limiting issue in certain regions..
-                .overwrite(false) // When the specified file name is the same, it will either overwrite or append
-                                  // to the file.
-                .formatMp3() // default mp3.
-                .trans();
+    public static void main(String[] args) throws Exception {
+        OllamaLlmConfig config = new OllamaLlmConfig();
+        config.setEndpoint("http://localhost:11434");
+        config.setModel("qwen2.5:7b");
+        config.setDebug(true);
 
-        System.out.println("Generated audio file: " + fileName);
+        Llm llm = new OllamaLlm(config);
+        llm.chatStream("你是谁？", (context, response) -> System.out.println(response.getMessage().getContent()));
+
+        Thread.sleep(2000);
     }
 
 }

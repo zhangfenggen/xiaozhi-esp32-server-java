@@ -9,11 +9,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * 
  */
 @JsonIgnoreProperties({ "startTime", "endTime", "start", "limit", "userId", "code" })
-public class SysDevice extends Base {
+public class SysDevice extends SysRole {
 
     private String deviceId;
 
     private String sessionId;
+
+    private Integer modelId;
 
     /**
      * 设备名称
@@ -39,6 +41,13 @@ public class SysDevice extends Base {
      * 音频文件
      */
     private String audioPath;
+
+    public Integer getModelId() {
+        return modelId;
+    }
+    public void setModelId(Integer modelId) {
+        this.modelId = modelId;
+    }
 
     public String getDeviceId() {
         return deviceId;

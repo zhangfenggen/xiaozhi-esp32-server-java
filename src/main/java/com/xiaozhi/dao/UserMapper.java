@@ -2,6 +2,7 @@ package com.xiaozhi.dao;
 
 import java.util.List;
 
+import com.xiaozhi.entity.SysModelConfig;
 import com.xiaozhi.entity.SysUser;
 import org.apache.ibatis.annotations.Param;
 
@@ -12,15 +13,19 @@ import org.apache.ibatis.annotations.Param;
  * 
  */
 public interface UserMapper {
-        SysUser selectUserByUserId(@Param("userId") Integer userId);
+    SysUser selectUserByUserId(@Param("userId") Integer userId);
 
-        SysUser selectUserByUsername(@Param("username") String username);
+    SysUser selectUserByUsername(@Param("username") String username);
 
-        SysUser query(@Param("username") String username, @Param("startTime") String startTime,
-                        @Param("endTime") String endTime);
+    SysUser query(@Param("username") String username, @Param("startTime") String startTime,
+            @Param("endTime") String endTime);
 
-        int update(SysUser sysUser);
+    int update(SysUser sysUser);
 
-        List<SysUser> queryUsers(@Param("user") SysUser user, @Param("startTime") String startTime,
-                        @Param("endTime") String endTime);
+    List<SysUser> queryUsers(@Param("user") SysUser user, @Param("startTime") String startTime,
+            @Param("endTime") String endTime);
+    
+    int addModel(SysModelConfig config);
+
+    int updateModel(SysModelConfig config);
 }

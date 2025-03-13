@@ -50,6 +50,7 @@ INSERT INTO xiaozhi.sys_user (username,password,tel,email,state,loginIp,isAdmin,
 CREATE TABLE `xiaozhi`.`sys_device` (
   `deviceId` varchar(255) NOT NULL COMMENT '设备ID，主键',
   `deviceName` varchar(100) NOT NULL COMMENT '设备名称',
+  `modelId` int DEFAULT NULL COMMENT '模型ID',
   `ip` varchar(45) DEFAULT NULL COMMENT 'IP地址',
   `wifiName` varchar(100) DEFAULT NULL COMMENT 'WiFi名称',
   `wifiPassword` varchar(100) DEFAULT NULL COMMENT 'WiFi密码',
@@ -58,7 +59,9 @@ CREATE TABLE `xiaozhi`.`sys_device` (
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `lastLogin` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后登录时间',
-  PRIMARY KEY (`deviceId`)
+  PRIMARY KEY (`deviceId`),
+  KEY `deviceName` (`deviceName`)
+  KEY `userId` (`userId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='设备信息表';
 
 
@@ -66,14 +69,29 @@ CREATE TABLE `xiaozhi`.`sys_device` (
 
 CREATE TABLE `xiaozhi`.`sys_message` (
   `messageId` bigint NOT NULL AUTO_INCREMENT COMMENT '消息ID，主键，自增',
-  `deviceId` varchar(30) NOT NULL COMMENT '设备ID，关联sys_device表',
+  `deviceId` varchar(30) NOT NULL COMMENT '设备ID',
+  `sessionId` varchar(100) NOT NULL COMMENT '会话ID',
   `sender` enum('user','ai') NOT NULL COMMENT '消息发送方：user-用户，ai-人工智能',
+  `roleId` bigint COMMENT 'AI扮演的角色ID',
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT '消息内容',
-  `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '语言文件路径',
+  `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '语音文件路径',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '消息发送时间',
   PRIMARY KEY (`messageId`),
-  KEY `deviceId` (`deviceId`)
+  KEY `deviceId` (`deviceId`),
+  KEY `sessionId` (`sessionId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='人与AI对话消息表';
+
+-- xiaozhi.sys_role definition
+
+CREATE TABLE `xiaozhi`.`sys_role` (
+  `roleId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '角色ID，主键',
+  `roleName` varchar(100) NOT NULL COMMENT '角色名称',
+  `roleDesc` varchar(255) DEFAULT NULL COMMENT '角色描述',
+  `userId` int NOT NULL COMMENT '创建人',
+  `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`roleId`),
+  KEY `userId` (`userId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
 
 -- xiaozhi.sys_code definition
 
@@ -84,7 +102,18 @@ CREATE TABLE `xiaozhi`.`sys_code` (
   `sessionId` varchar(100) NOT NULL COMMENT 'sessionID',
   `audioPath` text COMMENT '语音文件路径',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`codeId`),
-  KEY `deviceId` (`deviceId`)
+  PRIMARY KEY (`codeId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='验证码表';
+
+CREATE TABLE `xiaozhi`.`sys_model_config` (
+  `configId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `userId` int NOT NULL COMMENT '用户ID',
+  `model` varchar(50) NOT NULL COMMENT '模型名称',
+  `apiKey` varchar(100) DEFAULT NULL COMMENT 'API密钥',
+  `apiSecret` varchar(100) DEFAULT NULL COMMENT 'API密钥',
+  `apiUrl` varchar(255) DEFAULT NULL COMMENT 'API地址',
+  `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`configId`),
+  KEY `userId` (`userId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='配置表';
 
