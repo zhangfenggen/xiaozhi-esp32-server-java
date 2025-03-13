@@ -61,7 +61,7 @@
               导出
             </a-button>
             <template
-              v-for="col in ['deviceName', 'wifiName', 'roleName']"
+              v-for="col in ['deviceName', 'wifiName']"
               :slot="col"
               slot-scope="text, record"
             >
@@ -88,6 +88,34 @@
                 </span>
                 <span v-else>{{ text }}</span>
               </div>
+            </template>
+            <template slot="roleName" slot-scope="text, record">
+              <a-select
+                v-if="record.editable"
+                style="margin: -5px 0; text-align: center"
+                :value="record.roleId"
+                @change="
+                  (e) => inputEdit(e.target.value, record.deviceId, roleId)
+                "
+              >
+                <a-select-option v-for="item in roleItems" :key="item.roleId" :value="item.roleId">
+                  <span>{{ item.roleName }}</span>
+                </a-select-option>
+              </a-select>
+              <span
+                  v-else-if="editingKey === ''"
+                  @click="edit(record.deviceId)"
+                  style="cursor: pointer"
+                >
+                  <a-tooltip title="点击编辑" :mouseEnterDelay="0.5">
+                    <span v-if="text">{{ text }}</span>
+                    <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                  </a-tooltip>
+                </span>
+            </template>
+            <template slot="state" slot-scope="text, record">
+              <a-tag color="green" v-if="text === '1'">在线</a-tag>
+              <a-tag color="red" v-else>离线</a-tag>
             </template>
             <template slot="operation" slot-scope="text, record">
               <a-space v-if="record.editable">
@@ -223,6 +251,7 @@ export default {
           fixed: 'right'
         }
       ],
+      roleItems: [],
       data: [],
       cacheData: [],
       // 操作单元格是否可编辑
@@ -233,10 +262,11 @@ export default {
   },
   mounted () {
     this.getData()
+    this.getRole()
   },
   methods: {
     /* 查询参数列表 */
-    getData () {
+    getData() {
       this.loading = true
       this.editingKey = ''
       axios
@@ -279,6 +309,27 @@ export default {
         .then((res) => {
           if (res.code === 200) {
             this.getData()
+          } else {
+            this.$message.error(res.message)
+          }
+        })
+        .catch(() => {
+          this.$message.error('服务器维护/重启中，请稍后再试')
+        })
+    },
+    // 获取角色列表
+    getRole() {
+      axios
+        .get({
+          url: api.role.query,
+          data: {
+            start: 1,
+            limit: 1000
+          }
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.roleItems = res.data.list
           } else {
             this.$message.error(res.message)
           }

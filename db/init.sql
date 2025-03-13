@@ -53,7 +53,6 @@ CREATE TABLE `xiaozhi`.`sys_device` (
   `modelId` int DEFAULT NULL COMMENT '模型ID',
   `ip` varchar(45) DEFAULT NULL COMMENT 'IP地址',
   `wifiName` varchar(100) DEFAULT NULL COMMENT 'WiFi名称',
-  `wifiPassword` varchar(100) DEFAULT NULL COMMENT 'WiFi密码',
   `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '1' COMMENT '设备状态：1-在线，0-离线',
   `userId` int NOT NULL COMMENT '创建人',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

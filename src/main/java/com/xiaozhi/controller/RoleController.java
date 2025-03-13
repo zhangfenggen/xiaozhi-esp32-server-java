@@ -7,8 +7,8 @@ import javax.servlet.http.HttpServletRequest;
 
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
-import com.xiaozhi.entity.SysDevice;
-import com.xiaozhi.service.SysDeviceService;
+import com.xiaozhi.entity.SysRole;
+import com.xiaozhi.service.SysRoleService;
 import com.xiaozhi.utils.CmsUtils;
 
 import org.slf4j.Logger;
@@ -19,34 +19,34 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 设备管理
+ * 角色管理
  * 
  * @author Joey
  * 
  */
 
 @RestController
-@RequestMapping("/api/device")
-public class DeviceController {
+@RequestMapping("/api/role")
+public class RoleController {
 
-    private static final Logger log = LoggerFactory.getLogger(DeviceController.class);
+    private static final Logger log = LoggerFactory.getLogger(RoleController.class);
 
     @Resource
-    private SysDeviceService deviceService;
+    private SysRoleService roleService;
 
     /**
-     * 设备查询
+     * 角色查询
      * 
-     * @param device
-     * @return deviceList
+     * @param role
+     * @return roleList
      */
     @GetMapping("/query")
-    public AjaxResult query(SysDevice device, HttpServletRequest request) {
+    public AjaxResult query(SysRole role, HttpServletRequest request) {
         try {
-            device.setUserId(CmsUtils.getUserId(request));
-            List<SysDevice> deviceList = deviceService.query(device);
+            role.setUserId(CmsUtils.getUserId(request));
+            List<SysRole> roleList = roleService.query(role);
             AjaxResult result = AjaxResult.success();
-            result.put("data", new PageInfo<>(deviceList));
+            result.put("data", new PageInfo<>(roleList));
             return result;
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -56,15 +56,15 @@ public class DeviceController {
     }
 
     /**
-     * 设备信息更新
+     * 角色信息更新
      * 
-     * @param device
+     * @param role
      * @return
      */
     @PostMapping("/update")
-    public AjaxResult update(SysDevice device, HttpServletRequest request) {
+    public AjaxResult update(SysRole role, HttpServletRequest request) {
         try {
-            deviceService.update(device);
+            roleService.update(role);
             return AjaxResult.success();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -74,23 +74,15 @@ public class DeviceController {
     }
 
     /**
-     * 添加设备
+     * 添加角色
      * 
-     * @param code
+     * @param role
      */
     @PostMapping("/add")
-    public AjaxResult add(String code, HttpServletRequest request) {
+    public AjaxResult add(SysRole role, HttpServletRequest request) {
         try {
-            SysDevice device = new SysDevice();
-            device.setCode(code);
-            SysDevice query = deviceService.queryVerifyCode(device);
-            if (query == null) {
-                return AjaxResult.error("无效验证码");
-            }
-            device.setUserId(CmsUtils.getUserId(request));
-            device.setDeviceId(query.getDeviceId());
-            device.setDeviceName("小智");
-            deviceService.add(device);
+            role.setUserId(CmsUtils.getUserId(request));
+            roleService.add(role);
             return AjaxResult.success();
         } catch (Exception e) {
             log.error(e.getMessage(), e);

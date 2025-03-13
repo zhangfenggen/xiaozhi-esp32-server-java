@@ -1,7 +1,6 @@
 <template>
   <div class="footer">
     <div class="footer-links">
-      <!-- <a title="Vue" target="_black" href="https://vuejs.org" style="margin-right: 40px">Vue</a> -->
       <a title="github" target="_black" href="https://github.com/joey-zhou" style="margin-right: 40px">
         <a-icon type="github" />
       </a>
@@ -22,7 +21,7 @@
     <div class="footer-copyright">
       Copyright
       <a-icon type="copyright" />
-      {{ new Date().getFullYear()}} By xiaozhi. All rights reserved
+      {{ new Date().getFullYear()}} By JoeyZhou. All rights reserved
     </div>
   </div>
 </template>

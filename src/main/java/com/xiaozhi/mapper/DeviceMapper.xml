@@ -57,6 +57,7 @@
             sys_device
         <set>
             <if test="deviceName != null or deviceName != ''">deviceName = #{deviceName},</if>
+            <if test="modelId != null or modelId != ''">modelId = #{modelId},</if>
         </set>
         WHERE
             deviceId = #{deviceId}
