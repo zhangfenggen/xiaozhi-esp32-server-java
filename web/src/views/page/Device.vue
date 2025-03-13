@@ -57,11 +57,16 @@
             :scroll="{ x: 1200 }"
             size="middle"
           >
-            <a-button slot="footer" :loading="exportLoading" :disabled="true" @click="">
+            <a-button
+              slot="footer"
+              :loading="exportLoading"
+              :disabled="true"
+              @click=""
+            >
               导出
             </a-button>
             <template
-              v-for="col in ['deviceName', 'wifiName']"
+              v-for="col in ['deviceName']"
               :slot="col"
               slot-scope="text, record"
             >
@@ -83,7 +88,9 @@
                 >
                   <a-tooltip title="点击编辑" :mouseEnterDelay="0.5">
                     <span v-if="text">{{ text }}</span>
-                    <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                    <span v-else style="padding: 0 50px"
+                      >&nbsp;&nbsp;&nbsp;</span
+                    >
                   </a-tooltip>
                 </span>
                 <span v-else>{{ text }}</span>
@@ -92,29 +99,31 @@
             <template slot="roleName" slot-scope="text, record">
               <a-select
                 v-if="record.editable"
-                style="margin: -5px 0; text-align: center"
-                :value="record.roleId"
-                @change="
-                  (e) => inputEdit(e.target.value, record.deviceId, roleId)
-                "
+                style="margin: -5px 0; text-align: center; width: 100%"
+                :value="text"
+                @change="(value) => handleRoleChange(value, record.deviceId)"
               >
-                <a-select-option v-for="item in roleItems" :key="item.roleId" :value="item.roleId">
+                <a-select-option
+                  v-for="item in roleItems"
+                  :key="item.roleId"
+                  :value="item.roleId"
+                >
                   <span>{{ item.roleName }}</span>
                 </a-select-option>
               </a-select>
               <span
-                  v-else-if="editingKey === ''"
-                  @click="edit(record.deviceId)"
-                  style="cursor: pointer"
-                >
-                  <a-tooltip title="点击编辑" :mouseEnterDelay="0.5">
-                    <span v-if="text">{{ text }}</span>
-                    <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
-                  </a-tooltip>
-                </span>
+                v-else-if="editingKey === ''"
+                @click="edit(record.deviceId)"
+                style="cursor: pointer"
+              >
+                <a-tooltip :title="record.roleDesc" :mouseEnterDelay="0.5">
+                  <span v-if="text">{{ text }}</span>
+                  <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                </a-tooltip>
+              </span>
             </template>
-            <template slot="state" slot-scope="text, record">
-              <a-tag color="green" v-if="text === '1'">在线</a-tag>
+            <template slot="state" slot-scope="text">
+              <a-tag color="green" v-if="text === 1">在线</a-tag>
               <a-tag color="red" v-else>离线</a-tag>
             </template>
             <template slot="operation" slot-scope="text, record">
@@ -146,29 +155,29 @@
 </template>
 
 <script>
-import axios from '@/services/axios'
-import api from '@/services/api'
-import mixin from '@/mixins/index'
-
+import axios from "@/services/axios";
+import api from "@/services/api";
+import mixin from "@/mixins/index";
+import { message } from "ant-design-vue";
 export default {
   mixins: [mixin],
-  data () {
+  data() {
     return {
       // 查询框
       query: {
-        state: ""
+        state: "",
       },
       queryFilter: [
         {
-          label: '设备编号',
-          value: '',
-          index: 'deviceId'
+          label: "设备编号",
+          value: "",
+          index: "deviceId",
         },
         {
-          label: '设备名称',
-          value: '',
-          index: 'deviceName'
-        }
+          label: "设备名称",
+          value: "",
+          index: "deviceName",
+        },
       ],
       stateItems: [
         {
@@ -190,132 +199,186 @@ export default {
       // 表格数据
       tableColumns: [
         {
-          title: '设备编号',
-          dataIndex: 'deviceId',
-          scopedSlots: { customRender: 'deviceId' },
+          title: "设备编号",
+          dataIndex: "deviceId",
+          scopedSlots: { customRender: "deviceId" },
           width: 200,
-          fixed: 'left',
-          align: 'center'
+          fixed: "left",
+          align: "center",
         },
         {
-          title: '设备名称',
-          dataIndex: 'deviceName',
-          scopedSlots: { customRender: 'deviceName' },
+          title: "设备名称",
+          dataIndex: "deviceName",
+          scopedSlots: { customRender: "deviceName" },
           width: 100,
-          align: 'center'
+          align: "center",
         },
         {
-          title: 'WIFI名称',
-          dataIndex: 'wifiName',
-          scopedSlots: { customRender: 'wifiName' },
-          align: 'center',
-          ellipsis: true
+          title: "WIFI名称",
+          dataIndex: "wifiName",
+          scopedSlots: { customRender: "wifiName" },
+          align: "center",
+          ellipsis: true,
         },
         {
-          title: '设备角色',
-          dataIndex: 'roleName',
-          scopedSlots: { customRender: 'roleName' },
-          align: 'center'
+          title: "设备角色",
+          dataIndex: "roleName",
+          scopedSlots: { customRender: "roleName" },
+          align: "center",
         },
         {
-          title: 'Mac地址',
-          dataIndex: 'mac',
-          scopedSlots: { customRender: 'mac' },
-          align: 'center',
-          ellipsis: true
+          title: "Mac地址",
+          dataIndex: "mac",
+          scopedSlots: { customRender: "mac" },
+          align: "center",
+          ellipsis: true,
         },
         {
-          title: '设备状态',
-          dataIndex: 'state',
-          scopedSlots: { customRender: 'state' },
-          align: 'center'
+          title: "设备状态",
+          dataIndex: "state",
+          scopedSlots: { customRender: "state" },
+          align: "center",
         },
         {
-          title: '创建时间',
-          dataIndex: 'createTime',
-          scopedSlots: { customRender: 'createTime' },
-          align: 'center'
+          title: "创建时间",
+          dataIndex: "createTime",
+          scopedSlots: { customRender: "createTime" },
+          align: "center",
         },
         {
-          title: '活跃时间',
-          dataIndex: 'updateTime',
-          scopedSlots: { customRender: 'updateTime' },
-          align: 'center'
+          title: "活跃时间",
+          dataIndex: "updateTime",
+          scopedSlots: { customRender: "updateTime" },
+          align: "center",
         },
         {
-          title: '操作',
-          dataIndex: 'operation',
-          scopedSlots: { customRender: 'operation' },
+          title: "操作",
+          dataIndex: "operation",
+          scopedSlots: { customRender: "operation" },
           width: 110,
-          align: 'center',
-          fixed: 'right'
-        }
+          align: "center",
+          fixed: "right",
+        },
       ],
       roleItems: [],
       data: [],
       cacheData: [],
       // 操作单元格是否可编辑
-      editingKey: '',
+      editingKey: "",
       // 审核链接
-      verifyCode: ''
-    }
+      verifyCode: "",
+    };
   },
-  mounted () {
-    this.getData()
-    this.getRole()
+  mounted() {
+    this.getData();
+    this.getRole();
   },
   methods: {
     /* 查询参数列表 */
     getData() {
-      this.loading = true
-      this.editingKey = ''
+      this.loading = true;
+      this.editingKey = "";
       axios
         .get({
           url: api.device.query,
           data: {
             start: this.pagination.page,
             limit: this.pagination.pageSize,
-            ...this.query
-          }
+            ...this.query,
+          },
         })
         .then((res) => {
-          this.loading = false
+          this.loading = false;
           if (res.code === 200) {
-            this.data = res.data.list
-            this.cacheData = this.data.map((item) => ({ ...item }))
-            this.pagination.total = res.data.total
+            this.data = res.data.list;
+            this.cacheData = this.data.map((item) => ({ ...item }));
+            this.pagination.total = res.data.total;
           } else {
-            this.$message.error(res.message)
+            this.$message.error(res.message);
           }
         })
         .catch(() => {
-          this.loading = false
-          this.$message.error('服务器维护/重启中，请稍后再试')
-        })
+          this.loading = false;
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        });
     },
     // 添加设备
     addDevice(value, event) {
-      if (value === '') {
-        this.$message.info('请输入设备编号')
-        return
+      if (value === "") {
+        this.$message.info("请输入设备编号");
+        return;
       }
       axios
         .post({
           url: api.device.add,
           data: {
-            code: value
-          }
+            code: value,
+          },
         })
         .then((res) => {
           if (res.code === 200) {
-            this.getData()
+            this.getData();
           } else {
-            this.$message.error(res.message)
+            this.$message.error(res.message);
           }
         })
         .catch(() => {
-          this.$message.error('服务器维护/重启中，请稍后再试')
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        });
+    },
+    // 处理角色选择变更
+    handleRoleChange(value, key) {
+      // 查找对应的角色名称
+      const role = this.roleItems.find(item => item.roleId === value);
+      const roleName = role ? role.roleName : '';
+      
+      // 更新数据
+      const data = this.editLine(key);
+      data.target.roleId = value;
+      data.target.roleName = roleName;
+      this.data = [...this.data]; // 强制更新视图
+    },
+    // 更新设备消息
+    update(val, key) {
+      if (key) {
+        this.loading = true;
+        delete val.editable;
+      }
+      axios
+        .post({
+          url: api.device.update,
+          data: {
+            deviceId: val.deviceId,
+            deviceName: val.deviceName,
+            modelId: val.modelId,
+            roleId: val.roleId
+          },
         })
+        .then((res) => {
+          if (res.code === 200) {
+            if (key) {
+              const data = this.editLine(key);
+              this.updateSuccess(data);
+              this.loading = false;
+            }
+            message.success("修改成功");
+          } else {
+            if (key) {
+              this.loading = false;
+              const data = this.editLine(key);
+              this.updateFailed(data, key);
+            }
+            this.$message.error(res.message);
+          }
+        })
+        .catch(() => {
+          if (key) {
+            const data = this.editLine(key);
+            this.updateFailed(data, key);
+            this.loading = false;
+          }
+          message.error("服务器维护/重启中,请稍后再试");
+        });
     },
     // 获取角色列表
     getRole() {
@@ -324,20 +387,20 @@ export default {
           url: api.role.query,
           data: {
             start: 1,
-            limit: 1000
-          }
+            limit: 1000,
+          },
         })
         .then((res) => {
           if (res.code === 200) {
-            this.roleItems = res.data.list
+            this.roleItems = res.data.list;
           } else {
-            this.$message.error(res.message)
+            this.$message.error(res.message);
           }
         })
         .catch(() => {
-          this.$message.error('服务器维护/重启中，请稍后再试')
-        })
-    }
-  }
-}
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        });
+    },
+  },
+};
 </script>
