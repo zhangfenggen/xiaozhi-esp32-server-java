@@ -5,7 +5,7 @@ package com.xiaozhi.common.exception;
  * 
  * @author Joey
  */
-@SuppressWarnings("serial")
+
 public class UserPasswordNotMatchException extends Exception {
   public UserPasswordNotMatchException() {
   }

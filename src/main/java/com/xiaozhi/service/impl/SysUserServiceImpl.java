@@ -3,7 +3,6 @@ package com.xiaozhi.service.impl;
 import com.xiaozhi.common.exception.UserPasswordNotMatchException;
 import com.xiaozhi.common.exception.UsernameNotFoundException;
 import com.xiaozhi.dao.UserMapper;
-import com.xiaozhi.entity.SysModelConfig;
 import com.xiaozhi.entity.SysUser;
 import com.xiaozhi.security.AuthenticationService;
 import com.xiaozhi.service.SysUserService;
@@ -85,29 +84,6 @@ public class SysUserServiceImpl implements SysUserService {
   @Transactional
   public int update(SysUser user) {
     return userMapper.update(user);
-  }
-
-  /**
-   * 添加模型配置
-   * 
-   * @param SysModelConfig
-   * @return
-   */
-  @Override
-  @Transactional
-  public int addModel(SysModelConfig config) {
-    return userMapper.addModel(config);
-  }
-
-  /**
-   * 修改模型配置
-   * @param SysModelConfig
-   * @return
-   */
-  @Override
-  @Transactional
-  public int updateModel(SysModelConfig config) {
-    return userMapper.updateModel(config);
   }
 
 }

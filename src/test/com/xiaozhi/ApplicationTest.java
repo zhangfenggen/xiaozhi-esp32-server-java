@@ -18,9 +18,8 @@ public class ApplicationTest {
         config.setDebug(true);
 
         Llm llm = new OllamaLlm(config);
-        llm.chatStream("你是谁？", (context, response) -> System.out.println(response.getMessage().getContent()));
+        llm.chatStream("你是谁？", (context, response) -> System.out.println(response.getMessage()));
 
-        Thread.sleep(2000);
     }
 
 }

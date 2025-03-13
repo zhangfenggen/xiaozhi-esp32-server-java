@@ -95,8 +95,6 @@ public class UserController {
     @PostMapping("/update")
     public AjaxResult update(SysUser user, HttpServletRequest request) {
         try {
-            HttpSession session = request.getSession();
-            SysUser sysUser = (SysUser) session.getAttribute(SysUserService.USER_SESSIONKEY);
             SysUser userQuery = userService.query(user.getUsername());
             if (StringUtils.isEmpty(userQuery)) {
                 return AjaxResult.error("无此用户，操作失败");

@@ -105,15 +105,19 @@ CREATE TABLE `xiaozhi`.`sys_code` (
   PRIMARY KEY (`codeId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='验证码表';
 
+-- xiaozhi.sys_model_config definition
+
 CREATE TABLE `xiaozhi`.`sys_model_config` (
-  `configId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `modelId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `userId` int NOT NULL COMMENT '用户ID',
-  `model` varchar(50) NOT NULL COMMENT '模型名称',
+  `type` varchar(20) NOT NULL COMMENT '模型类型（openai、qwen……）',
+  `modelName` varchar(50) NOT NULL COMMENT '模型名称',
   `apiKey` varchar(100) DEFAULT NULL COMMENT 'API密钥',
   `apiSecret` varchar(100) DEFAULT NULL COMMENT 'API密钥',
   `apiUrl` varchar(255) DEFAULT NULL COMMENT 'API地址',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`configId`),
-  KEY `userId` (`userId`)
+  KEY `userId` (`userId`),
+  KEY `modelId` (`modelId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='配置表';
 

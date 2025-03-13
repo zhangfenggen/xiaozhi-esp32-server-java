@@ -2,7 +2,6 @@ package com.xiaozhi.service;
 
 import com.xiaozhi.common.exception.UserPasswordNotMatchException;
 import com.xiaozhi.common.exception.UsernameNotFoundException;
-import com.xiaozhi.entity.SysModelConfig;
 import com.xiaozhi.entity.SysUser;
 
 /**
@@ -48,19 +47,4 @@ public interface SysUserService {
    */
   public int update(SysUser user);
 
-  /**
-   * 添加模型配置
-   * 
-   * @param SysModelConfig
-   * @return
-   */
-  public int addModel(SysModelConfig config);
-
-  /**
-   * 修改模型配置
-   * 
-   * @param SysModelConfig
-   * @return
-   */
-  public int updateModel(SysModelConfig config);
 }

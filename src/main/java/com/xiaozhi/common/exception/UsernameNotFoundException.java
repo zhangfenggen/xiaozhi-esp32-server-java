@@ -5,7 +5,6 @@ package com.xiaozhi.common.exception;
  * 
  * @author Joey
  */
-@SuppressWarnings("serial")
 public class UsernameNotFoundException extends Exception {
   public UsernameNotFoundException() {
   }

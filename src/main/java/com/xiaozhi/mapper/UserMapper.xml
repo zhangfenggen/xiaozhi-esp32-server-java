@@ -66,21 +66,4 @@
             username = #{username}
     </update>
 
-    <insert id="addModel" parameterType="com.xiaozhi.entity.SysModelConfig">
-        INSERT INTO sys_model_config (userId, model, apiKey, apiSecret, apiUrl)
-        VALUES (#{userId}, #{model}, #{apiKey}, #{apiSecret}, #{apiUrl})
-    </insert>
-
-    <update id="updateModel" parameterType="com.xiaozhi.entity.SysModelConfig">
-        UPDATE
-            sys_model_config
-        <set>
-            <if test="model != null or model == ''">model = #{model},</if>
-            <if test="apiKey != null or apiKey == ''">apiKey = #{apiKey},</if>
-            <if test="apiSecret != null or apiSecret == ''">apiSecret = #{apiSecret},</if>
-            <if test="apiUrl != null or apiUrl == ''">apiUrl = #{apiUrl},</if>
-        </set>
-        WHERE
-            configId = #{configId}
-    </update>
 </mapper>
