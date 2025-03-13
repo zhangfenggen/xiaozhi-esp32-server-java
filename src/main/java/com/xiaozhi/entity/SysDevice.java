@@ -1,5 +1,8 @@
 package com.xiaozhi.entity;
 
+import java.util.Date;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
@@ -42,9 +45,16 @@ public class SysDevice extends SysRole {
      */
     private String audioPath;
 
+    /**
+     * 最后在线时间
+     */
+    @JsonFormat(timezone = "GMT+8", pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date lastLogin;
+
     public Integer getModelId() {
         return modelId;
     }
+
     public void setModelId(Integer modelId) {
         this.modelId = modelId;
     }
@@ -105,10 +115,18 @@ public class SysDevice extends SysRole {
         this.audioPath = audioPath;
     }
 
+    public Date getLastLogin() {
+        return lastLogin;
+    }
+
+    public void setLastLogin(Date lastLogin) {
+        this.lastLogin = lastLogin;
+    }
+
     @Override
     public String toString() {
         return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", deviceName=" + deviceName
                 + ", state=" + state + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath
-                + "]";
+                + ", lastLogin=" + lastLogin + "]";
     }
 }

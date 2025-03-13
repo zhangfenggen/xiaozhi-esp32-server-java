@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,6 +81,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String payload = message.getPayload();
         logger.info("收到文本消息 - SessionId: {}, Message: {}", session.getId(), payload);
+
+        // 更新设备在线时间
+        String deviceId = SESSION_DEVICES.get(session.getId());
+        if (deviceId != null) {
+            SysDevice device = new SysDevice();
+            device.setDeviceId(deviceId);
+            device.setLastLogin(new Date());
+            deviceService.update(device);
+        }
 
         // 解析JSON消息
         try {
@@ -143,6 +153,13 @@ public class WebSocketHandler extends TextWebSocketHandler {
         String deviceId = SESSION_DEVICES.remove(sessionId);
 
         if (deviceId != null) {
+            // 更新设备在线时间
+            if (deviceId != null) {
+                SysDevice device = new SysDevice();
+                device.setDeviceId(deviceId);
+                device.setLastLogin(new Date());
+                deviceService.update(device);
+            }
             DEVICE_SESSIONS.remove(deviceId);
             logger.info("WebSocket连接关闭 - SessionId: {}, DeviceId: {}, Status: {}", sessionId, deviceId, status);
         } else {

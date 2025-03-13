@@ -214,6 +214,12 @@ export default {
           align: "center",
         },
         {
+          title: "设备角色",
+          dataIndex: "roleName",
+          scopedSlots: { customRender: "roleName" },
+          align: "center",
+        },
+        {
           title: "WIFI名称",
           dataIndex: "wifiName",
           scopedSlots: { customRender: "wifiName" },
@@ -221,15 +227,9 @@ export default {
           ellipsis: true,
         },
         {
-          title: "设备角色",
-          dataIndex: "roleName",
-          scopedSlots: { customRender: "roleName" },
-          align: "center",
-        },
-        {
-          title: "Mac地址",
-          dataIndex: "mac",
-          scopedSlots: { customRender: "mac" },
+          title: "IP地址",
+          dataIndex: "ip",
+          scopedSlots: { customRender: "ip" },
           align: "center",
           ellipsis: true,
         },
@@ -240,15 +240,15 @@ export default {
           align: "center",
         },
         {
-          title: "创建时间",
-          dataIndex: "createTime",
-          scopedSlots: { customRender: "createTime" },
+          title: "活跃时间",
+          dataIndex: "lastLogin",
+          scopedSlots: { customRender: "lastLogin" },
           align: "center",
         },
         {
-          title: "活跃时间",
-          dataIndex: "updateTime",
-          scopedSlots: { customRender: "updateTime" },
+          title: "创建时间",
+          dataIndex: "createTime",
+          scopedSlots: { customRender: "createTime" },
           align: "center",
         },
         {
