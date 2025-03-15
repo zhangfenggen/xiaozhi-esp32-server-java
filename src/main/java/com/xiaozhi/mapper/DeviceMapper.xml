@@ -7,16 +7,22 @@
     </sql>
 
     <sql id="roleSql">
-        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.userId, sys_role.createTime
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc
+    </sql>
+
+    <sql id="modelSql">
+        sys_model.modelId, sys_model.modelName, sys_model.modelDesc
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysDevice">
         SELECT
         <include refid="deviceSql"></include>,
-        <include refid="roleSql"></include>
+        <include refid="roleSql"></include>,
+        <include refid="modelSql"></include>
         FROM
             sys_device
             LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
+            LEFT JOIN sys_model ON sys_device.modelId = sys_model.modelId
         WHERE
             sys_device.userId = #{userId}
         <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
@@ -61,9 +67,9 @@
         UPDATE
             sys_device
         <set>
-            <if test="deviceName != null or deviceName != ''">deviceName = #{deviceName},</if>
-            <if test="modelId != null or modelId != ''">modelId = #{modelId},</if>
-            <if test="roleId != null or roleId != ''">roleId = #{roleId},</if>
+            <if test="deviceName != null and deviceName != ''">deviceName = #{deviceName},</if>
+            <if test="modelId != null and modelId != ''">modelId = #{modelId},</if>
+            <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
         </set>
         WHERE
             deviceId = #{deviceId}

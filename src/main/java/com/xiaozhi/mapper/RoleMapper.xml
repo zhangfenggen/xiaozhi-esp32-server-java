@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.RoleMapper">
 
     <sql id="roleSql">
-        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.userId, sys_role.createTime
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.userId, sys_role.state, sys_role.createTime
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysRole">
@@ -13,6 +13,7 @@
             sys_role
         WHERE
             sys_role.userId = #{userId}
+            AND sys_role.state = 1
         <if test="roleId != null and roleId != ''">AND roleId = #{roleId}</if>
         <if test="roleName != null and roleName != ''">AND roleName LIKE CONCAT('%', #{roleName}, '%')</if>
     </select>
@@ -21,8 +22,8 @@
         UPDATE
             sys_role
         <set>
-            <if test="roleName != null or roleName != ''">roleName = #{roleName},</if>
-            <if test="roleDesc != null or roleDesc != ''">roleDesc = #{roleDesc},</if>
+            <if test="roleName != null and roleName != ''">roleName = #{roleName},</if>
+            <if test="roleDesc != null and roleDesc != ''">roleDesc = #{roleDesc},</if>
         </set>
         WHERE
             roleId = #{roleId}

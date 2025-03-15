@@ -345,7 +345,6 @@ export default {
           },
         })
         .then((res) => {
-          this.loading = false;
           this.busy = true;
           if (res.code === 200) {
             if (res.data.length === 0) {
@@ -379,8 +378,10 @@ export default {
         })
         .catch(() => {
           this.busy = true;
-          this.loading = false;
-        });
+        })
+        .finally(() => {
+          this.loading = false
+        })
     },
   },
 };

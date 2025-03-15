@@ -6,13 +6,18 @@ package com.xiaozhi.entity;
  * @author Joey
  * 
  */
-public class SysModelConfig extends Base {
+public class SysModel extends Base {
     private Integer modelId;
 
     /**
      * 模型名称
      */
     private String modelName;
+
+    /**
+     * 模型描述
+     */
+    private String modelDesc;
 
     /**
      * 模型类型（openai、qwen……）
@@ -26,6 +31,8 @@ public class SysModelConfig extends Base {
     private String apiSecret;
 
     private String apiUrl;
+
+    private String state;
 
     public Integer getModelId() {
         return modelId;
@@ -41,6 +48,14 @@ public class SysModelConfig extends Base {
 
     public void setModelName(String modelName) {
         this.modelName = modelName;
+    }
+
+    public String getModelDesc() {
+        return modelDesc;
+    }
+
+    public void setModelDesc(String modelDesc) {
+        this.modelDesc = modelDesc;
     }
 
     public String getType() {
@@ -81,5 +96,13 @@ public class SysModelConfig extends Base {
 
     public void setApiUrl(String apiUrl) {
         this.apiUrl = apiUrl;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 }

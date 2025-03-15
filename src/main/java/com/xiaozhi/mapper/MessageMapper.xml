@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.MessageMapper">
 
     <sql id="messageSql">
-        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.audioPath, sys_message.createTime
+        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.audioPath, sys_message.state, sys_message.createTime
     </sql>
 
     <sql id="deviceSql">
@@ -20,6 +20,7 @@
             LEFT JOIN sys_device ON sys_message.deviceId = sys_device.deviceId
         WHERE
             sys_device.userId = #{userId}
+            AND sys_message.state = 1
             <if test="startTime != null and startTime != ''">
                 AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
             </if>

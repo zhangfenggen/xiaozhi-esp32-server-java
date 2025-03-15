@@ -20,11 +20,12 @@ export default {
     query: "/api/message/query",
     export: "/api/message/export"
   },
+  config: "/api/config",
   model: {
     add: "/api/model/add",
     query: "/api/model/query",
-    update: "/api/model/update"
+    update: "/api/model/update",
+    delete: "/api/model/delete"
   },
-  config: "/api/config",
   uploadAvatar: "/api/uploadAvatar"
 };

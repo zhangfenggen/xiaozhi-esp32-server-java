@@ -38,6 +38,12 @@ export default new Router({
           meta: { title: "对话管理", icon: "message" }
         },
         {
+          path: "/mmodel",
+          component: resolve => require(["@/views/page/Model"], resolve),
+          name: "model",
+          meta: { title: "模型配置", icon: "robot" }
+        },
+        {
           path: "/setting",
           component: resolve => require(["@/views/common/PageView"], resolve),
           name: "Setting",

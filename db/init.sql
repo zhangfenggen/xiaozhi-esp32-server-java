@@ -31,7 +31,7 @@ CREATE TABLE `xiaozhi`.`sys_user` (
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `tel` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1',
+  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '1-正常 0-禁用',
   `loginIp` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isAdmin` enum('1','0') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `loginTime` datetime DEFAULT NULL,
@@ -75,6 +75,7 @@ CREATE TABLE `xiaozhi`.`sys_message` (
   `roleId` bigint COMMENT 'AI扮演的角色ID',
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT '消息内容',
   `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '语音文件路径',
+  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '状态：1-有效，0-删除',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '消息发送时间',
   PRIMARY KEY (`messageId`),
   KEY `deviceId` (`deviceId`),
@@ -87,6 +88,7 @@ CREATE TABLE `xiaozhi`.`sys_role` (
   `roleId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '角色ID，主键',
   `roleName` varchar(100) NOT NULL COMMENT '角色名称',
   `roleDesc` varchar(255) DEFAULT NULL COMMENT '角色描述',
+  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '状态：1-启用，0-禁用',
   `userId` int NOT NULL COMMENT '创建人',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`roleId`),
@@ -105,18 +107,21 @@ CREATE TABLE `xiaozhi`.`sys_code` (
   PRIMARY KEY (`codeId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='验证码表';
 
--- xiaozhi.sys_model_config definition
+-- xiaozhi.sys_model definition
 
-CREATE TABLE `xiaozhi`.`sys_model_config` (
+CREATE TABLE `xiaozhi`.`sys_model` (
   `modelId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `userId` int NOT NULL COMMENT '用户ID',
   `type` varchar(20) NOT NULL COMMENT '模型类型（openai、qwen……）',
   `modelName` varchar(50) NOT NULL COMMENT '模型名称',
+  `modelDesc` TEXT DEFAULT NULL COMMENT '模型描述',
+  `appId` varchar(100) DEFAULT NULL COMMENT 'APP ID',
   `apiKey` varchar(100) DEFAULT NULL COMMENT 'API密钥',
   `apiSecret` varchar(100) DEFAULT NULL COMMENT 'API密钥',
   `apiUrl` varchar(255) DEFAULT NULL COMMENT 'API地址',
+  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '状态：1-启用，0-禁用',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`configId`),
+  PRIMARY KEY (`modelId`),
   KEY `userId` (`userId`),
   KEY `modelId` (`modelId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='配置表';

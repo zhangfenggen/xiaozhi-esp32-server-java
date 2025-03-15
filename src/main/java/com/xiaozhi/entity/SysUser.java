@@ -58,7 +58,7 @@ public class SysUser extends Base implements Serializable {
     /**
      * 用户状态 0、被禁用，1、正常使用
      */
-    private Integer state;
+    private String state;
 
     /**
      * 用户类型 0、普通管理（拥有标准权限），1、超级管理（拥有所有权限）
@@ -118,11 +118,11 @@ public class SysUser extends Base implements Serializable {
         this.avatar = avatar;
     }
 
-    public Integer getState() {
+    public String getState() {
         return state;
     }
 
-    public void setState(Integer state) {
+    public void setState(String state) {
         this.state = state;
     }
 

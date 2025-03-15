@@ -30,7 +30,7 @@
               <a-col :xxl="6" :xl="6" :lg="12" :xs="24">
                 <a-form-item label="状态">
                   <a-select v-model="query.state" @change="getData()">
-                    <a-select-option v-for="item in stateItems" :key="item.key">
+                    <a-select-option v-for="item in stateItems" :key="item.value">
                       <span>{{ item.label }}</span>
                     </a-select-option>
                   </a-select>
@@ -101,7 +101,8 @@
                 v-if="record.editable"
                 style="margin: -5px 0; text-align: center; width: 100%"
                 :value="text"
-                @change="(value) => handleRoleChange(value, record.deviceId)"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'role')"
+                dropdownClassName="centered-dropdown"
               >
                 <a-select-option
                   v-for="item in roleItems"
@@ -117,6 +118,33 @@
                 style="cursor: pointer"
               >
                 <a-tooltip :title="record.roleDesc" :mouseEnterDelay="0.5">
+                  <span v-if="text">{{ text }}</span>
+                  <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                </a-tooltip>
+              </span>
+            </template>
+            <template slot="modelName" slot-scope="text, record">
+              <a-select
+                v-if="record.editable"
+                style="margin: -5px 0; text-align: center; width: 100%"
+                :value="text"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'model')"
+                dropdownClassName="centered-dropdown"
+              >
+                <a-select-option
+                  v-for="item in modelItems"
+                  :key="item.modelId"
+                  :value="item.modelId"
+                >
+                  <span>{{ item.modelName }}</span>
+                </a-select-option>
+              </a-select>
+              <span
+                v-else-if="editingKey === ''"
+                @click="edit(record.deviceId)"
+                style="cursor: pointer"
+              >
+                <a-tooltip :title="record.modelDesc" :mouseEnterDelay="0.5">
                   <span v-if="text">{{ text }}</span>
                   <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
                 </a-tooltip>
@@ -220,6 +248,12 @@ export default {
           align: "center",
         },
         {
+          title: "模型",
+          dataIndex: "modelName",
+          scopedSlots: { customRender: "modelName" },
+          align: "center",
+        },
+        {
           title: "WIFI名称",
           dataIndex: "wifiName",
           scopedSlots: { customRender: "wifiName" },
@@ -243,12 +277,14 @@ export default {
           title: "活跃时间",
           dataIndex: "lastLogin",
           scopedSlots: { customRender: "lastLogin" },
+          width: 150,
           align: "center",
         },
         {
           title: "创建时间",
           dataIndex: "createTime",
           scopedSlots: { customRender: "createTime" },
+          width: 150,
           align: "center",
         },
         {
@@ -261,6 +297,7 @@ export default {
         },
       ],
       roleItems: [],
+      modelItems: [],
       data: [],
       cacheData: [],
       // 操作单元格是否可编辑
@@ -272,6 +309,7 @@ export default {
   mounted() {
     this.getData();
     this.getRole();
+    this.getModel();
   },
   methods: {
     /* 查询参数列表 */
@@ -288,7 +326,6 @@ export default {
           },
         })
         .then((res) => {
-          this.loading = false;
           if (res.code === 200) {
             this.data = res.data.list;
             this.cacheData = this.data.map((item) => ({ ...item }));
@@ -298,9 +335,11 @@ export default {
           }
         })
         .catch(() => {
-          this.loading = false;
           this.$message.error("服务器维护/重启中，请稍后再试");
-        });
+        })
+        .finally(() => {
+          this.loading = false
+        })
     },
     // 添加设备
     addDevice(value, event) {
@@ -326,16 +365,31 @@ export default {
           this.$message.error("服务器维护/重启中，请稍后再试");
         });
     },
-    // 处理角色选择变更
-    handleRoleChange(value, key) {
-      // 查找对应的角色名称
-      const role = this.roleItems.find(item => item.roleId === value);
-      const roleName = role ? role.roleName : '';
+    // 选择变更处理函数
+    handleSelectChange(value, key, type) {
+      // 根据类型确定要使用的数据源和字段名
+      let items, idField, nameField;
+      
+      if (type === 'role') {
+        items = this.roleItems;
+        idField = 'roleId';
+        nameField = 'roleName';
+      } else if (type === 'model') {
+        items = this.modelItems;
+        idField = 'modelId';
+        nameField = 'modelName';
+      } else {
+        return; // 不支持的类型，直接返回
+      }
+      
+      // 查找对应的项
+      const item = items.find(item => item[idField] === value);
+      const name = item ? item[nameField] : '';
       
       // 更新数据
       const data = this.editLine(key);
-      data.target.roleId = value;
-      data.target.roleName = roleName;
+      data.target[idField] = value;
+      data.target[nameField] = name;
       this.data = [...this.data]; // 强制更新视图
     },
     // 更新设备消息
@@ -359,12 +413,10 @@ export default {
             if (key) {
               const data = this.editLine(key);
               this.updateSuccess(data);
-              this.loading = false;
             }
             message.success("修改成功");
           } else {
             if (key) {
-              this.loading = false;
               const data = this.editLine(key);
               this.updateFailed(data, key);
             }
@@ -375,10 +427,12 @@ export default {
           if (key) {
             const data = this.editLine(key);
             this.updateFailed(data, key);
-            this.loading = false;
           }
           message.error("服务器维护/重启中,请稍后再试");
-        });
+        })
+        .finally(() => {
+          this.loading = false
+        })
     },
     // 获取角色列表
     getRole() {
@@ -401,6 +455,49 @@ export default {
           this.$message.error("服务器维护/重启中，请稍后再试");
         });
     },
+    // 获取模型列表
+    getModel() {
+      axios
+        .get({
+          url: api.model.query,
+          data: {
+            start: 1,
+            limit: 1000,
+          },
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.modelItems = res.data.list;
+          } else {
+            this.$message.error(res.message);
+          }
+        })
+        .catch(() => {
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        });
+    }
   },
 };
 </script>
+<style>
+/* 使下拉框选项居中 */
+.centered-dropdown .ant-select-dropdown-menu-item {
+  text-align: center;
+}
+
+.centered-option {
+  text-align: center;
+}
+
+/* 确保下拉框中的文本居中 */
+.ant-select-selection-selected-value {
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* 查询框中的下拉框保持默认对齐方式 */
+.table-search .ant-select-selection-selected-value {
+  text-align: left !important;
+}
+
+</style>

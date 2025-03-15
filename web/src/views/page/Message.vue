@@ -55,7 +55,7 @@
             :data-source="data"
             :loading="loading"
             :pagination="pagination"
-            :scroll="{ x: 1200 }"
+            :scroll="{ x: 800 }"
             size="middle"
           >
             <a-button
@@ -179,7 +179,6 @@ export default {
           },
         })
         .then((res) => {
-          this.loading = false;
           if (res.code === 200) {
             this.data = res.data.list;
             this.pagination.total = res.data.total;
@@ -188,9 +187,11 @@ export default {
           }
         })
         .catch(() => {
-          this.loading = false;
           this.$message.error("服务器维护/重启中,请稍后再试");
-        });
+        })
+        .finally(() => {
+          this.loading = false
+        })
     },
   },
 };

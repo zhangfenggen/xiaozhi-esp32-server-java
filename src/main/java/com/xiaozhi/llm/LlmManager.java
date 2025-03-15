@@ -14,8 +14,8 @@ import com.agentsflex.llm.qwen.QwenLlm;
 import com.agentsflex.llm.qwen.QwenLlmConfig;
 import com.agentsflex.llm.spark.SparkLlm;
 import com.agentsflex.llm.spark.SparkLlmConfig;
-import com.xiaozhi.entity.SysModelConfig;
-import com.xiaozhi.service.SysModelConfigService;
+import com.xiaozhi.entity.SysModel;
+import com.xiaozhi.service.SysModelService;
 
 /**
  * 模型管理
@@ -23,7 +23,7 @@ import com.xiaozhi.service.SysModelConfigService;
 
 public class LlmManager {
     @Autowired
-    private SysModelConfigService modelConfigService;
+    private SysModelService modelConfigService;
 
     // LLM 实例缓存
     private Map<String, Map<Integer, Llm>> deviceLlmInstances = new ConcurrentHashMap<>();
@@ -38,7 +38,7 @@ public class LlmManager {
     // 创建 LLM 实例
     private Llm createLlmInstance(Integer modelId) {
         // 根据模型ID查询模型配置
-        SysModelConfig config = modelConfigService.selectModelConfigByModelId(modelId);
+        SysModel config = modelConfigService.selectModelByModelId(modelId);
         switch (config.getType().toLowerCase()) {
             case "openai":
                 OpenAILlmConfig openAIConfig = new OpenAILlmConfig();

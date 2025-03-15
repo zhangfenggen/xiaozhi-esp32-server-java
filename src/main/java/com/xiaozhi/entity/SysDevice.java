@@ -20,6 +20,10 @@ public class SysDevice extends SysRole {
 
     private Integer modelId;
 
+    private String modelName;
+
+    private String modelDesc;
+
     /**
      * 设备名称
      */
@@ -28,7 +32,7 @@ public class SysDevice extends SysRole {
     /**
      * 设备状态
      */
-    private Integer state;
+    private String state;
 
     /**
      * 设备对话次数
@@ -59,6 +63,22 @@ public class SysDevice extends SysRole {
         this.modelId = modelId;
     }
 
+    public String getModelName() {
+        return modelName;
+    }
+
+    public void setModelName(String modelName) {
+        this.modelName = modelName;
+    }
+
+    public String getModelDesc() {
+        return modelDesc;
+    }
+
+    public void setModelDesc(String modelDesc) {
+        this.modelDesc = modelDesc;
+    }
+
     public String getDeviceId() {
         return deviceId;
     }
@@ -83,11 +103,11 @@ public class SysDevice extends SysRole {
         this.deviceName = deviceName;
     }
 
-    public Integer getState() {
+    public String getState() {
         return state;
     }
 
-    public void setState(Integer state) {
+    public void setState(String state) {
         this.state = state;
     }
 

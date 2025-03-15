@@ -24,6 +24,12 @@ public class SysMessage extends SysDevice {
      */
     private String audioPath;
 
+    /**
+     * 语音状态
+     * 
+     */
+    private String state;
+
     public Integer getMessageId() {
         return this.messageId;
     }
@@ -54,6 +60,14 @@ public class SysMessage extends SysDevice {
 
     public void setAudioPath(String audioPath) {
         this.audioPath = audioPath;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
 }

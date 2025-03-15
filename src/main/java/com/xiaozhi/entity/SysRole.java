@@ -16,6 +16,8 @@ public class SysRole extends Base {
 
     private String roleDesc;
 
+    private String state;
+
     public Integer getRoleId() {
         return roleId;
     }
@@ -38,5 +40,13 @@ public class SysRole extends Base {
 
     public void setRoleDesc(String roleDesc) {
         this.roleDesc = roleDesc;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 }

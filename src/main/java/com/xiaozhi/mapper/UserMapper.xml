@@ -55,12 +55,12 @@
         UPDATE
             sys_user
         <set>
-            <if test="name != null or name == ''">`name` = #{name},</if>
-            <if test="tel != null or tel == ''">tel = #{tel},</if>
-            <if test="email != null or email == ''">email = #{email},</if>
-            <if test="password != null or password == ''">password = #{password},</if>
-            <if test="avatar != null or avatar != ''">avatar = #{avatar},</if>
-            <if test="state != null or state == ''">state = ${state},</if>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="tel != null and tel != ''">tel = #{tel},</if>
+            <if test="email != null and email != ''">email = #{email},</if>
+            <if test="password != null and password != ''">password = #{password},</if>
+            <if test="avatar != null and avatar != ''">avatar = #{avatar},</if>
+            <if test="state != null and state != ''">state = ${state},</if>
         </set>
         WHERE
             username = #{username}
