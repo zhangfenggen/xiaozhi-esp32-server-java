@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import com.agentsflex.core.llm.Llm;
 import com.agentsflex.llm.ollama.OllamaLlm;
@@ -20,7 +21,7 @@ import com.xiaozhi.service.SysModelService;
 /**
  * 模型管理
  */
-
+@Service
 public class LlmManager {
     @Autowired
     private SysModelService modelConfigService;
@@ -61,6 +62,7 @@ public class LlmManager {
             default:
                 OllamaLlmConfig ollamaConfig = new OllamaLlmConfig();
                 ollamaConfig.setModel(config.getModelName());
+                ollamaConfig.setEndpoint(config.getApiUrl());
                 return new OllamaLlm(ollamaConfig);
         }
 

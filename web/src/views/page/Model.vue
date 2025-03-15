@@ -101,7 +101,7 @@
                     <!-- 根据选择的模型类别动态显示参数配置 -->
                     <template v-for="field in currentTypeFields">
                       <a-col :key="field.name" :xl="field.span || 12" :lg="12" :xs="24">
-                        <a-form-item :label="field.label">
+                        <a-form-item :label="field.label" style="margin-bottom: 24px">
                           <a-input v-decorator="[
                             field.name,
                             { rules: [{ required: field.required, message: `请输入${field.label}` }] }
@@ -424,7 +424,4 @@ export default {
   text-align: center;
 }
 
-.ant-form-horizontal>>>.ant-form-item {
-  margin-bottom: 24px;
-}
 </style>

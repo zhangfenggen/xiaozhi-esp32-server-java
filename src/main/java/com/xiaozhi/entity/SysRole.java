@@ -22,31 +22,35 @@ public class SysRole extends Base {
         return roleId;
     }
 
-    public void setRoleId(Integer roleId) {
+    public SysRole setRoleId(Integer roleId) {
         this.roleId = roleId;
+        return this;
     }
 
     public String getRoleName() {
         return roleName;
     }
 
-    public void setRoleName(String roleName) {
+    public SysRole setRoleName(String roleName) {
         this.roleName = roleName;
+        return this;
     }
 
     public String getRoleDesc() {
         return roleDesc;
     }
 
-    public void setRoleDesc(String roleDesc) {
+    public SysRole setRoleDesc(String roleDesc) {
         this.roleDesc = roleDesc;
+        return this;
     }
 
     public String getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public SysRole setState(String state) {
         this.state = state;
+        return this;
     }
 }

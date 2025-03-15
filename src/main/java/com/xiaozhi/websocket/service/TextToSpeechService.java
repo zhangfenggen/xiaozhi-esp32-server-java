@@ -38,6 +38,9 @@ public class TextToSpeechService {
      * @return 生成的MP3文件路径
      */
     public String textToSpeech(String message, int sampleRate, int channels) throws Exception {
+
+        // 获取角色
+
         // 获取中文语音
         Voice voice = TTSVoice.provides().stream()
                 .filter(v -> v.getShortName().equals("zh-CN-XiaoyiNeural"))
@@ -58,6 +61,7 @@ public class TextToSpeechService {
     private String convertTextToSpeech(Voice voice, String message) {
         TTS ttsEngine = new TTS(voice, message);
         String fileName = ttsEngine.findHeadHook()
+                .storage(filePath)
                 .isRateLimited(isRateLimited)
                 .overwrite(false)
                 .formatMp3()

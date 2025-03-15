@@ -59,94 +59,106 @@ public class SysDevice extends SysRole {
         return modelId;
     }
 
-    public void setModelId(Integer modelId) {
+    public SysDevice setModelId(Integer modelId) {
         this.modelId = modelId;
+        return this;
     }
 
     public String getModelName() {
         return modelName;
     }
 
-    public void setModelName(String modelName) {
+    public SysDevice setModelName(String modelName) {
         this.modelName = modelName;
+        return this;
     }
 
     public String getModelDesc() {
         return modelDesc;
     }
 
-    public void setModelDesc(String modelDesc) {
+    public SysDevice setModelDesc(String modelDesc) {
         this.modelDesc = modelDesc;
+        return this;
     }
 
     public String getDeviceId() {
         return deviceId;
     }
 
-    public void setDeviceId(String deviceId) {
+    public SysDevice setDeviceId(String deviceId) {
         this.deviceId = deviceId;
+        return this;
     }
 
     public String getSessionId() {
         return sessionId;
     }
 
-    public void setSessionId(String sessionId) {
+    public SysDevice setSessionId(String sessionId) {
         this.sessionId = sessionId;
+        return this;
     }
 
     public String getDeviceName() {
         return deviceName;
     }
 
-    public void setDeviceName(String deviceName) {
+    public SysDevice setDeviceName(String deviceName) {
         this.deviceName = deviceName;
+        return this;
     }
 
     public String getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public SysDevice setState(String state) {
         this.state = state;
+        return this;
     }
 
     public Integer getTotalMessage() {
         return totalMessage;
     }
 
-    public void setTotalMessage(Integer totalMessage) {
+    public SysDevice setTotalMessage(Integer totalMessage) {
         this.totalMessage = totalMessage;
+        return this;
     }
 
     public String getCode() {
         return code;
     }
 
-    public void setCode(String code) {
+    public SysDevice setCode(String code) {
         this.code = code;
+        return this;
     }
 
     public String getAudioPath() {
         return audioPath;
     }
 
-    public void setAudioPath(String audioPath) {
+    public SysDevice setAudioPath(String audioPath) {
         this.audioPath = audioPath;
+        return this;
     }
 
     public Date getLastLogin() {
         return lastLogin;
     }
 
-    public void setLastLogin(Date lastLogin) {
+    public SysDevice setLastLogin(Date lastLogin) {
         this.lastLogin = lastLogin;
+        return this;
     }
 
     @Override
     public String toString() {
-        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", deviceName=" + deviceName
-                + ", state=" + state + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath
-                + ", lastLogin=" + lastLogin + "]";
+        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", modelId=" + modelId + ", modelName="
+                + modelName + ", modelDesc=" + modelDesc + ", deviceName=" + deviceName + ", state=" + state
+                + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin="
+                + lastLogin + "]";
     }
 }

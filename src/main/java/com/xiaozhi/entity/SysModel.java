@@ -38,71 +38,80 @@ public class SysModel extends Base {
         return modelId;
     }
 
-    public void setModelId(Integer modelId) {
+    public SysModel setModelId(Integer modelId) {
         this.modelId = modelId;
+        return this;
     }
 
     public String getModelName() {
         return modelName;
     }
 
-    public void setModelName(String modelName) {
+    public SysModel setModelName(String modelName) {
         this.modelName = modelName;
+        return this;
     }
 
     public String getModelDesc() {
         return modelDesc;
     }
 
-    public void setModelDesc(String modelDesc) {
+    public SysModel setModelDesc(String modelDesc) {
         this.modelDesc = modelDesc;
+        return this;
     }
 
     public String getType() {
         return type;
     }
 
-    public void setType(String type) {
+    public SysModel setType(String type) {
         this.type = type;
+        return this;
     }
 
     public String getAppId() {
         return appId;
     }
 
-    public void setAppId(String appId) {
+    public SysModel setAppId(String appId) {
         this.appId = appId;
+        return this;
     }
 
     public String getApiKey() {
         return apiKey;
     }
 
-    public void setApiKey(String apiKey) {
+    public SysModel setApiKey(String apiKey) {
         this.apiKey = apiKey;
+        return this;
     }
 
     public String getApiSecret() {
         return apiSecret;
     }
 
-    public void setApiSecret(String apiSecret) {
+    public SysModel setApiSecret(String apiSecret) {
         this.apiSecret = apiSecret;
+        return this;
     }
 
     public String getApiUrl() {
         return apiUrl;
     }
 
-    public void setApiUrl(String apiUrl) {
+    public SysModel setApiUrl(String apiUrl) {
         this.apiUrl = apiUrl;
+        return this;
     }
 
     public String getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public SysModel setState(String state) {
         this.state = state;
+        return this;
     }
 }

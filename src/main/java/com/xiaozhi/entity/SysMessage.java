@@ -34,40 +34,45 @@ public class SysMessage extends SysDevice {
         return this.messageId;
     }
 
-    public void setMessageId(Integer messageId) {
+    public SysMessage setMessageId(Integer messageId) {
         this.messageId = messageId;
+        return this;
     }
 
     public String getSender() {
         return this.sender;
     }
 
-    public void setSender(String sender) {
+    public SysMessage setSender(String sender) {
         this.sender = sender;
+        return this;
     }
 
     public String getMessage() {
         return this.message;
     }
 
-    public void setMessage(String message) {
+    public SysMessage setMessage(String message) {
         this.message = message;
+        return this;
     }
 
     public String getAudioPath() {
         return audioPath;
     }
 
-    public void setAudioPath(String audioPath) {
+    public SysMessage setAudioPath(String audioPath) {
         this.audioPath = audioPath;
+        return this;
     }
 
     public String getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public SysMessage setState(String state) {
         this.state = state;
+        return this;
     }
 
 }

@@ -1,10 +1,13 @@
 package com.xiaozhi.websocket.handler;
 
+import com.agentsflex.core.llm.Llm;
+import com.agentsflex.core.message.HumanMessage;
+import com.agentsflex.core.prompt.HistoriesPrompt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xiaozhi.entity.SysDevice;
-
+import com.xiaozhi.llm.LlmManager;
 import com.xiaozhi.service.SysDeviceService;
 import com.xiaozhi.websocket.service.TextToSpeechService;
 import com.xiaozhi.websocket.service.AudioService;
@@ -46,16 +49,16 @@ public class WebSocketHandler extends TextWebSocketHandler {
     @Autowired
     private SpeechToTextService speechToTextService;
 
+    @Autowired
+    private LlmManager llmManager;
+
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
 
     // 用于存储所有连接的会话
     private static final ConcurrentHashMap<String, WebSocketSession> SESSIONS = new ConcurrentHashMap<>();
 
-    // 用于存储设备ID和会话的映射关系
-    private static final ConcurrentHashMap<String, WebSocketSession> DEVICE_SESSIONS = new ConcurrentHashMap<>();
-
-    // 用于存储会话和设备ID的映射关系
-    private static final ConcurrentHashMap<String, String> SESSION_DEVICES = new ConcurrentHashMap<>();
+    // 用于存储会话和设备的映射关系
+    private static final ConcurrentHashMap<String, SysDevice> DEVICES_CONFIG = new ConcurrentHashMap<>();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -69,9 +72,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
         // 从请求头中获取设备ID
         String deviceId = headers.get("device-id").get(0);
         if (deviceId != null) {
-            DEVICE_SESSIONS.put(deviceId, session);
-            SESSION_DEVICES.put(sessionId, deviceId);
+
+            SysDevice device = deviceService.query(new SysDevice().setDeviceId(deviceId)).get(0);
+            device.setSessionId(sessionId);
+            DEVICES_CONFIG.put(sessionId, device);
             logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
+
+            deviceService
+                    .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("1").setLastLogin(new Date()));
+
         } else {
             logger.info("WebSocket连接建立成功 - SessionId: {} (无设备ID)", sessionId);
         }
@@ -79,17 +88,28 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        String sessionId = session.getId();
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
         String payload = message.getPayload();
-        logger.info("收到文本消息 - SessionId: {}, Message: {}", session.getId(), payload);
 
-        // 更新设备在线时间
-        String deviceId = SESSION_DEVICES.get(session.getId());
-        if (deviceId != null) {
-            SysDevice device = new SysDevice();
-            device.setDeviceId(deviceId);
-            device.setState("1");
-            device.setLastLogin(new Date());
-            deviceService.update(device);
+        SysDevice deviceResult = deviceService
+                .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId)).get(0);
+
+        if (deviceResult == null) {
+            SysDevice codeResult = deviceService.generateCode(device);
+            String audioFilePath;
+            if (StringUtils.isEmpty(codeResult.getAudioPath())) {
+                audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
+                codeResult.setDeviceId(device.getDeviceId());
+                codeResult.setSessionId(sessionId);
+                codeResult.setAudioPath(audioFilePath);
+                deviceService.updateCode(codeResult);
+            } else {
+                audioFilePath = codeResult.getAudioPath();
+            }
+            logger.info("设备未绑定，返回验证码");
+            audioService.sendAudio(session, audioFilePath, codeResult.getCode());
+            return;
         }
 
         // 解析JSON消息
@@ -151,21 +171,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String sessionId = session.getId();
-        String deviceId = SESSION_DEVICES.remove(sessionId);
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
 
-        if (deviceId != null) {
-            // 更新设备在线时间
-            if (deviceId != null) {
-                SysDevice device = new SysDevice();
-                device.setDeviceId(deviceId);
-                device.setState("0");
-                device.setLastLogin(new Date());
-                deviceService.update(device);
-            }
-            DEVICE_SESSIONS.remove(deviceId);
-            logger.info("WebSocket连接关闭 - SessionId: {}, DeviceId: {}, Status: {}", sessionId, deviceId, status);
-        } else {
-            logger.info("WebSocket连接关闭 - SessionId: {}, Status: {}", sessionId, status);
+        // 更新设备在线时间
+        if (device != null) {
+            deviceService
+                    .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("0").setLastLogin(new Date()));
+
+            logger.info("WebSocket连接关闭 - SessionId: {}, DeviceId: {}, Status: {}", sessionId, device.getDeviceId(),
+                    status);
         }
 
         SESSIONS.remove(sessionId);
@@ -215,34 +229,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
     // 处理客户端发送的listen消息
     private void handleListenMessage(WebSocketSession session, JsonNode jsonNode) throws Exception {
         String sessionId = session.getId();
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
         String state = jsonNode.path("state").asText();
         String mode = jsonNode.path("mode").asText();
 
         logger.info("收到listen消息 - SessionId: {}, State: {}, Mode: {}", sessionId, state, mode);
-
-        SysDevice device = new SysDevice();
-        device.setDeviceId(SESSION_DEVICES.get(sessionId));
-        device.setSessionId(sessionId);
-
-        List<SysDevice> devices = deviceService.query(device);
-
-        if (devices.isEmpty()) {
-            SysDevice codeResult = deviceService.generateCode(device);
-            String audioFilePath;
-            if (StringUtils.isEmpty(codeResult.getAudioPath())) {
-                audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
-                codeResult.setDeviceId(SESSION_DEVICES.get(sessionId));
-                codeResult.setSessionId(sessionId);
-                codeResult.setAudioPath(audioFilePath);
-                deviceService.updateCode(codeResult);
-            } else {
-                audioFilePath = codeResult.getAudioPath();
-            }
-            logger.info("设备未绑定，返回验证码");
-            audioService.sendAudio(session, audioFilePath, codeResult.getCode());
-            return;
-        }
-
+        System.out.println(device.toString());
         // 根据state处理不同的监听状态
         switch (state) {
             case "start":
@@ -257,7 +249,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 // 检测到唤醒词
                 String text = jsonNode.path("text").asText();
                 logger.info("检测到唤醒词: {}", text);
-                // 可以触发进一步的处理逻辑
+                Llm llm = llmManager.getLlm(device.getDeviceId(), device.getModelId());
+                HistoriesPrompt prompt = new HistoriesPrompt();
+                prompt.addMessage(new HumanMessage("你是谁？"));
+                llm.chatStream(prompt, (context, response) -> {
+                    System.out.println(">>>> " + response.getMessage().getContent());
+                });
                 break;
             default:
                 logger.warn("未知的listen状态: {}", state);
@@ -293,47 +290,6 @@ public class WebSocketHandler extends TextWebSocketHandler {
             JsonNode states = jsonNode.path("states");
             logger.info("收到设备状态更新: {}", states);
             // 处理设备状态更新的逻辑
-        }
-    }
-
-    // 广播消息给所有连接的客户端
-    public void broadcastMessage(String message) {
-        SESSIONS.forEach((sessionId, session) -> {
-            try {
-                if (session.isOpen()) {
-                    session.sendMessage(new TextMessage(message));
-                }
-            } catch (IOException e) {
-                logger.error("广播消息失败 - SessionId: {}", sessionId, e);
-            }
-        });
-    }
-
-    // 获取当前连接数
-    public int getConnectionCount() {
-        return SESSIONS.size();
-    }
-
-    // 获取设备连接数
-    public int getDeviceConnectionCount() {
-        return DEVICE_SESSIONS.size();
-    }
-
-    // 判断指定设备是否连接
-    public boolean isDeviceConnected(String deviceId) {
-        WebSocketSession session = DEVICE_SESSIONS.get(deviceId);
-        return session != null && session.isOpen();
-    }
-
-    // 关闭指定设备的会话
-    public void closeDeviceSession(String deviceId) {
-        WebSocketSession session = DEVICE_SESSIONS.get(deviceId);
-        if (session != null && session.isOpen()) {
-            try {
-                session.close();
-            } catch (IOException e) {
-                logger.error("关闭设备会话失败 - DeviceId: {}", deviceId, e);
-            }
         }
     }
 

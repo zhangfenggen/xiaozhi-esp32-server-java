@@ -190,18 +190,15 @@ public class AudioService {
         }
 
         try {
+            sendStart(session);
             // 处理音频文件，获取Opus帧和持续时间
             AudioProcessResult audioData = processAudioFile(audioFilePath, 16000, 1);
+            sendSentenceStart(session, text);
 
             // 发送句子开始消息
             if (isFirstText) {
                 logger.info("发送第一段语音: {} ,音频时长: {} 秒", text, audioData.getDurationMs() / 1000);
             }
-
-            // 发送控制消息
-            sendSentenceStart(session, text);
-            Thread.sleep(20);
-            sendStart(session);
 
             // 获取Opus帧列表
             List<byte[]> opusFrames = audioData.getOpusFrames();
@@ -248,7 +245,6 @@ public class AudioService {
                 }
             }
 
-            Thread.sleep(10);
             // 发送句子结束消息
             if (session.isOpen()) {
                 sendSentenceEnd(session, text);

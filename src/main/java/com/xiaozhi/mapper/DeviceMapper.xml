@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.DeviceMapper">
 
     <sql id="deviceSql">
-        sys_device.deviceId, sys_device.deviceName, sys_device.ip, sys_device.wifiName, sys_device.modelId, sys_device.roleId, sys_device.state, sys_device.userId, sys_device.lastLogin, sys_device.createTime
+        sys_device.deviceId, sys_device.deviceName, sys_device.ip, sys_device.wifiName, sys_device.state, sys_device.userId, sys_device.lastLogin, sys_device.createTime
     </sql>
 
     <sql id="roleSql">
@@ -24,10 +24,11 @@
             LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
             LEFT JOIN sys_model ON sys_device.modelId = sys_model.modelId
         WHERE
-            sys_device.userId = #{userId}
-        <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
-        <if test="deviceName != null and deviceName != ''">AND deviceName LIKE CONCAT('%', #{deviceName}, '%')</if>
-        <if test="state != null and state != ''">AND state = #{state}</if>
+            1 = 1
+            <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>
+            <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
+            <if test="deviceName != null and deviceName != ''">AND deviceName LIKE CONCAT('%', #{deviceName}, '%')</if>
+            <if test="state != null and state != ''">AND state = #{state}</if>
     </select>
 
     <select id="queryVerifyCode" parameterType="com.xiaozhi.entity.SysDevice" resultType="com.xiaozhi.entity.SysDevice">
@@ -67,6 +68,7 @@
         UPDATE
             sys_device
         <set>
+            <if test="state != null and state != ''">state = #{state}</if>
             <if test="deviceName != null and deviceName != ''">deviceName = #{deviceName},</if>
             <if test="modelId != null and modelId != ''">modelId = #{modelId},</if>
             <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
