@@ -48,7 +48,7 @@ public class SileroVadDetector implements VadDetector {
 
     public SileroVadDetector() throws OrtException {
         // 默认参数初始化
-        this("src/main/resources/silero_vad.onnx", 0.5f, 16000, 500, 2000);
+        this("src/main/resources/silero_vad.onnx", 0.5f, 16000, 500, 1000);
     }
 
     public SileroVadDetector(String onnxModelPath, float threshold, int samplingRate,
@@ -66,7 +66,6 @@ public class SileroVadDetector implements VadDetector {
     public void initializeSession(String sessionId) {
         // 创建新的会话状态
         sessionStates.computeIfAbsent(sessionId, k -> new SessionState());
-        logger.info("VAD会话初始化 - SessionId: {}", sessionId);
     }
 
     @Override

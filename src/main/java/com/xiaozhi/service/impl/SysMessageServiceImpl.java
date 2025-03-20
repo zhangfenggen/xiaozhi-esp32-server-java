@@ -28,9 +28,6 @@ public class SysMessageServiceImpl implements SysMessageService {
     @Resource
     private MessageMapper messageMapper;
 
-    @Resource
-    private UserMapper userMapper;
-
     /**
      * 新增聊天记录
      *

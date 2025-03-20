@@ -7,7 +7,10 @@ package com.xiaozhi.entity;
  * 
  */
 public class SysMessage extends SysDevice {
+
     private Integer messageId;
+
+    private String deviceId;
 
     /**
      * 消息发送方：user-用户，ai-人工智能
@@ -29,6 +32,15 @@ public class SysMessage extends SysDevice {
      * 
      */
     private String state;
+
+    public String getDeviceId() {
+        return deviceId;
+    }
+
+    public SysMessage setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+        return this;
+    }
 
     public Integer getMessageId() {
         return this.messageId;
@@ -73,6 +85,12 @@ public class SysMessage extends SysDevice {
     public SysMessage setState(String state) {
         this.state = state;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "SysMessage [deviceId=" + deviceId + ", messageId=" + messageId + ", sender=" + sender + ", message="
+                + message + ", audioPath=" + audioPath + ", state=" + state + "]";
     }
 
 }

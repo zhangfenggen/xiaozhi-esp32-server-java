@@ -7,7 +7,7 @@
     </sql>
 
     <sql id="deviceSql">
-        sys_device.deviceName, sys_device.deviceName, sys_device.userId
+        sys_device.deviceId, sys_device.deviceName, sys_device.userId
     </sql>
 
 
@@ -19,16 +19,25 @@
             sys_message
             LEFT JOIN sys_device ON sys_message.deviceId = sys_device.deviceId
         WHERE
-            sys_device.userId = #{userId}
-            AND sys_message.state = 1
+            sys_message.state = 1
+            <if test="deviceId != null and deviceId != ''">
+                AND sys_message.deviceId = #{deviceId}
+            </if>
+            <if test="deviceName != null and deviceName != ''">
+                AND sys_message.deviceName = #{deviceName}
+            </if>
             <if test="startTime != null and startTime != ''">
                 AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
             </if>
+            <if test="sender != null and sender != ''">
+                AND sys_message.sender = #{sender}
+            </if>
+        ORDER BY sys_message.createTime DESC
     </select>
 
     <insert id="add" parameterType="com.xiaozhi.entity.SysMessage">
-        INSERT INTO sys_message ( deviceId, sender, message, audioPath )
-        SELECT #{deviceId}, #{sender}, #{message}, #{audioPath}
+        INSERT INTO sys_message ( deviceId, sessionId, sender, roleId, message, audioPath )
+        SELECT #{deviceId}, #{sessionId}, #{sender}, #{roleId}, #{message}, #{audioPath}
     </insert>
 
 </mapper>

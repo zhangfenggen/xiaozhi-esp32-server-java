@@ -2,18 +2,29 @@ package com.xiaozhi.websocket.handler;
 
 import com.agentsflex.core.llm.Llm;
 import com.agentsflex.core.message.HumanMessage;
+import com.agentsflex.core.message.SystemMessage;
 import com.agentsflex.core.prompt.HistoriesPrompt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.llm.LlmManager;
 import com.xiaozhi.service.SysDeviceService;
-import com.xiaozhi.websocket.service.TextToSpeechService;
+import com.xiaozhi.service.SysMessageService;
 import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.MessageService;
 import com.xiaozhi.websocket.service.SpeechToTextService;
+import com.xiaozhi.websocket.service.TextToSpeechService;
+import java.io.IOException;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.util.StringUtils;
@@ -22,14 +33,6 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class WebSocketHandler extends TextWebSocketHandler {
 
@@ -42,6 +45,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
     @Autowired
     @Qualifier("WebSocketMessageService")
     private MessageService messageService;
+
+    @Autowired
+    private SysMessageService sysMessageService;
 
     @Autowired
     private TextToSpeechService textToSpeechService;
@@ -73,8 +79,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
         String deviceId = headers.get("device-id").get(0);
         if (deviceId != null) {
 
-            SysDevice device = deviceService.query(new SysDevice().setDeviceId(deviceId)).get(0);
-            device.setSessionId(sessionId);
+            List<SysDevice> devices = deviceService.query(new SysDevice().setDeviceId(deviceId));
+            SysDevice device;
+            if (devices.isEmpty()) {
+                device = new SysDevice();
+                device.setDeviceId(deviceId);
+                device.setSessionId(sessionId);
+            } else {
+                device = devices.get(0);
+            }
             DEVICES_CONFIG.put(sessionId, device);
             logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
 
@@ -92,10 +105,10 @@ public class WebSocketHandler extends TextWebSocketHandler {
         SysDevice device = DEVICES_CONFIG.get(sessionId);
         String payload = message.getPayload();
 
-        SysDevice deviceResult = deviceService
-                .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId)).get(0);
+        List<SysDevice> deviceResult = deviceService
+                .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId));
 
-        if (deviceResult == null) {
+        if (deviceResult.isEmpty()) {
             SysDevice codeResult = deviceService.generateCode(device);
             String audioFilePath;
             if (StringUtils.isEmpty(codeResult.getAudioPath())) {
@@ -157,7 +170,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 String result = resultNode.path("text").asText("");
                 if (StringUtils.hasText(result)) {
                     logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
-                    messageService.sendMessage(session, "stt", "stop", result);
+                    messageService.sendMessage(session, "stt", result);
                     // 将识别到的用户的对话发送给模型进行推测
 
                 }
@@ -227,14 +240,13 @@ public class WebSocketHandler extends TextWebSocketHandler {
     }
 
     // 处理客户端发送的listen消息
-    private void handleListenMessage(WebSocketSession session, JsonNode jsonNode) throws Exception {
+    private void handleListenMessage(WebSocketSession session, JsonNode jsonNode) {
         String sessionId = session.getId();
         SysDevice device = DEVICES_CONFIG.get(sessionId);
         String state = jsonNode.path("state").asText();
         String mode = jsonNode.path("mode").asText();
 
         logger.info("收到listen消息 - SessionId: {}, State: {}, Mode: {}", sessionId, state, mode);
-        System.out.println(device.toString());
         // 根据state处理不同的监听状态
         switch (state) {
             case "start":
@@ -249,11 +261,87 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 // 检测到唤醒词
                 String text = jsonNode.path("text").asText();
                 logger.info("检测到唤醒词: {}", text);
+                messageService.sendMessage(session, "stt", "stop", text);
+
                 Llm llm = llmManager.getLlm(device.getDeviceId(), device.getModelId());
                 HistoriesPrompt prompt = new HistoriesPrompt();
-                prompt.addMessage(new HumanMessage("你是谁？"));
+                prompt.setSystemMessage(new SystemMessage(device.getRoleDesc()));
+                prompt.addMessage(new HumanMessage(text));
+
+                // 创建文本缓冲区和第一次文本标记
+                StringBuilder buffer = new StringBuilder();
+                final AtomicBoolean isFirstTextSent = new AtomicBoolean(false);
+
                 llm.chatStream(prompt, (context, response) -> {
-                    System.out.println(">>>> " + response.getMessage().getContent());
+                    try {
+
+                        // 获取新生成的文本内容
+                        String message = response.getMessage().getContent();
+
+                        // 检查是否是最后一个响应
+                        boolean isLastText = response.getMessage().getStatus().toString().equals("END");
+
+                        // 在WebSocketHandler.java中，修改处理文本分段的部分
+                        // 使用LlmManager处理文本分割
+                        LlmManager.TextSegmentResult result = llmManager.processTextSegment(
+                                buffer,
+                                message,
+                                !isFirstTextSent.get(),
+                                isLastText);
+
+                        // 更新缓冲区
+                        buffer.setLength(0);
+                        buffer.append(result.getNewBuffer());
+
+                        // 如果有可处理的文本内容
+                        if (result.hasContent() && !result.getContent().isEmpty()) {
+                            String sentence = result.getContent();
+
+                            // 确保文本内容不为空
+                            if (!sentence.isEmpty()) {
+                                String audioFilePath = textToSpeechService.textToSpeech(sentence);
+
+                                // 发送音频
+                                audioService.sendAudio(session, audioFilePath, sentence, result.isFirstText(),
+                                        result.isLastText());
+
+                                // 如果这是第一个文本块，标记为已发送
+                                if (result.isFirstText()) {
+                                    isFirstTextSent.set(true);
+                                }
+                            }
+                        }
+
+                        // 如果是最后一个响应，完成处理
+                        if (isLastText) {
+                            // 如果缓冲区还有内容且尚未处理，确保处理剩余内容
+                            if (buffer.length() > 0) {
+                                String remainingSentence = buffer.toString().trim();
+                                if (!remainingSentence.isEmpty()) {
+                                    String audioFilePath = textToSpeechService.textToSpeech(remainingSentence);
+
+                                    audioService.sendAudio(session, audioFilePath, remainingSentence,
+                                            !isFirstTextSent.get(), true);
+                                }
+                            }
+
+                            String fullMessage = response.getMessage().getFullContent();
+                            String audioFilePath = textToSpeechService.textToSpeech(fullMessage);
+
+                            // 保存消息记录
+                            SysMessage sysMessage = new SysMessage();
+                            sysMessage.setAudioPath(audioFilePath);
+                            sysMessage.setDeviceId(device.getDeviceId());
+                            sysMessage.setSessionId(sessionId);
+                            sysMessage.setSender("assistant");
+                            sysMessage.setMessage(fullMessage);
+                            sysMessage.setRoleId(device.getRoleId());
+                            sysMessageService.add(sysMessage);
+                        }
+
+                    } catch (Exception e) {
+                        logger.error("语音合成失败", e);
+                    }
                 });
                 break;
             default:
@@ -292,5 +380,4 @@ public class WebSocketHandler extends TextWebSocketHandler {
             // 处理设备状态更新的逻辑
         }
     }
-
 }

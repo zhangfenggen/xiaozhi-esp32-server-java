@@ -3,10 +3,16 @@ package com.xiaozhi.websocket.service;
 import com.xiaozhi.audio.detector.VadDetector;
 import com.xiaozhi.audio.processor.OpusProcessor;
 import com.xiaozhi.websocket.handler.WebSocketHandler;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +30,19 @@ public class AudioService {
     // 播放帧持续时间（毫秒）
     private static final int FRAME_DURATION_MS = 60;
 
+    // 默认音频采样率和通道数
+    private static final int DEFAULT_SAMPLE_RATE = 16000;
+    private static final int DEFAULT_CHANNELS = 1;
+    // 创建线程池用于异步发送音频和预处理
+    private final ExecutorService audioSenderExecutor = Executors.newCachedThreadPool();
+    private final ExecutorService audioPreprocessExecutor = Executors.newCachedThreadPool();
+
+    // 为每个会话维护一个音频发送队列
+    private final Map<String, Queue<ProcessedAudioTask>> audioQueues = new ConcurrentHashMap<>();
+
+    // 跟踪每个会话的发送状态
+    private final Map<String, AtomicBoolean> isProcessingMap = new ConcurrentHashMap<>();
+
     @Autowired
     @Qualifier("WebSocketMessageService")
     private MessageService messageService;
@@ -33,6 +52,46 @@ public class AudioService {
 
     @Autowired
     private VadDetector vadDetector;
+
+    /**
+     * 已处理的音频任务类，包含已转码的音频数据
+     */
+    private static class ProcessedAudioTask {
+        private final List<byte[]> opusFrames;
+        private final String text;
+        private final boolean isFirstText;
+        private final boolean isLastText;
+        private final String originalFilePath; // 保留原始文件路径，用于后续删除
+
+        public ProcessedAudioTask(List<byte[]> opusFrames, String text, boolean isFirstText, boolean isLastText,
+                String originalFilePath) {
+            this.opusFrames = opusFrames;
+            this.text = text;
+            this.isFirstText = isFirstText;
+            this.isLastText = isLastText;
+            this.originalFilePath = originalFilePath;
+        }
+
+        public List<byte[]> getOpusFrames() {
+            return opusFrames;
+        }
+
+        public String getText() {
+            return text;
+        }
+
+        public boolean isFirstText() {
+            return isFirstText;
+        }
+
+        public boolean isLastText() {
+            return isLastText;
+        }
+
+        public String getOriginalFilePath() {
+            return originalFilePath;
+        }
+    }
 
     /**
      * 音频处理结果类
@@ -60,6 +119,9 @@ public class AudioService {
      */
     public void initializeSession(String sessionId) {
         vadDetector.initializeSession(sessionId);
+        // 初始化音频队列和处理状态
+        audioQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
+        isProcessingMap.putIfAbsent(sessionId, new AtomicBoolean(false));
     }
 
     /**
@@ -79,7 +141,6 @@ public class AudioService {
 
             // 3. 如果检测到语音结束，返回完整的音频数据
             return completeAudio;
-
         } catch (Exception e) {
             logger.error("处理音频数据时发生错误 - SessionId: {}", sessionId, e);
             return null;
@@ -91,6 +152,16 @@ public class AudioService {
      */
     public void cleanupSession(String sessionId) {
         vadDetector.resetSession(sessionId);
+        // 清理音频队列
+        Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
+        if (queue != null) {
+            queue.clear();
+        }
+        // 重置处理状态
+        AtomicBoolean isProcessing = isProcessingMap.get(sessionId);
+        if (isProcessing != null) {
+            isProcessing.set(false);
+        }
     }
 
     /**
@@ -168,96 +239,180 @@ public class AudioService {
      * 简化版本的发送音频方法
      */
     public void sendAudio(WebSocketSession session, String audioFilePath, String text) throws Exception {
-        sendAudio(session, audioFilePath, text, true, true, true);
+        sendAudio(session, audioFilePath, text, true, true);
     }
 
     /**
-     * 分段发送音频数据
+     * 将音频添加到发送队列，并开始处理队列（如果尚未开始）
+     * 此方法会先异步预处理音频，然后再添加到队列
      * 
      * @param session       WebSocket会话
      * @param audioFilePath 音频文件路径
      * @param text          文本内容
      * @param isFirstText   是否是第一段文本
      * @param isLastText    是否是最后一段文本
-     * @param llmFinishTask LLM是否已完成任务
      */
-    public void sendAudio(WebSocketSession session, String audioFilePath, String text,
-            boolean isFirstText, boolean isLastText, boolean llmFinishTask) throws Exception {
+    public void sendAudio(WebSocketSession session, String audioFilePath, String text, boolean isFirstText,
+            boolean isLastText) throws Exception {
 
         if (session == null || !session.isOpen()) {
             logger.warn("尝试发送音频到已关闭或空的WebSocket会话");
             return;
         }
 
-        try {
-            sendStart(session);
-            // 处理音频文件，获取Opus帧和持续时间
-            AudioProcessResult audioData = processAudioFile(audioFilePath, 16000, 1);
-            sendSentenceStart(session, text);
+        String sessionId = session.getId();
 
-            // 发送句子开始消息
-            if (isFirstText) {
-                logger.info("发送第一段语音: {} ,音频时长: {} 秒", text, audioData.getDurationMs() / 1000);
-            }
+        // 确保会话已初始化
+        initializeSession(sessionId);
 
-            // 获取Opus帧列表
-            List<byte[]> opusFrames = audioData.getOpusFrames();
+        // 异步预处理音频
+        audioPreprocessExecutor.submit(() -> {
+            try {
+                // 预处理音频文件
+                AudioProcessResult result = processAudioFile(audioFilePath, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS);
 
-            // 开始发送音频帧
-            long startTime = System.nanoTime();
-            long playPosition = 0;
+                // 创建已处理的音频任务
+                ProcessedAudioTask task = new ProcessedAudioTask(
+                        result.getOpusFrames(),
+                        text,
+                        isFirstText,
+                        isLastText,
+                        audioFilePath);
 
-            for (int i = 0; i < opusFrames.size(); i++) {
-                // 如果会话已关闭，停止发送
-                if (!session.isOpen()) {
-                    logger.info("会话已关闭，停止发送音频");
-                    break;
+                // 添加到发送队列
+                audioQueues.get(sessionId).add(task);
+
+                // 如果当前没有处理任务，开始处理
+                if (isProcessingMap.get(sessionId).compareAndSet(false, true)) {
+                    processNextAudio(session);
                 }
+            } catch (Exception e) {
+                logger.error("音频预处理失败: {}", e.getMessage(), e);
+            }
+        });
+    }
 
-                byte[] frame = opusFrames.get(i);
+    /**
+     * 处理队列中的下一个音频任务
+     */
+    private void processNextAudio(WebSocketSession session) {
+        String sessionId = session.getId();
+        Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
 
-                // 计算预期发送时间（纳秒）
-                long expectedTime = startTime + (playPosition * 1_000_000);
-                long currentTime = System.nanoTime();
-                long delayNanos = expectedTime - currentTime;
+        if (queue == null) {
+            logger.error("音频队列未初始化 - SessionId: {}", sessionId);
+            return;
+        }
 
-                // 执行延迟
-                if (delayNanos > 0) {
-                    // 转换为毫秒和纳秒余数
-                    long delayMillis = delayNanos / 1_000_000;
-                    int delayNanosRemainder = (int) (delayNanos % 1_000_000);
+        // 检查队列是否为空
+        ProcessedAudioTask task = queue.poll();
+        if (task == null) {
+            // 队列为空，设置处理状态为false
+            isProcessingMap.get(sessionId).set(false);
+            return;
+        }
 
-                    if (delayMillis > 0 || delayNanosRemainder > 0) {
-                        Thread.sleep(delayMillis, delayNanosRemainder);
+        // 异步处理音频任务
+        audioSenderExecutor.submit(() -> {
+            try {
+                // 发送开始信号和句子开始信号
+                if (task.isFirstText()) {
+                    sendStart(session);
+                }
+                sendSentenceStart(session, task.getText());
+
+                // 获取已处理的Opus帧
+                List<byte[]> opusFrames = task.getOpusFrames();
+
+                // 开始发送音频帧
+                long startTime = System.nanoTime();
+                long playPosition = 0;
+
+                for (int i = 0; i < opusFrames.size(); i++) {
+                    byte[] frame = opusFrames.get(i);
+
+                    // 计算预期发送时间（纳秒）
+                    long expectedTime = startTime + (playPosition * 1_000_000);
+                    long currentTime = System.nanoTime();
+                    long delayNanos = expectedTime - currentTime;
+
+                    // 执行延迟
+                    if (delayNanos > 0) {
+                        // 转换为毫秒和纳秒余数
+                        long delayMillis = delayNanos / 1_000_000;
+                        int delayNanosRemainder = (int) (delayNanos % 1_000_000);
+
+                        if (delayMillis > 0 || delayNanosRemainder > 0) {
+                            Thread.sleep(delayMillis, delayNanosRemainder);
+                        }
+                    }
+
+                    // 再次检查会话是否仍然打开
+                    if (session.isOpen()) {
+                        // 直接发送Opus帧
+                        session.sendMessage(new BinaryMessage(frame));
+
+                        // 更新播放位置（毫秒）
+                        playPosition += FRAME_DURATION_MS;
+                    } else {
+                        logger.info("会话已关闭，停止发送音频");
+                        cleanupSession(sessionId);
+                        return;
                     }
                 }
 
-                // 再次检查会话是否仍然打开
+                // 发送句子结束消息
                 if (session.isOpen()) {
-                    // 直接发送Opus帧
-                    session.sendMessage(new BinaryMessage(frame));
+                    if (task.isLastText()) {
+                        sendStop(session);
+                    }
+                }
 
-                    // 更新播放位置（毫秒）
-                    playPosition += FRAME_DURATION_MS;
-                } else {
-                    logger.info("会话已关闭，停止发送音频");
-                    break;
+                // 删除音频文件
+                deleteAudioFiles(task.getOriginalFilePath());
+
+                // 处理下一个音频任务
+                processNextAudio(session);
+
+            } catch (Exception e) {
+                logger.error("发送音频数据时发生错误: {}", e.getMessage(), e);
+                // 出错时也尝试处理下一个任务
+                processNextAudio(session);
+            }
+        });
+    }
+
+    /**
+     * 删除音频文件及其相关文件（如同名的VTT文件）
+     * 
+     * @param audioPath 音频文件路径
+     * @return 是否成功删除
+     */
+    public boolean deleteAudioFiles(String audioPath) {
+        boolean success = true;
+        try {
+            // 删除原始音频文件
+            File audioFile = new File(audioPath);
+            if (audioFile.exists()) {
+                if (!audioFile.delete()) {
+                    logger.warn("无法删除音频文件: {}", audioPath);
+                    success = false;
                 }
             }
 
-            // 发送句子结束消息
-            if (session.isOpen()) {
-                sendSentenceEnd(session, text);
+            // 删除可能存在的VTT文件
 
-                // 如果是最后一个文本且LLM已完成任务，发送停止消息
-                if (llmFinishTask && isLastText) {
-                    sendStop(session);
+            File vttFile = new File(audioPath + ".vtt");
+            if (vttFile.exists()) {
+                if (!vttFile.delete()) {
+                    logger.warn("无法删除VTT文件: {}", vttFile.getPath());
+                    success = false;
                 }
             }
-
+            return success;
         } catch (Exception e) {
-            logger.error("发送音频数据时发生错误", e);
-            throw e;
+            logger.error("删除音频文件时发生错误: {}", audioPath, e);
+            return false;
         }
     }
 

@@ -71,7 +71,7 @@ CREATE TABLE `xiaozhi`.`sys_message` (
   `messageId` bigint NOT NULL AUTO_INCREMENT COMMENT '消息ID，主键，自增',
   `deviceId` varchar(30) NOT NULL COMMENT '设备ID',
   `sessionId` varchar(100) NOT NULL COMMENT '会话ID',
-  `sender` enum('user','ai') NOT NULL COMMENT '消息发送方：user-用户，ai-人工智能',
+  `sender` enum('user','assistant') NOT NULL COMMENT '消息发送方：user-用户，assistant-人工智能',
   `roleId` bigint COMMENT 'AI扮演的角色ID',
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT '消息内容',
   `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '语音文件路径',

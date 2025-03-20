@@ -17,14 +17,13 @@ public class MessageService {
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
 
     // 发送文本消息给指定会话
-    public void sendMessage(WebSocketSession session, String type, String state, String message) {
+    public void sendMessage(WebSocketSession session, String type, String state) {
         try {
             if (session != null && session.isOpen()) {
                 ObjectNode response = new ObjectMapper().createObjectNode();
                 response.put("session_id", session.getId());
                 response.put("type", type);
                 response.put("state", state);
-                response.put("text", message);
                 session.sendMessage(new TextMessage(response.toString()));
                 logger.info("发送消息 - SessionId: {}, Message: {}", session.getId(), response.toString());
             } else {
@@ -36,13 +35,14 @@ public class MessageService {
     }
 
     // 发送文本消息给指定会话
-    public void sendMessage(WebSocketSession session, String type, String state) {
+    public void sendMessage(WebSocketSession session, String type, String state, String message) {
         try {
             if (session != null && session.isOpen()) {
                 ObjectNode response = new ObjectMapper().createObjectNode();
                 response.put("session_id", session.getId());
                 response.put("type", type);
                 response.put("state", state);
+                response.put("text", message);
                 session.sendMessage(new TextMessage(response.toString()));
                 logger.info("发送消息 - SessionId: {}, Message: {}", session.getId(), response.toString());
             } else {

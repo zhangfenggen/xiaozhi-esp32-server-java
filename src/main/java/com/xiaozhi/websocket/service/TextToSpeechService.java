@@ -108,7 +108,5 @@ public class TextToSpeechService {
             logger.error("无法用临时文件替换原始文件");
             throw new RuntimeException("文件覆盖失败");
         }
-
-        logger.info("已将音频转换并保存到: {}", audioFilePath);
     }
 }
