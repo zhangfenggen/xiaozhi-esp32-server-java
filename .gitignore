@@ -1,4 +1,5 @@
 target/
 node_modules/
-audio/
+audio/*.mp3
+audio/*.vtt
 vosk*
