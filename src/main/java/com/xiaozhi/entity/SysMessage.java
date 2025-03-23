@@ -12,6 +12,8 @@ public class SysMessage extends SysDevice {
 
     private String deviceId;
 
+    private String sessionId;
+
     /**
      * 消息发送方：user-用户，ai-人工智能
      */
@@ -89,7 +91,8 @@ public class SysMessage extends SysDevice {
 
     @Override
     public String toString() {
-        return "SysMessage [deviceId=" + deviceId + ", messageId=" + messageId + ", sender=" + sender + ", message="
+        return "SysMessage [deviceId=" + deviceId + ", sessionId=" + sessionId + ", messageId=" + messageId
+                + ", sender=" + sender + ", message="
                 + message + ", audioPath=" + audioPath + ", state=" + state + "]";
     }
 

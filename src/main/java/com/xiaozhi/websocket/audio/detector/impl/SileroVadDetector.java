@@ -1,4 +1,4 @@
-package com.xiaozhi.audio.detector.impl;
+package com.xiaozhi.websocket.audio.detector.impl;
 
 import ai.onnxruntime.OrtException;
 import java.util.ArrayList;
@@ -9,9 +9,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.xiaozhi.audio.detector.VadDetector;
-import com.xiaozhi.audio.detector.model.SileroVadOnnxModel;
-import com.xiaozhi.audio.processor.TarsosNoiseReducer;
+import com.xiaozhi.websocket.audio.detector.VadDetector;
+import com.xiaozhi.websocket.audio.detector.model.SileroVadOnnxModel;
+import com.xiaozhi.websocket.audio.processor.TarsosNoiseReducer;
 
 @Component
 public class SileroVadDetector implements VadDetector {

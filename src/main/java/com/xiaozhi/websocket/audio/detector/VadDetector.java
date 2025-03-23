@@ -1,4 +1,4 @@
-package com.xiaozhi.audio.detector;
+package com.xiaozhi.websocket.audio.detector;
 
 /**
  * 语音活动检测器接口

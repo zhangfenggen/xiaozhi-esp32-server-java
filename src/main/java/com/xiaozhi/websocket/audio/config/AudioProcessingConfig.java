@@ -1,11 +1,12 @@
-package com.xiaozhi.audio.config;
+package com.xiaozhi.websocket.audio.config;
 
-import com.xiaozhi.audio.detector.impl.SileroVadDetector;
-import com.xiaozhi.audio.processor.TarsosNoiseReducer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+
+import com.xiaozhi.websocket.audio.detector.impl.SileroVadDetector;
+import com.xiaozhi.websocket.audio.processor.TarsosNoiseReducer;
 
 @Configuration
 public class AudioProcessingConfig {

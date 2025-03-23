@@ -1,4 +1,4 @@
-package com.xiaozhi.audio.processor;
+package com.xiaozhi.websocket.audio.processor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,9 +71,10 @@ public class TarsosNoiseReducer {
      * @param sessionId 会话ID
      */
     public void initializeSession(String sessionId) {
-        sessionNoiseProfiles.put(sessionId, new float[bufferSize]);
-        sessionTrainingFrames.put(sessionId, 0);
-        logger.info("会话 {} 的噪声减少器已初始化", sessionId);
+        if (!sessionNoiseProfiles.containsKey(sessionId)) {
+            sessionNoiseProfiles.put(sessionId, new float[bufferSize]);
+            sessionTrainingFrames.put(sessionId, 0);
+        }
     }
 
     /**

@@ -13,27 +13,7 @@
       "request": "launch",
       "mainClass": "com.xiaozhi.XiaozhiApplication",
       "projectName": "xiaozhi.webui"
-    },
-    {
-      "type": "java",
-      "name": "Spring Boot-XiaozhiApplication<xiaozhi.webui>",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "mainClass": "com.xiaozhi.XiaozhiApplication",
-      "projectName": "xiaozhi.webui",
-      "args": "",
-      "envFile": "${workspaceFolder}/.env"
-    },
-    {
-      "type": "java",
-      "name": "Spring Boot-ApplicationTest<xiaozhi.webui>",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "mainClass": "com.xiaozhi.ApplicationTest",
-      "projectName": "xiaozhi.webui",
-      "args": "",
-      "envFile": "${workspaceFolder}/.env",
-      "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=44541 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=xiaozhi.webui"
     }
+
   ]
 }

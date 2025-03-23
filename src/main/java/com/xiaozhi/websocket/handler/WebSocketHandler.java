@@ -1,19 +1,12 @@
 package com.xiaozhi.websocket.handler;
 
-import com.agentsflex.core.llm.Llm;
-import com.agentsflex.core.message.HumanMessage;
-import com.agentsflex.core.message.SystemMessage;
-import com.agentsflex.core.prompt.HistoriesPrompt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xiaozhi.entity.SysDevice;
-import com.xiaozhi.entity.SysMessage;
-import com.xiaozhi.llm.LlmManager;
 import com.xiaozhi.service.SysDeviceService;
-import com.xiaozhi.service.SysMessageService;
 import com.xiaozhi.websocket.service.AudioService;
-import com.xiaozhi.websocket.service.MessageService;
+import com.xiaozhi.websocket.service.LlmResponseService;
 import com.xiaozhi.websocket.service.SpeechToTextService;
 import com.xiaozhi.websocket.service.TextToSpeechService;
 import java.io.IOException;
@@ -21,12 +14,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -43,20 +33,13 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private AudioService audioService;
 
     @Autowired
-    @Qualifier("WebSocketMessageService")
-    private MessageService messageService;
-
-    @Autowired
-    private SysMessageService sysMessageService;
-
-    @Autowired
     private TextToSpeechService textToSpeechService;
 
     @Autowired
     private SpeechToTextService speechToTextService;
 
     @Autowired
-    private LlmManager llmManager;
+    private LlmResponseService llmResponseService;
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
 
@@ -66,37 +49,39 @@ public class WebSocketHandler extends TextWebSocketHandler {
     // 用于存储会话和设备的映射关系
     private static final ConcurrentHashMap<String, SysDevice> DEVICES_CONFIG = new ConcurrentHashMap<>();
 
+    // 用于跟踪会话是否处于监听状态
+    private static final ConcurrentHashMap<String, Boolean> LISTENING_STATE = new ConcurrentHashMap<>();
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String sessionId = session.getId();
         SESSIONS.put(sessionId, session);
+        // 初始化监听状态为false
+        LISTENING_STATE.put(sessionId, false);
 
         Map<String, List<String>> headers = session.getHandshakeHeaders();
 
         // 从请求头中获取设备ID
         String deviceId = headers.get("device-id").get(0);
-        if (deviceId != null) {
 
-            List<SysDevice> devices = deviceService.query(new SysDevice().setDeviceId(deviceId));
-            SysDevice device;
-            if (devices.isEmpty()) {
-                device = new SysDevice();
-                device.setDeviceId(deviceId);
-                device.setSessionId(sessionId);
-            } else {
-                device = devices.get(0);
-            }
-            DEVICES_CONFIG.put(sessionId, device);
-            logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
-
-            deviceService
-                    .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("1").setLastLogin(new Date()));
-
+        List<SysDevice> devices = deviceService.query(new SysDevice().setDeviceId(deviceId));
+        SysDevice device;
+        if (devices.isEmpty()) {
+            device = new SysDevice();
+            device.setDeviceId(deviceId);
+            device.setSessionId(sessionId);
         } else {
-            logger.info("WebSocket连接建立成功 - SessionId: {} (无设备ID)", sessionId);
+            device = devices.get(0);
+            device.setSessionId(sessionId);
         }
+        DEVICES_CONFIG.put(sessionId, device);
+        logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
+
+        deviceService
+                .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("1").setLastLogin(new Date()));
+
     }
 
     @Override
@@ -156,9 +141,16 @@ public class WebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
         String sessionId = session.getId();
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
+
+        // 检查会话是否处于监听状态，如果不是则忽略音频数据
+        Boolean isListening = LISTENING_STATE.getOrDefault(sessionId, false);
+        if (!isListening) {
+            return;
+        }
+
         byte[] opusData = message.getPayload().array();
         try {
-
             // 将所有音频处理逻辑委托给AudioService
             byte[] completeAudio = audioService.processIncomingAudio(sessionId, opusData);
 
@@ -170,15 +162,14 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 String result = resultNode.path("text").asText("");
                 if (StringUtils.hasText(result)) {
                     logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
-                    messageService.sendMessage(session, "stt", result);
-                    // 将识别到的用户的对话发送给模型进行推测
-
+                    // 设置会话为非监听状态，防止处理自己的声音
+                    LISTENING_STATE.put(sessionId, false);
+                    llmResponseService.processUserInput(session, device, result);
                 }
             }
         } catch (Exception e) {
             logger.error("处理二进制消息失败", e);
         }
-
     }
 
     @Override
@@ -196,6 +187,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
         }
 
         SESSIONS.remove(sessionId);
+        LISTENING_STATE.remove(sessionId);
     }
 
     @Override
@@ -252,97 +244,20 @@ public class WebSocketHandler extends TextWebSocketHandler {
             case "start":
                 // 开始监听，准备接收音频数据
                 logger.info("开始监听 - Mode: {}", mode);
+                LISTENING_STATE.put(sessionId, true);
                 break;
             case "stop":
                 // 停止监听
                 logger.info("停止监听");
+                LISTENING_STATE.put(sessionId, false);
                 break;
             case "detect":
                 // 检测到唤醒词
                 String text = jsonNode.path("text").asText();
                 logger.info("检测到唤醒词: {}", text);
-                messageService.sendMessage(session, "stt", "stop", text);
-
-                Llm llm = llmManager.getLlm(device.getDeviceId(), device.getModelId());
-                HistoriesPrompt prompt = new HistoriesPrompt();
-                prompt.setSystemMessage(new SystemMessage(device.getRoleDesc()));
-                prompt.addMessage(new HumanMessage(text));
-
-                // 创建文本缓冲区和第一次文本标记
-                StringBuilder buffer = new StringBuilder();
-                final AtomicBoolean isFirstTextSent = new AtomicBoolean(false);
-
-                llm.chatStream(prompt, (context, response) -> {
-                    try {
-
-                        // 获取新生成的文本内容
-                        String message = response.getMessage().getContent();
-
-                        // 检查是否是最后一个响应
-                        boolean isLastText = response.getMessage().getStatus().toString().equals("END");
-
-                        // 在WebSocketHandler.java中，修改处理文本分段的部分
-                        // 使用LlmManager处理文本分割
-                        LlmManager.TextSegmentResult result = llmManager.processTextSegment(
-                                buffer,
-                                message,
-                                !isFirstTextSent.get(),
-                                isLastText);
-
-                        // 更新缓冲区
-                        buffer.setLength(0);
-                        buffer.append(result.getNewBuffer());
-
-                        // 如果有可处理的文本内容
-                        if (result.hasContent() && !result.getContent().isEmpty()) {
-                            String sentence = result.getContent();
-
-                            // 确保文本内容不为空
-                            if (!sentence.isEmpty()) {
-                                String audioFilePath = textToSpeechService.textToSpeech(sentence);
-
-                                // 发送音频
-                                audioService.sendAudio(session, audioFilePath, sentence, result.isFirstText(),
-                                        result.isLastText());
-
-                                // 如果这是第一个文本块，标记为已发送
-                                if (result.isFirstText()) {
-                                    isFirstTextSent.set(true);
-                                }
-                            }
-                        }
-
-                        // 如果是最后一个响应，完成处理
-                        if (isLastText) {
-                            // 如果缓冲区还有内容且尚未处理，确保处理剩余内容
-                            if (buffer.length() > 0) {
-                                String remainingSentence = buffer.toString().trim();
-                                if (!remainingSentence.isEmpty()) {
-                                    String audioFilePath = textToSpeechService.textToSpeech(remainingSentence);
-
-                                    audioService.sendAudio(session, audioFilePath, remainingSentence,
-                                            !isFirstTextSent.get(), true);
-                                }
-                            }
-
-                            String fullMessage = response.getMessage().getFullContent();
-                            String audioFilePath = textToSpeechService.textToSpeech(fullMessage);
-
-                            // 保存消息记录
-                            SysMessage sysMessage = new SysMessage();
-                            sysMessage.setAudioPath(audioFilePath);
-                            sysMessage.setDeviceId(device.getDeviceId());
-                            sysMessage.setSessionId(sessionId);
-                            sysMessage.setSender("assistant");
-                            sysMessage.setMessage(fullMessage);
-                            sysMessage.setRoleId(device.getRoleId());
-                            sysMessageService.add(sysMessage);
-                        }
-
-                    } catch (Exception e) {
-                        logger.error("语音合成失败", e);
-                    }
-                });
+                // 设置为非监听状态，防止处理自己的声音
+                LISTENING_STATE.put(sessionId, false);
+                llmResponseService.processUserInput(session, device, text);
                 break;
             default:
                 logger.warn("未知的listen状态: {}", state);

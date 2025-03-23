@@ -2,7 +2,6 @@ package com.xiaozhi.websocket.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.xiaozhi.websocket.handler.WebSocketHandler;
 
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -14,7 +13,7 @@ import org.springframework.web.socket.WebSocketSession;
 @Service("WebSocketMessageService")
 public class MessageService {
 
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(MessageService.class);
 
     // 发送文本消息给指定会话
     public void sendMessage(WebSocketSession session, String type, String state) {

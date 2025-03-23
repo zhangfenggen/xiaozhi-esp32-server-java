@@ -1,10 +1,11 @@
-# Xiaozhi ESP32 WebUI
+# Xiaozhi ESP32 Server Java
 
 ## 项目简介
 
-Xiaozhi ESP32 WebUI 是基于 [Xiaozhi ESP32](https://github.com/78/xiaozhi-esp32) 项目开发的JAVA前后端管理平台。由于目前缺乏一个直观、高效的前端 Web 平台与 JAVA 版本的后端服务来管理设备和相关功能，因此本项目应运而生。
+Xiaozhi ESP32 Server Java 是基于 [Xiaozhi ESP32](https://github.com/78/xiaozhi-esp32) 项目开发的 JAVA 版本的服务端，包含前后端管理平台。由于目前缺乏一个直观、高效的前端 Web 平台，并且当前存在的开源 Python Server 显得项目太臃肿，现采用 JAVA Server与后端服务来管理设备和相关功能，因此本项目应运而生。
 
 该项目旨在为用户提供一个功能丰富、操作便捷的管理界面，帮助用户更好地管理设备、配置等。
+Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，使用 MySQL 数据库进行数据存储。
 
 ---
 

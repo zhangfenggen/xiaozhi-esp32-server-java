@@ -1,4 +1,4 @@
-package com.xiaozhi.audio.detector.model;
+package com.xiaozhi.websocket.audio.detector.model;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;

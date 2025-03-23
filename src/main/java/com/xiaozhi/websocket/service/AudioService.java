@@ -1,8 +1,7 @@
 package com.xiaozhi.websocket.service;
 
-import com.xiaozhi.audio.detector.VadDetector;
-import com.xiaozhi.audio.processor.OpusProcessor;
-import com.xiaozhi.websocket.handler.WebSocketHandler;
+import com.xiaozhi.websocket.audio.detector.VadDetector;
+import com.xiaozhi.websocket.audio.processor.OpusProcessor;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
@@ -25,7 +24,7 @@ import org.springframework.web.socket.WebSocketSession;
 @Service
 public class AudioService {
 
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(AudioService.class);
 
     // 播放帧持续时间（毫秒）
     private static final int FRAME_DURATION_MS = 60;
@@ -361,15 +360,15 @@ public class AudioService {
                     }
                 }
 
+                // 删除音频文件
+                deleteAudioFiles(task.getOriginalFilePath());
+
                 // 发送句子结束消息
                 if (session.isOpen()) {
                     if (task.isLastText()) {
                         sendStop(session);
                     }
                 }
-
-                // 删除音频文件
-                deleteAudioFiles(task.getOriginalFilePath());
 
                 // 处理下一个音频任务
                 processNextAudio(session);
