@@ -479,7 +479,7 @@ export default {
   },
 };
 </script>
-<style>
+<style scoped>
 /* 使下拉框选项居中 */
 .centered-dropdown .ant-select-dropdown-menu-item {
   text-align: center;
