@@ -115,7 +115,7 @@ export default {
         {
           title: "设备编号",
           dataIndex: "deviceId",
-          width: 200,
+          width: 160,
           align: "center",
         },
         {
@@ -125,10 +125,19 @@ export default {
           align: "center",
         },
         {
+          title: "模型角色",
+          dataIndex: "roleName",
+          width: 100,
+          align: "center",
+        },
+        {
           title: "消息发送方",
           dataIndex: "sender",
           width: 100,
           align: "center",
+          customRender: (text) => {
+            return text === "user" ? "用户" : "AI";
+          },
         },
         {
           title: "消息内容",

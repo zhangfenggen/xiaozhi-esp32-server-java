@@ -10,14 +10,19 @@
         sys_device.deviceId, sys_device.deviceName, sys_device.userId
     </sql>
 
+    <sql id="roleSql">
+        sys_role.roleId, sys_role.roleName, sys_role.voiceName
+    </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysMessage">
         SELECT
         <include refid="messageSql"></include>,
-        <include refid="deviceSql"></include>
+        <include refid="deviceSql"></include>,
+        <include refid="roleSql"></include>
         FROM
             sys_message
             LEFT JOIN sys_device ON sys_message.deviceId = sys_device.deviceId
+            LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
         WHERE
             sys_message.state = 1
             <if test="deviceId != null and deviceId != ''">

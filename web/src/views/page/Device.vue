@@ -230,7 +230,7 @@ export default {
           title: "设备编号",
           dataIndex: "deviceId",
           scopedSlots: { customRender: "deviceId" },
-          width: 200,
+          width: 160,
           fixed: "left",
           align: "center",
         },
