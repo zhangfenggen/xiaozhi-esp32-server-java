@@ -24,14 +24,16 @@
         <set>
             <if test="roleName != null and roleName != ''">roleName = #{roleName},</if>
             <if test="roleDesc != null and roleDesc != ''">roleDesc = #{roleDesc},</if>
+            <if test="voiceName != null and voiceName != ''">voiceName = #{voiceName},</if>
+            <if test="state != null and state != ''">state = #{state},</if>
         </set>
         WHERE
             roleId = #{roleId}
     </update>
 
     <insert id="add" useGeneratedKeys="true" keyProperty="roleName" parameterType="com.xiaozhi.entity.SysRole">
-        INSERT INTO sys_device ( roleName, roleDesc, userId ) VALUES (
-            #{roleName}, #{roleDesc}, #{userId}
+        INSERT INTO sys_role ( roleName, roleDesc, voiceName, userId ) VALUES (
+            #{roleName}, #{roleDesc}, #{voiceName}, #{userId}
         )
     </insert>
 

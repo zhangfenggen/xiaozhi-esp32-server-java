@@ -68,7 +68,13 @@
                     </a-col>
                     <a-col :xl="6" :lg="12" :xs="24">
                       <a-form-item label="语音名称">
-                        <a-select v-decorator="['voiceName', { initialValue: defaultVoiceName }]" placeholder="请选择语音名称">
+                        <a-select v-decorator="[
+                          'voiceName',
+                          {
+                            initialValue: defaultVoiceName,
+                            rules: [{ required: true, message: '请选择语音名称' }]
+                          }
+                        ]" placeholder="请选择语音名称">
                           <a-select-option v-for="voice in filteredVoices" :key="voice.value" :value="voice.value">
                             {{ voice.label }}
                           </a-select-option>

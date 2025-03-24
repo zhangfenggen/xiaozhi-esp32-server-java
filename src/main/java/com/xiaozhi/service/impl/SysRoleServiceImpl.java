@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import javax.annotation.Resource;
 
 /**
- * 设备操作
+ * 角色操作
  *
  * @author Joey
  *

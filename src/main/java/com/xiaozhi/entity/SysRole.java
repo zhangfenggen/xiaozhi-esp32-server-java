@@ -3,7 +3,7 @@ package com.xiaozhi.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 模型身份提示词
+ * 角色配置
  * 
  * @author Joey
  * 
@@ -51,7 +51,7 @@ public class SysRole extends Base {
         return voiceName;
     }
 
-    public SysRole setAuidoName(String voiceName) {
+    public SysRole setVoiceName(String voiceName) {
         this.voiceName = voiceName;
         return this;
     }
