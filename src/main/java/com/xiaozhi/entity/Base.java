@@ -43,48 +43,54 @@ public class Base {
         return start;
     }
 
-    public void setStart(Integer start) {
+    public Base setStart(Integer start) {
         this.start = start;
+        return this;
     }
 
     public Integer getLimit() {
         return limit;
     }
 
-    public void setLimit(Integer limit) {
+    public Base setLimit(Integer limit) {
         this.limit = limit;
+        return this;
     }
 
     public Integer getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public Base setUserId(Integer userId) {
         this.userId = userId;
+        return this;
     }
 
     public String getStartTime() {
         return startTime;
     }
 
-    public void setStartTime(String startTime) {
+    public Base setStartTime(String startTime) {
         this.startTime = startTime;
+        return this;
     }
 
     public String getEndTime() {
         return endTime;
     }
 
-    public void setEndTime(String endTime) {
+    public Base setEndTime(String endTime) {
         this.endTime = endTime;
+        return this;
     }
 
     public Date getCreateTime() {
         return createTime;
     }
 
-    public void setCreateTime(Date createTime) {
+    public Base setCreateTime(Date createTime) {
         this.createTime = createTime;
+        return this;
     }
 
 }

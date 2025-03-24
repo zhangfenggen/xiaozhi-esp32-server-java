@@ -109,11 +109,8 @@ public class LlmResponseService {
 
             // 获取或创建HistoriesPrompt
             HistoriesPrompt prompt = getOrCreatePrompt(device);
-
-            prompt.setSystemMessage(new SystemMessage(device.getModelDesc()));
             // 添加用户消息
             prompt.addMessage(new HumanMessage(userInput));
-            // DatabaseChatMemory.printFieldsRecursive(prompt, "", new HashSet<>(), 0);
             // 创建文本缓冲区和第一次文本标记
             StringBuilder buffer = new StringBuilder();
             final AtomicBoolean isFirstTextSent = new AtomicBoolean(false);
@@ -182,7 +179,8 @@ public class LlmResponseService {
                         boolean isFirst = !isFirstTextSent.get();
                         if (!remainingSentence.isEmpty()) {
 
-                            String audioFilePath = textToSpeechService.textToSpeech(remainingSentence, device.getVoiceName());
+                            String audioFilePath = textToSpeechService.textToSpeech(remainingSentence,
+                                    device.getVoiceName());
 
                             // 标记这是最后一个文本段
                             isLastSegmentSent.set(true);
@@ -215,10 +213,10 @@ public class LlmResponseService {
             // 如果缓存中不存在，创建新的HistoriesPrompt
             DatabaseChatMemory chatMemory = applicationContext.getBean(DatabaseChatMemory.class);
             chatMemory.setDevice(device);
-            // HistoriesPrompt prompt = new HistoriesPrompt(chatMemory);
-            HistoriesPrompt prompt = new HistoriesPrompt();
+
+            HistoriesPrompt prompt = new HistoriesPrompt(chatMemory);
+            // prompt.setMaxAttachedMessageCount(1);
             prompt.setSystemMessage(new SystemMessage(device.getRoleDesc()));
-            logger.info("为设备 {} 创建新的HistoriesPrompt", deviceId);
             return prompt;
         });
     }

@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,9 @@ import com.xiaozhi.websocket.service.TextToSpeechService;
 public class DatabaseChatMemory implements ChatMemory {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseChatMemory.class);
+
+    private final Object id = null;
+    private final List<Message> messages = new ArrayList<>();
 
     private SysMessageService messageService;
     private TextToSpeechService textToSpeechService;
@@ -66,9 +70,16 @@ public class DatabaseChatMemory implements ChatMemory {
         }
 
         try {
+            Integer limit = device.getLimit();
+            SysMessage queryMessage = new SysMessage();
+            queryMessage.setDeviceId(id.toString());
+            queryMessage.setLimit(limit);
             // 查询数据库中与设备ID相关的消息
-            List<SysMessage> dbMessages = messageService.query(new SysMessage().setDeviceId(id().toString()));
-            List<Message> messages = new ArrayList<>();
+            List<SysMessage> dbMessages = messageService
+                    .query(queryMessage);
+            // 翻转消息列表
+            dbMessages = new ArrayList<>(dbMessages);
+            dbMessages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
 
             // 将数据库消息转换为AgentsFlex消息
             for (SysMessage dbMessage : dbMessages) {
@@ -77,8 +88,6 @@ public class DatabaseChatMemory implements ChatMemory {
                     messages.add(message);
                 }
             }
-
-            logger.info("Retrieved {} messages for device {}", messages.size(), id().toString());
             return messages;
         } catch (Exception e) {
             return new ArrayList<>();
@@ -107,9 +116,10 @@ public class DatabaseChatMemory implements ChatMemory {
                 Field fullContentField = AiMessage.class.getDeclaredField("fullContent");
                 fullContentField.setAccessible(true);
                 text = (String) fullContentField.get(aiMessage);
+                if (text.isEmpty()) {
+                    return;
+                }
             }
-
-            // printFieldsRecursive(message, "", new HashSet<>(), 0);
 
             dbMessage.setMessage(text);
             String audioFilePath = textToSpeechService.textToSpeech(text);
@@ -139,7 +149,6 @@ public class DatabaseChatMemory implements ChatMemory {
                 return aiMessage;
             }
         } catch (Exception e) {
-            logger.error("Error converting database message to AgentsFlex message: {}", e.getMessage(), e);
             return null;
         }
     }
