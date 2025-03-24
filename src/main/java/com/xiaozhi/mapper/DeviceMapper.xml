@@ -7,7 +7,7 @@
     </sql>
 
     <sql id="roleSql">
-        sys_role.roleId, sys_role.roleName, sys_role.roleDesc
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName
     </sql>
 
     <sql id="modelSql">

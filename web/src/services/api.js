@@ -15,6 +15,7 @@ export default {
     add: "/api/role/add",
     query: "/api/role/query",
     update: "/api/role/update",
+    testVoice: "/api/role/testVoice"
   },
   message: {
     query: "/api/message/query",

@@ -25,7 +25,6 @@ public class HttpSessionProvider implements SessionProvider {
 
 	public void setAttribute(HttpServletRequest request, HttpServletResponse response, String name,
 			Serializable value) {
-		System.out.println(name);
 		HttpSession session = request.getSession();
 		session.setAttribute(name, value);
 	}

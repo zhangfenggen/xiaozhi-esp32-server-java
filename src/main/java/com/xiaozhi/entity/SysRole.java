@@ -16,6 +16,8 @@ public class SysRole extends Base {
 
     private String roleDesc;
 
+    private String voiceName;
+
     private String state;
 
     public Integer getRoleId() {
@@ -42,6 +44,15 @@ public class SysRole extends Base {
 
     public SysRole setRoleDesc(String roleDesc) {
         this.roleDesc = roleDesc;
+        return this;
+    }
+
+    public String getVoiceName() {
+        return voiceName;
+    }
+
+    public SysRole setAuidoName(String voiceName) {
+        this.voiceName = voiceName;
         return this;
     }
 

@@ -19,14 +19,19 @@ public class TextToSpeechService {
     // 语音生成文件保存地址
     private final String filePath = "audio/";
 
-    /**
-     * 将文本转换为语音，生成MP3文件
-     * 
-     * @param message 要转换为语音的文本
-     * @return 生成的MP3文件路径
-     */
+    // 默认语音
+    private static final String DEFAULT_VOICE = "zh-CN-XiaoyiNeural";
+
     public String textToSpeech(String message) throws Exception {
-        return textToSpeech(message, 16000, 1);
+        return textToSpeech(message, DEFAULT_VOICE, 16000, 1);
+    }
+
+    public String textToSpeech(String message, String voiceName) throws Exception {
+        return textToSpeech(message, voiceName, 16000, 1);
+    }
+
+    public String textToSpeech(String message, int sampleRate, int channels) throws Exception {
+        return textToSpeech(message, DEFAULT_VOICE, sampleRate, channels);
     }
 
     /**
@@ -37,13 +42,11 @@ public class TextToSpeechService {
      * @param channels   通道数
      * @return 生成的MP3文件路径
      */
-    public String textToSpeech(String message, int sampleRate, int channels) throws Exception {
-
-        // 获取角色
+    public String textToSpeech(String message, String voiceName, int sampleRate, int channels) throws Exception {
 
         // 获取中文语音
         Voice voice = TTSVoice.provides().stream()
-                .filter(v -> v.getShortName().equals("zh-CN-XiaoyiNeural"))
+                .filter(v -> v.getShortName().equals(!voiceName.isEmpty() ? voiceName : DEFAULT_VOICE))
                 .collect(Collectors.toList()).get(0);
 
         // 1. 执行TTS转换获取音频文件

@@ -4,12 +4,7 @@
       <div class="layout-content-margin">
         <!-- 查询框 -->
         <div class="table-search">
-          <a-form
-            layout="horizontal"
-            :colon="false"
-            :labelCol="{ span: 6 }"
-            :wrapperCol="{ span: 16 }"
-          >
+          <a-form layout="horizontal" :colon="false" :labelCol="{ span: 6 }" :wrapperCol="{ span: 16 }">
             <a-row class="filter-flex">
               <a-col :xxl="6" :xl="6" :lg="12" :xs="24">
                 <a-form-item label="模型类别">
@@ -23,20 +18,9 @@
                   </a-select>
                 </a-form-item>
               </a-col>
-              <a-col
-                :xl="6"
-                :lg="12"
-                :xs="24"
-                v-for="item in queryFilter"
-                :key="item.index"
-              >
+              <a-col :xl="6" :lg="12" :xs="24" v-for="item in queryFilter" :key="item.index">
                 <a-form-item :label="item.label">
-                  <a-input-search
-                    v-model="query[item.index]"
-                    placeholder="请输入"
-                    allow-clear
-                    @search="getData()"
-                  />
+                  <a-input-search v-model="query[item.index]" placeholder="请输入" allow-clear @search="getData()" />
                 </a-form-item>
               </a-col>
             </a-row>
@@ -49,12 +33,12 @@
             <a-tab-pane key="1" tab="模型列表">
               <a-table :columns="columns" :dataSource="modelItems" :loading="loading" :pagination="pagination"
                 rowKey="modelId" :scroll="{ x: 800 }" size="middle">
-                <template slot="modelDesc" slot-scope="text, record">
-                  <a-tip :title="text" :mouseEnterDelay="0.5">
+                <templace slot="modelDesc" slot-scope="text, record">
+                  <a-tooltip :title="text" :mouseEnterDelay="0.5" placement="leftTop">
                     <span v-if="text">{{ text }}</span>
                     <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
-                  </a-tip>
-                </template>
+                  </a-tooltip>
+                </templace>
                 <template slot="operation" slot-scope="text, record">
                   <a-space>
                     <a @click="edit(record)">编辑</a>
@@ -67,7 +51,7 @@
             </a-tab-pane>
             <a-tab-pane key="2" tab="创建模型">
               <a-form layout="horizontal" :form="modelForm" :colon="false" @submit="handleSubmit"
-                style="padding: 0 24px">
+                style="padding: 10px 24px">
                 <a-row :gutter="20">
                   <a-col :xl="8" :lg="12" :xs="24">
                     <a-form-item label="模型类别">
@@ -95,34 +79,36 @@
                 </a-form-item>
 
                 <a-divider>参数配置</a-divider>
+                <a-space direction="vertical" style="width: 100%">
+                  <a-card v-if="currentType" size="small" :bodyStyle="{ 'background-color': '#fafafa' }"
+                    :bordered="false">
+                    <a-row :gutter="20">
+                      <!-- 根据选择的模型类别动态显示参数配置 -->
+                      <template v-for="field in currentTypeFields">
+                        <a-col :key="field.name" :xl="field.span || 12" :lg="12" :xs="24">
+                          <a-form-item :label="field.label" style="margin-bottom: 24px">
+                            <a-input v-decorator="[
+                              field.name,
+                              { rules: [{ required: field.required, message: `请输入${field.label}` }] }
+                            ]" :placeholder="`请输入${field.label}`" :type="field.inputType || 'text'" />
+                          </a-form-item>
+                        </a-col>
+                      </template>
+                    </a-row>
+                  </a-card>
+                  <a-card v-else :bodyStyle="{ 'background-color': '#fafafa' }" :bordered="false">
+                    <a-empty description="请先选择模型类别" />
+                  </a-card>
 
-                <div class="parameter-item" v-if="currentType">
-                  <a-row :gutter="20">
-                    <!-- 根据选择的模型类别动态显示参数配置 -->
-                    <template v-for="field in currentTypeFields">
-                      <a-col :key="field.name" :xl="field.span || 12" :lg="12" :xs="24">
-                        <a-form-item :label="field.label" style="margin-bottom: 24px">
-                          <a-input v-decorator="[
-                            field.name,
-                            { rules: [{ required: field.required, message: `请输入${field.label}` }] }
-                          ]" :placeholder="`请输入${field.label}`" :type="field.inputType || 'text'" />
-                        </a-form-item>
-                      </a-col>
-                    </template>
-                  </a-row>
-                </div>
-                <div v-else class="empty-params">
-                  <a-empty description="请先选择模型类别" />
-                </div>
-
-                <a-form-item>
-                  <a-button type="primary" html-type="submit">
-                    {{ editingModelId ? '更新模型' : '创建模型' }}
-                  </a-button>
-                  <a-button style="margin-left: 8px" @click="resetForm">
-                    取消
-                  </a-button>
-                </a-form-item>
+                  <a-form-item>
+                    <a-button type="primary" html-type="submit">
+                      {{ editingModelId ? '更新模型' : '创建模型' }}
+                    </a-button>
+                    <a-button style="margin-left: 8px" @click="resetForm">
+                      取消
+                    </a-button>
+                  </a-form-item>
+                </a-space>
               </a-form>
             </a-tab-pane>
           </a-tabs>
@@ -212,9 +198,10 @@ export default {
         {
           title: '描述',
           dataIndex: 'modelDesc',
+          scopedSlots: { customRender: 'modelDesc' },
           key: 'modelDesc',
           align: 'center',
-          ellipsis: true
+          ellipsis: true,
         },
         {
           title: '创建时间',
@@ -407,21 +394,3 @@ export default {
   }
 }
 </script>
-
-<style scoped lang="scss">
-.parameter-item {
-  background-color: #fafafa;
-  padding: 12px;
-  margin-bottom: 12px;
-  border-radius: 4px;
-}
-
-.empty-params {
-  background-color: #fafafa;
-  padding: 24px;
-  margin-bottom: 12px;
-  border-radius: 4px;
-  text-align: center;
-}
-
-</style>

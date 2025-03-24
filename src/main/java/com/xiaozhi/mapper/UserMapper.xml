@@ -19,7 +19,7 @@
         SELECT
         <include refid="userSql"></include>,
         (
-            SELECT count(*) FROM sys_device WHERE sys_device.userId = #{userId}
+            SELECT count(*) FROM sys_device WHERE sys_device.userId = sys_user.userId
         ) AS totalDevice,
         (
             SELECT

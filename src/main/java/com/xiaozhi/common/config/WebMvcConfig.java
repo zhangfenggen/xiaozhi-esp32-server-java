@@ -10,6 +10,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurationSupp
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 
 import javax.annotation.Resource;
+
+import java.io.File;
 import java.util.*;
 
 @Configuration
@@ -46,9 +48,22 @@ public class WebMvcConfig extends WebMvcConfigurationSupport {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Map URL path /audio/** to the file system location
-        registry.addResourceHandler("/audio/**")
-                .addResourceLocations("file:/home/joey/documents/xiaozhi-esp32-webui/audio/");
-        
+        try {
+            // 获取项目根目录的绝对路径
+            String basePath = new File("").getAbsolutePath();
+            
+            // 音频文件存储在项目根目录下的audio文件夹中
+            String audioPath = "file:" + basePath + File.separator + "audio" + File.separator;
+            
+            System.out.println("音频文件路径配置: " + audioPath);
+            
+            // 配置资源映射
+            registry.addResourceHandler("/audio/**")
+                    .addResourceLocations(audioPath);
+
+            super.addResourceHandlers(registry);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

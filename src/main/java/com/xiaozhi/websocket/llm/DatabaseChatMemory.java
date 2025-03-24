@@ -1,8 +1,12 @@
 package com.xiaozhi.websocket.llm;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,13 +96,21 @@ public class DatabaseChatMemory implements ChatMemory {
             SysMessage dbMessage = new SysMessage();
             dbMessage.setDeviceId(id().toString());
             dbMessage.setSessionId(device.getSessionId());
+            String text = null;
             // 根据消息类型设置发送者和内容
             if (message instanceof HumanMessage) {
                 dbMessage.setSender("user");
+                text = message.getMessageContent().toString();
             } else {
                 dbMessage.setSender("assistant");
+                AiMessage aiMessage = (AiMessage) message;
+                Field fullContentField = AiMessage.class.getDeclaredField("fullContent");
+                fullContentField.setAccessible(true);
+                text = (String) fullContentField.get(aiMessage);
             }
-            String text = message.getMessageContent().toString();
+
+            // printFieldsRecursive(message, "", new HashSet<>(), 0);
+
             dbMessage.setMessage(text);
             String audioFilePath = textToSpeechService.textToSpeech(text);
             dbMessage.setAudioPath(audioFilePath);
@@ -122,15 +134,7 @@ public class DatabaseChatMemory implements ChatMemory {
                 return new HumanMessage(content);
             } else {
                 AiMessage aiMessage = new AiMessage();
-                // 使用反射设置fullContent字段
-                Field fullContentField = AiMessage.class.getDeclaredField("fullContent");
-                fullContentField.setAccessible(true);
-                fullContentField.set(aiMessage, content);
-
-                // 设置content字段
-                Field contentField = aiMessage.getClass().getSuperclass().getDeclaredField("content");
-                contentField.setAccessible(true);
-                contentField.set(aiMessage, content);
+                aiMessage.setFullContent(content);
 
                 return aiMessage;
             }
@@ -141,33 +145,133 @@ public class DatabaseChatMemory implements ChatMemory {
     }
 
     /**
-     * 使用反射打印对象的所有字段和值
+     * 递归打印对象字段
+     * 
+     * @param obj     要打印的对象
+     * @param prefix  前缀（用于缩进）
+     * @param visited 已访问对象集合
+     * @param depth   递归深度，防止过深递归
      */
-    private void printFields(Object obj) {
-        logger.debug("Fields of {}:", obj.getClass().getSimpleName());
-        Field[] fields = obj.getClass().getDeclaredFields();
-        for (Field field : fields) {
-            field.setAccessible(true);
-            try {
-                logger.debug("  {} = {}", field.getName(), field.get(obj));
-            } catch (Exception e) {
-                logger.debug("  {} = [Error accessing field]", field.getName());
-            }
+    public static void printFieldsRecursive(Object obj, String prefix, Set<Object> visited, int depth) {
+        if (obj == null || depth > 5) { // 限制递归深度为5
+            return;
         }
 
-        // 检查父类的字段
-        Class<?> superClass = obj.getClass().getSuperclass();
-        if (superClass != null && !superClass.equals(Object.class)) {
-            logger.debug("Fields from superclass {}:", superClass.getSimpleName());
-            Field[] superFields = superClass.getDeclaredFields();
-            for (Field field : superFields) {
+        // 如果对象已被访问过，避免循环引用
+        if (visited.contains(obj)) {
+            logger.debug("{}= [已访问过的对象: {}]", prefix, obj.getClass().getSimpleName());
+            return;
+        }
+
+        // 添加到已访问集合
+        visited.add(obj);
+
+        // 处理集合类型
+        if (obj instanceof Collection<?>) {
+            Collection<?> collection = (Collection<?>) obj;
+            logger.debug("{}= Collection with {} elements", prefix, collection.size());
+            int index = 0;
+            for (Object item : collection) {
+                if (index < 10) { // 限制只打印前10个元素
+                    if (item != null) {
+                        if (isPrimitiveOrString(item.getClass())) {
+                            logger.debug("{}  [{}] = {}", prefix, index, item);
+                        } else {
+                            logger.debug("{}  [{}] = {}", prefix, index, item.getClass().getSimpleName());
+                            printFieldsRecursive(item, prefix + "    ", visited, depth + 1);
+                        }
+                    } else {
+                        logger.debug("{}  [{}] = null", prefix, index);
+                    }
+                }
+                index++;
+            }
+            if (collection.size() > 10) {
+                logger.debug("{}  ... and {} more elements", prefix, collection.size() - 10);
+            }
+            return;
+        }
+
+        // 处理Map类型
+        if (obj instanceof Map<?, ?>) {
+            Map<?, ?> map = (Map<?, ?>) obj;
+            logger.debug("{}= Map with {} entries", prefix, map.size());
+            int count = 0;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (count < 10) { // 限制只打印前10个元素
+                    Object key = entry.getKey();
+                    Object value = entry.getValue();
+                    logger.debug("{}  Key: {}", prefix, key);
+                    if (value != null) {
+                        if (isPrimitiveOrString(value.getClass())) {
+                            logger.debug("{}  Value: {}", prefix, value);
+                        } else {
+                            logger.debug("{}  Value: {}", prefix, value.getClass().getSimpleName());
+                            printFieldsRecursive(value, prefix + "    ", visited, depth + 1);
+                        }
+                    } else {
+                        logger.debug("{}  Value: null", prefix, value);
+                    }
+                }
+                count++;
+            }
+            if (map.size() > 10) {
+                logger.debug("{}  ... and {} more entries", prefix, map.size() - 10);
+            }
+            return;
+        }
+
+        // 处理普通对象
+        Class<?> clazz = obj.getClass();
+        logger.debug("{}Fields of {} ({})", prefix, clazz.getSimpleName(), obj);
+
+        // 处理特殊的Message类型
+        if (obj instanceof Message) {
+            Message message = (Message) obj;
+            logger.debug("{}  MessageType: {}", prefix, message.getClass().getSimpleName());
+            logger.debug("{}  Content: {}", prefix, message.getMessageContent());
+            return;
+        }
+
+        // 处理普通字段
+        while (clazz != null && clazz != Object.class) {
+            Field[] fields = clazz.getDeclaredFields();
+            for (Field field : fields) {
+                // 跳过静态字段和合成字段
+                if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
+                    continue;
+                }
+
                 field.setAccessible(true);
                 try {
-                    logger.debug("  {} = {}", field.getName(), field.get(obj));
+                    Object value = field.get(obj);
+                    String fieldName = field.getName();
+
+                    if (value == null) {
+                        logger.debug("{}  {} = null", prefix, fieldName);
+                    } else if (isPrimitiveOrString(value.getClass())) {
+                        logger.debug("{}  {} = {}", prefix, fieldName, value);
+                    } else {
+                        logger.debug("{}  {} = {} ({})", prefix, fieldName,
+                                value.getClass().getSimpleName(), value);
+                        printFieldsRecursive(value, prefix + "    ", visited, depth + 1);
+                    }
                 } catch (Exception e) {
-                    logger.debug("  {} = [Error accessing field]", field.getName());
+                    logger.debug("{}  {} = [Error accessing field: {}]", prefix, field.getName(), e.getMessage());
                 }
             }
+            clazz = clazz.getSuperclass();
         }
     }
+
+    /**
+     * 判断一个类是否为基本类型或String
+     */
+    private static boolean isPrimitiveOrString(Class<?> clazz) {
+        return clazz.isPrimitive() || clazz == String.class || clazz == Boolean.class ||
+                clazz == Integer.class || clazz == Long.class || clazz == Float.class ||
+                clazz == Double.class || clazz == Byte.class || clazz == Short.class ||
+                clazz == Character.class || clazz.isEnum();
+    }
+
 }

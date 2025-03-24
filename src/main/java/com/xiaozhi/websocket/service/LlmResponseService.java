@@ -12,12 +12,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.annotation.Resource;
 
 /**
  * 处理LLM响应和语音合成的服务
@@ -45,8 +46,7 @@ public class LlmResponseService {
     @Autowired
     private AudioService audioService;
 
-    @Autowired
-    @Qualifier("WebSocketMessageService")
+    @Resource
     private MessageService messageService;
 
     @Autowired
@@ -113,6 +113,7 @@ public class LlmResponseService {
             prompt.setSystemMessage(new SystemMessage(device.getModelDesc()));
             // 添加用户消息
             prompt.addMessage(new HumanMessage(userInput));
+            // DatabaseChatMemory.printFieldsRecursive(prompt, "", new HashSet<>(), 0);
             // 创建文本缓冲区和第一次文本标记
             StringBuilder buffer = new StringBuilder();
             final AtomicBoolean isFirstTextSent = new AtomicBoolean(false);
@@ -152,7 +153,7 @@ public class LlmResponseService {
 
                         // 确保文本内容不为空
                         if (!sentence.isEmpty()) {
-                            String audioFilePath = textToSpeechService.textToSpeech(sentence);
+                            String audioFilePath = textToSpeechService.textToSpeech(sentence, device.getVoiceName());
 
                             // 如果是最后一个响应且缓冲区为空，标记这是最后一个文本段
                             boolean isReallyLastText = result.isLastText() ||
@@ -181,7 +182,7 @@ public class LlmResponseService {
                         boolean isFirst = !isFirstTextSent.get();
                         if (!remainingSentence.isEmpty()) {
 
-                            String audioFilePath = textToSpeechService.textToSpeech(remainingSentence);
+                            String audioFilePath = textToSpeechService.textToSpeech(remainingSentence, device.getVoiceName());
 
                             // 标记这是最后一个文本段
                             isLastSegmentSent.set(true);
@@ -193,10 +194,6 @@ public class LlmResponseService {
                 } catch (Exception e) {
                     logger.error("语音合成失败 - SessionId: {}", sessionId, e);
                 }
-            });
-
-            prompt.getMemory().getMessages().forEach(message -> {
-                logger.debug("HistoriesPrompt消息 - SessionId: {}: {}", sessionId, message.getMessageContent());
             });
 
         } catch (Exception e) {

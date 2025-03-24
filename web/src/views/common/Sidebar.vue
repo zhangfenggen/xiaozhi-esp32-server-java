@@ -74,6 +74,8 @@ export default {
   computed: {
     onRoutes() {
       console.log(this.$route.path);
+      // 切换页面时摧毁所有弹框
+      this.$message.destroy()
       return this.$route.path;
       // return this.$route.path.replace('/', '')
     },

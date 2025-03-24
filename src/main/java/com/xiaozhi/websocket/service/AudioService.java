@@ -13,10 +13,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Resource;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -42,8 +43,7 @@ public class AudioService {
     // 跟踪每个会话的发送状态
     private final Map<String, AtomicBoolean> isProcessingMap = new ConcurrentHashMap<>();
 
-    @Autowired
-    @Qualifier("WebSocketMessageService")
+    @Resource
     private MessageService messageService;
 
     @Autowired

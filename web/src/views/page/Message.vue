@@ -36,9 +36,15 @@
         <a-card title="查询表格" :bodyStyle="{ padding: 0 }" :bordered="false">
           <a-table rowKey="messageId" :columns="tableColumns" :data-source="data" :loading="loading"
             :pagination="pagination" :scroll="{ x: 800 }" size="middle">
+            <templace slot="message" slot-scope="text, record">
+              <a-tooltip :title="text" :mouseEnterDelay="0.5" placement="leftTop">
+                <span v-if="text">{{ text }}</span>
+                <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+              </a-tooltip>
+            </templace>
             <template slot="audioPath" slot-scope="text, record">
               <div v-if="text && text.trim()">
-                <audio-player :audio-url="getAudioUrl(text)" />
+                <audio-player :audio-url="text" />
               </div>
               <span v-else>无音频</span>
             </template>
@@ -127,6 +133,7 @@ export default {
         {
           title: "消息内容",
           dataIndex: "message",
+          scopedSlots: { customRender: "message" },
           align: "center",
           width: 200,
           ellipsis: true,
@@ -188,17 +195,6 @@ export default {
         .finally(() => {
           this.loading = false
         })
-    },
-    // 获取音频URL的方法
-    getAudioUrl(path) {
-      if (!path) return '';
-
-      // 如果路径是完整URL，直接返回
-      if (path.startsWith('http://') || path.startsWith('https://')) {
-        return path;
-      }
-      // 使用新的API端点
-      return `http://localhost:8091/${path}`;
     },
   },
 };

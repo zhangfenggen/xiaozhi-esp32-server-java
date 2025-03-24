@@ -5,7 +5,7 @@
 Xiaozhi ESP32 Server Java 是基于 [Xiaozhi ESP32](https://github.com/78/xiaozhi-esp32) 项目开发的 JAVA 版本的服务端，包含前后端管理平台。由于目前缺乏一个直观、高效的前端 Web 平台，并且当前存在的开源 Python Server 显得项目太臃肿，现采用 JAVA Server与后端服务来管理设备和相关功能，因此本项目应运而生。
 
 该项目旨在为用户提供一个功能丰富、操作便捷的管理界面，帮助用户更好地管理设备、配置等。
-Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，使用 MySQL 数据库进行数据存储。
+Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应式布局，适配各种设备以及分辨率，使用 MySQL 数据库进行数据存储。
 
 ---
 
@@ -17,8 +17,8 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，使用 MySQL �
    - 添加、编辑、删除设备信息。（已完成）
 
 ### 2. **音色选择**
-   - 提供多种音色模板供用户选择。
-   - 预览音色效果。
+   - 提供多种音色模板供用户选择。（已完成）
+   - 预览音色效果。（已完成）
    - 为不同设备分配不同的音色配置。（已完成）
 
 ### 3. **聊天记录**
@@ -30,8 +30,13 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，使用 MySQL �
   - 查看与修改唤醒词。
 
 ### 5. **角色切换**
-  - 预设角色切换（AI老师、男/女朋友、智能家居助手）
+  - 预设角色切换（AI老师、男/女朋友、智能家居助手）（已完成）
   - 混合模式
+
+### 6. **持久化对话**
+  - 支持持久化对话记录，方便用户查看历史对话内容。
+  - 支持手动操作对话记录。
+
 
 ## UI样式
 <div align="center">
@@ -39,6 +44,7 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，使用 MySQL �
   <img src="docs/image/device.jpg" alt="device" width="500" style="margin: 10px;" />
   <img src="docs/image/message.jpg" alt="message" width="500" style="margin: 10px;" />
   <img src="docs/image/model.jpg" alt="model" width="500" style="margin: 10px;" />
+  <img src="docs/image/role.jpg" alt="role" width="500" style="margin: 10px;" />
 </div>
 
 ---

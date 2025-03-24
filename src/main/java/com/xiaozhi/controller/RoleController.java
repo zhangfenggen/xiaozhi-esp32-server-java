@@ -10,6 +10,7 @@ import com.xiaozhi.common.web.AjaxResult;
 import com.xiaozhi.entity.SysRole;
 import com.xiaozhi.service.SysRoleService;
 import com.xiaozhi.utils.CmsUtils;
+import com.xiaozhi.websocket.service.TextToSpeechService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,9 @@ public class RoleController {
 
     @Resource
     private SysRoleService roleService;
+
+    @Resource
+    private TextToSpeechService textToSpeechService;
 
     /**
      * 角色查询
@@ -84,6 +88,19 @@ public class RoleController {
             role.setUserId(CmsUtils.getUserId(request));
             roleService.add(role);
             return AjaxResult.success();
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return AjaxResult.error();
+        }
+    }
+
+    @GetMapping("/testVoice")
+    public AjaxResult testAudio(String voiceName, String message, HttpServletRequest request) {
+        try {
+            String audioFilePath = textToSpeechService.textToSpeech(message, voiceName);
+            AjaxResult result = AjaxResult.success();
+            result.put("data", audioFilePath);
+            return result;
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return AjaxResult.error();

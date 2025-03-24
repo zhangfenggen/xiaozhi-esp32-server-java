@@ -211,10 +211,12 @@ public class SileroVadDetector implements VadDetector {
                         && currentEnergy > energyThreshold;
 
                 // 始终输出语音概率（每5帧输出一次，避免日志过多）
-                if (state.frameCount % 5 == 0) {
-                    logger.info("语音概率 - SessionId: {}, 概率: {}, 阈值: {}, 能量: {}, 平均能量: {}, 能量显著: {}",
-                            sessionId, speechProb, threshold, currentEnergy, state.averageEnergy, hasSignificantEnergy);
-                }
+                // if (state.frameCount % 5 == 0) {
+                // logger.info("语音概率 - SessionId: {}, 概率: {}, 阈值: {}, 能量: {}, 平均能量: {}, 能量显著:
+                // {}",
+                // sessionId, speechProb, threshold, currentEnergy, state.averageEnergy,
+                // hasSignificantEnergy);
+                // }
 
                 // 检测语音状态变化 - 同时考虑VAD和能量
                 if (speechProb >= threshold && hasSignificantEnergy) {
@@ -222,14 +224,11 @@ public class SileroVadDetector implements VadDetector {
 
                     // 只有连续多帧都检测到语音，才认为语音真正开始
                     if (state.consecutiveSpeechFrames >= state.requiredConsecutiveFrames && !state.isSpeaking) {
-                        logger.info("检测到语音开始 - SessionId: {}, 语音概率: {}, 能量: {}, 连续帧数: {}",
-                                sessionId, speechProb, currentEnergy, state.consecutiveSpeechFrames);
 
                         state.isSpeaking = true;
 
                         // 将预缓冲区的数据复制到主缓冲区
                         state.audioBuffer.addAll(state.preBuffer);
-                        logger.info("添加预缓冲区数据: {} 字节", state.preBuffer.size());
                     }
 
                     if (state.isSpeaking) {
@@ -251,7 +250,6 @@ public class SileroVadDetector implements VadDetector {
 
                         // 如果静音时间超过阈值，认为语音结束
                         if (silenceDurationMs >= minSilenceDurationMs) {
-                            logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, silenceDurationMs);
 
                             // 将缓冲区的数据转换为字节数组
                             byte[] completeAudio = new byte[state.audioBuffer.size()];
@@ -261,8 +259,6 @@ public class SileroVadDetector implements VadDetector {
 
                             // 对音频进行后处理
                             byte[] processedResult = postProcessAudio(completeAudio);
-                            logger.info("音频后处理: 原始大小 {} 字节, 处理后 {} 字节",
-                                    completeAudio.length, processedResult.length);
 
                             // 重置状态
                             state.reset();
@@ -276,7 +272,6 @@ public class SileroVadDetector implements VadDetector {
                 // 检查是否超过最大静音时间（防止无限等待）
                 if (state.isSpeaking &&
                         (System.currentTimeMillis() - state.lastSpeechTimestamp) > maxSilenceDurationMs) {
-                    logger.info("超过最大静音时间 - SessionId: {}", sessionId);
 
                     // 将缓冲区的数据转换为字节数组
                     byte[] completeAudio = new byte[state.audioBuffer.size()];
@@ -286,8 +281,6 @@ public class SileroVadDetector implements VadDetector {
 
                     // 对音频进行后处理
                     byte[] processedResult = postProcessAudio(completeAudio);
-                    logger.info("音频后处理: 原始大小 {} 字节, 处理后 {} 字节",
-                            completeAudio.length, processedResult.length);
 
                     // 重置状态
                     state.reset();

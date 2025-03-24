@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.RoleMapper">
 
     <sql id="roleSql">
-        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.userId, sys_role.state, sys_role.createTime
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName, sys_role.userId, sys_role.state, sys_role.createTime
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysRole">

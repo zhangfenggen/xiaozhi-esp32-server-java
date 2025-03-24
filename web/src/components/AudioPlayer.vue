@@ -24,6 +24,10 @@ export default {
     audioUrl: {
       type: String,
       required: true
+    },
+    autoPlay: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -74,6 +78,11 @@ export default {
       // 事件监听
       this.wavesurfer.on('ready', () => {
         this.loading = false;
+        
+        // 如果设置了自动播放，则在音频加载完成后自动播放
+        if (this.autoPlay) {
+          this.wavesurfer.play();
+        }
       });
 
       this.wavesurfer.on('play', () => {
@@ -86,11 +95,12 @@ export default {
 
       this.wavesurfer.on('finish', () => {
         this.isPlaying = false;
+        // 播放结束后将游标重置到开始位置
+        this.wavesurfer.seekTo(0);
       });
 
       this.wavesurfer.on('error', (err) => {
-        console.error('WaveSurfer error:', err);
-        this.$message.error('音频加载失败');
+        this.$message.error({ content: '音频加载失败', key: 'audioError' });
         this.loading = false;
       });
 
@@ -102,7 +112,7 @@ export default {
     loadAudio(url) {
       if (!url) return;
       
-      this.wavesurfer.load(url);
+      this.wavesurfer.load(`http://localhost:8091/${url}`);
     },
     togglePlay() {
       if (this.loading) return;

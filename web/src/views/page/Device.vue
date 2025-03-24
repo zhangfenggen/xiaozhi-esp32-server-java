@@ -117,7 +117,7 @@
                 @click="edit(record.deviceId)"
                 style="cursor: pointer"
               >
-                <a-tooltip :title="record.roleDesc" :mouseEnterDelay="0.5">
+                <a-tooltip :title="record.roleDesc" :mouseEnterDelay="1"  placement="right">
                   <span v-if="text">{{ text }}</span>
                   <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
                 </a-tooltip>
