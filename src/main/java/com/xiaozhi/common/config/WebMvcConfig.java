@@ -55,8 +55,6 @@ public class WebMvcConfig extends WebMvcConfigurationSupport {
             // 音频文件存储在项目根目录下的audio文件夹中
             String audioPath = "file:" + basePath + File.separator + "audio" + File.separator;
             
-            System.out.println("音频文件路径配置: " + audioPath);
-            
             // 配置资源映射
             registry.addResourceHandler("/audio/**")
                     .addResourceLocations(audioPath);

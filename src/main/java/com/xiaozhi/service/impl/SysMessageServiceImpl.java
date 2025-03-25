@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.github.pagehelper.PageHelper;
 import com.xiaozhi.dao.MessageMapper;
-import com.xiaozhi.dao.UserMapper;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.service.SysMessageService;

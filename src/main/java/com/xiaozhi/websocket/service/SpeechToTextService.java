@@ -2,6 +2,8 @@ package com.xiaozhi.websocket.service;
 
 import org.vosk.Model;
 import org.vosk.Recognizer;
+import org.vosk.LibVosk;
+import org.vosk.LogLevel;
 import org.bytedeco.ffmpeg.global.avcodec;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
@@ -39,6 +41,9 @@ public class SpeechToTextService {
     @PostConstruct
     public void init() {
         try {
+            // 禁用Vosk日志输出
+            LibVosk.setLogLevel(LogLevel.WARNINGS);
+            // 初始化FFmpeg
             // 加载模型，路径为 resources 目录下的模型
             String modelPath = "src/main/resources/vosk-model-cn-0.22";
             model = new Model(modelPath);

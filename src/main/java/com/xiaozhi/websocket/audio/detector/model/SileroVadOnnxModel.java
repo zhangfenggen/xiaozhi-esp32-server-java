@@ -4,6 +4,7 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.OrtLoggingLevel;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +28,7 @@ public class SileroVadOnnxModel {
         OrtEnvironment env = OrtEnvironment.getEnvironment();
         // Create an ONNX session options object
         OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
+        opts.setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR);
         // Set the InterOp thread count to 1, InterOp threads are used for parallel
         // processing of different computation graph operations
         opts.setInterOpNumThreads(1);
@@ -37,6 +39,7 @@ public class SileroVadOnnxModel {
         opts.addCPU(true);
         // Create an ONNX session using the environment, model path, and options
         session = env.createSession(modelPath, opts);
+
         // Reset states
         resetStates();
     }
