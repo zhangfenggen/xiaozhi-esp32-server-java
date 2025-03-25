@@ -13,7 +13,16 @@
       "request": "launch",
       "mainClass": "com.xiaozhi.XiaozhiApplication",
       "projectName": "xiaozhi.webui"
+    },
+    {
+      "type": "java",
+      "name": "Spring Boot-XiaozhiApplication<xiaozhi.server>",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "mainClass": "com.xiaozhi.XiaozhiApplication",
+      "projectName": "xiaozhi.server",
+      "args": "",
+      "envFile": "${workspaceFolder}/.env"
     }
-
   ]
 }

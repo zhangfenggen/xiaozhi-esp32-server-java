@@ -42,11 +42,12 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 
 ## UI样式
 <div align="center">
-  <img src="docs/images/dashboard.jpg" alt="dashboard" width="500" style="margin: 10px;" />
-  <img src="docs/images/device.jpg" alt="device" width="500" style="margin: 10px;" />
-  <img src="docs/images/message.jpg" alt="message" width="500" style="margin: 10px;" />
-  <img src="docs/images/model.jpg" alt="model" width="500" style="margin: 10px;" />
-  <img src="docs/images/role.jpg" alt="role" width="500" style="margin: 10px;" />
+  <img src="docs/images/login.jpg" alt="login" width="600" style="margin: 10px;" />
+  <img src="docs/images/dashboard.jpg" alt="dashboard" width="600" style="margin: 10px;" />
+  <img src="docs/images/device.jpg" alt="device" width="600" style="margin: 10px;" />
+  <img src="docs/images/message.jpg" alt="message" width="600" style="margin: 10px;" />
+  <img src="docs/images/model.jpg" alt="model" width="600" style="margin: 10px;" />
+  <img src="docs/images/role.jpg" alt="role" width="600" style="margin: 10px;" />
 </div>
 
 ---
@@ -62,7 +63,7 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 
 ## 开发计划
 
-- **阶段 1**：实现基础功能（设备管理、音色选择、聊天记录查看）。
+- **阶段 1**：实现基础功能（设备管理、音色选择、聊天记录查看）。（已完成）
 - **阶段 2**：完善用户管理、唤醒词修改、日志管理模块。
 - **阶段 3**：增加数据可视化功能、增加流式对话记录。
 

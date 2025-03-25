@@ -4,7 +4,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +71,7 @@ public class DatabaseChatMemory implements ChatMemory {
         try {
             Integer limit = device.getLimit();
             SysMessage queryMessage = new SysMessage();
-            queryMessage.setDeviceId(id.toString());
+            queryMessage.setDeviceId(device.getDeviceId());
             queryMessage.setLimit(limit);
             // 查询数据库中与设备ID相关的消息
             List<SysMessage> dbMessages = messageService
