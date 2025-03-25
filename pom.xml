@@ -7,10 +7,10 @@
         <version>2.3.5.RELEASE</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.xiaozhi.webui</groupId>
-    <artifactId>xiaozhi.webui</artifactId>
+    <groupId>com.xiaozhi.server</groupId>
+    <artifactId>xiaozhi.server</artifactId>
     <version>1.0</version>
-    <name>xiaozhi-webui</name>
+    <name>xiaozhi-server</name>
     <description></description>
 
     <properties>

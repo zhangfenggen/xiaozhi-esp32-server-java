@@ -42,11 +42,11 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 
 ## UI样式
 <div align="center">
-  <img src="docs/image/dashboard.jpg" alt="dashboard" width="500" style="margin: 10px;" />
-  <img src="docs/image/device.jpg" alt="device" width="500" style="margin: 10px;" />
-  <img src="docs/image/message.jpg" alt="message" width="500" style="margin: 10px;" />
-  <img src="docs/image/model.jpg" alt="model" width="500" style="margin: 10px;" />
-  <img src="docs/image/role.jpg" alt="role" width="500" style="margin: 10px;" />
+  <img src="docs/images/dashboard.jpg" alt="dashboard" width="500" style="margin: 10px;" />
+  <img src="docs/images/device.jpg" alt="device" width="500" style="margin: 10px;" />
+  <img src="docs/images/message.jpg" alt="message" width="500" style="margin: 10px;" />
+  <img src="docs/images/model.jpg" alt="model" width="500" style="margin: 10px;" />
+  <img src="docs/images/role.jpg" alt="role" width="500" style="margin: 10px;" />
 </div>
 
 ---
@@ -67,6 +67,18 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 - **阶段 3**：增加数据可视化功能、增加流式对话记录。
 
 ---
+
+## 使用方式
+
+### 1. 本地源码运行
+点击此处查看[部署文档](./docs/DEVELOPMENT.md)
+
+成功运行后，控制台会输出 WebSocket 连接地址，根据下方固件编译文档使设备接入服务使用。
+
+### 2. 固件编译
+点这里查看[固件编译](./docs/FIRMWARE-BUILD.md)的详细过程。
+
+烧录成功且联网成功后，通过唤醒词唤醒小智，留意server端输出的控制台信息。
 
 ## 贡献指南
 
