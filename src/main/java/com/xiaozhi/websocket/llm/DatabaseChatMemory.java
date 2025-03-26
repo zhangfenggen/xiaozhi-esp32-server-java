@@ -18,6 +18,7 @@ import com.agentsflex.core.memory.ChatMemory;
 import com.agentsflex.core.message.AiMessage;
 import com.agentsflex.core.message.HumanMessage;
 import com.agentsflex.core.message.Message;
+import com.agentsflex.core.message.SystemMessage;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.service.SysMessageService;
@@ -67,6 +68,8 @@ public class DatabaseChatMemory implements ChatMemory {
         if (device == null || messageService == null) {
             return new ArrayList<>();
         }
+
+        messages.add(new SystemMessage(device.getRoleDesc()));
 
         try {
             Integer limit = device.getLimit();

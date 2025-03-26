@@ -48,17 +48,23 @@ public class LlmManager {
         switch (config.getProvider().toLowerCase()) {
             case "openai":
                 OpenAILlmConfig openAIConfig = new OpenAILlmConfig();
+                openAIConfig.setEndpoint(config.getApiUrl());
+                openAIConfig.setModel(config.getConfigName());
                 openAIConfig.setApiKey(config.getApiKey());
                 return new OpenAILlm(openAIConfig);
 
             case "qwen":
                 QwenLlmConfig qwenConfig = new QwenLlmConfig();
+                qwenConfig.setEndpoint(config.getApiUrl());
+                qwenConfig.setModel(config.getConfigName());
                 qwenConfig.setApiKey(config.getApiKey());
                 qwenConfig.setModel(config.getConfigName());
                 return new QwenLlm(qwenConfig);
 
             case "spark":
                 SparkLlmConfig sparkConfig = new SparkLlmConfig();
+                sparkConfig.setEndpoint(config.getApiUrl());
+                sparkConfig.setModel(config.getConfigName());
                 sparkConfig.setAppId(config.getAppId());
                 sparkConfig.setApiKey(config.getApiKey());
                 sparkConfig.setApiSecret(config.getApiSecret());

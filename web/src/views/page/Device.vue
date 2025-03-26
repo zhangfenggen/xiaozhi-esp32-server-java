@@ -151,7 +151,7 @@
               </span>
             </template>
             <template slot="state" slot-scope="text">
-              <a-tag color="green" v-if="text === 1">在线</a-tag>
+              <a-tag color="green" v-if="text == 1">在线</a-tag>
               <a-tag color="red" v-else>离线</a-tag>
             </template>
             <template slot="operation" slot-scope="text, record">

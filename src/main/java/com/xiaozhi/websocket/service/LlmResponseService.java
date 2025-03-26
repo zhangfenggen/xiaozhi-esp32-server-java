@@ -215,7 +215,8 @@ public class LlmResponseService {
             DatabaseChatMemory chatMemory = applicationContext.getBean(DatabaseChatMemory.class);
             chatMemory.setDevice(device);
 
-            HistoriesPrompt prompt = new HistoriesPrompt(chatMemory);
+            HistoriesPrompt prompt = new HistoriesPrompt();
+            // HistoriesPrompt prompt = new HistoriesPrompt(chatMemory);
             // prompt.setMaxAttachedMessageCount(1);
             prompt.setSystemMessage(new SystemMessage(device.getRoleDesc()));
             return prompt;
