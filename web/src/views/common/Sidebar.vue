@@ -67,8 +67,8 @@ export default {
     return {
       // 侧边栏
       sidebar: router.options.routes[1].children,
-      rootSubmenuKeys: ["/setting"],
-      openKeys: [],
+      rootSubmenuKeys: ["/setting", "/config"],
+      openKeys: ["/config"],
     };
   },
   computed: {

@@ -38,16 +38,34 @@ export default new Router({
           meta: { title: "对话管理", icon: "message" }
         },
         {
-          path: "/model",
-          component: resolve => require(["@/views/page/Model"], resolve),
-          name: "model",
-          meta: { title: "模型配置", icon: "robot" }
-        },
-        {
           path: "/role",
           component: resolve => require(["@/views/page/Role"], resolve),
           name: "role",
           meta: { title: "角色配置", icon: "user-add" }
+        },
+        {
+          path: "/config",
+          component: resolve => require(["@/views/common/PageView"], resolve),
+          name: "Config",
+          redirect: "/config/model",
+          meta: { title: "配置管理", icon: "setting" },
+          children: [
+            {
+              path: "/config/model",
+              component: resolve => require(["@/views/page/config/ModelConfig"], resolve),
+              meta: { title: "模型配置", parent: "配置管理" }
+            },
+            {
+              path: "/config/stt",
+              component: resolve => require(["@/views/page/config/SttConfig"], resolve),
+              meta: { title: "语音识别配置", parent: "配置管理" }
+            },
+            {
+              path: "/config/tts",
+              component: resolve => require(["@/views/page/config/TtsConfig"], resolve),
+              meta: { title: "语音合成配置", parent: "配置管理" }
+            }
+          ]
         },
         {
           path: "/setting",
