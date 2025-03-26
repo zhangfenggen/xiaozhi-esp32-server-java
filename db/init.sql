@@ -1,5 +1,3 @@
--- 创建数据库（如果不存在）
-CREATE DATABASE IF NOT EXISTS xiaozhi;
 
 -- 创建本地用户并设置密码（使用mysql_native_password插件）
 CREATE USER 'xiaozhi'@'localhost' IDENTIFIED WITH mysql_native_password BY '123456';
@@ -20,7 +18,7 @@ FLUSH PRIVILEGES;
 SHOW GRANTS FOR 'xiaozhi'@'localhost';
 SHOW GRANTS FOR 'xiaozhi'@'%';
 
-
+-- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS `xiaozhi` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- xiaozhi.sys_user definition
@@ -54,15 +52,15 @@ CREATE TABLE `xiaozhi`.`sys_device` (
   `roleId` int unsigned DEFAULT NULL COMMENT '角色ID，主键',
   `ip` varchar(45) DEFAULT NULL COMMENT 'IP地址',
   `wifiName` varchar(100) DEFAULT NULL COMMENT 'WiFi名称',
-  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '0' COMMENT '设备状态：1-在线，0-离线',
+  `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '0' COMMENT '设备状态：1-在线，0-离线',
   `userId` int NOT NULL COMMENT '创建人',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `lastLogin` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后登录时间',
   PRIMARY KEY (`deviceId`),
-  KEY `deviceName` (`deviceName`)
+  KEY `deviceName` (`deviceName`),
   KEY `userId` (`userId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='设备信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备信息表';
 
 
 -- xiaozhi.sys_message definition
@@ -73,14 +71,14 @@ CREATE TABLE `xiaozhi`.`sys_message` (
   `sessionId` varchar(100) NOT NULL COMMENT '会话ID',
   `sender` enum('user','assistant') NOT NULL COMMENT '消息发送方：user-用户，assistant-人工智能',
   `roleId` bigint COMMENT 'AI扮演的角色ID',
-  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT '消息内容',
-  `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL COMMENT '语音文件路径',
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '消息内容',
+  `audioPath` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '语音文件路径',
   `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '状态：1-有效，0-删除',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '消息发送时间',
   PRIMARY KEY (`messageId`),
   KEY `deviceId` (`deviceId`),
   KEY `sessionId` (`sessionId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='人与AI对话消息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='人与AI对话消息表';
 
 -- xiaozhi.sys_role definition
 
@@ -88,13 +86,13 @@ CREATE TABLE `xiaozhi`.`sys_role` (
   `roleId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '角色ID，主键',
   `roleName` varchar(100) NOT NULL COMMENT '角色名称',
   `roleDesc` varchar(255) DEFAULT NULL COMMENT '角色描述',
-  `voiceName` varchar(100) NOT NULL COMMENT '角色语音名称'
+  `voiceName` varchar(100) NOT NULL COMMENT '角色语音名称',
   `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '状态：1-启用，0-禁用',
   `userId` int NOT NULL COMMENT '创建人',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`roleId`),
   KEY `userId` (`userId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
 
 -- xiaozhi.sys_code definition
 
@@ -106,7 +104,7 @@ CREATE TABLE `xiaozhi`.`sys_code` (
   `audioPath` text COMMENT '语音文件路径',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`codeId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='验证码表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='验证码表';
 
 -- xiaozhi.sys_model definition
 
@@ -125,5 +123,5 @@ CREATE TABLE `xiaozhi`.`sys_model` (
   PRIMARY KEY (`modelId`),
   KEY `userId` (`userId`),
   KEY `modelId` (`modelId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='配置表';
 
