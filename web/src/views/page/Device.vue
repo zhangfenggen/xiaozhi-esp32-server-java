@@ -274,6 +274,16 @@ export default {
           align: "center",
         },
         {
+          title: "产品类型",
+          dataIndex: "chipModelName",
+          align: "center",
+        },
+        {
+          title: "版本号",
+          dataIndex: "version",
+          align: "center",
+        },
+        {
           title: "活跃时间",
           dataIndex: "lastLogin",
           scopedSlots: { customRender: "lastLogin" },

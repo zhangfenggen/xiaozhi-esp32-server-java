@@ -28,13 +28,14 @@ public class WebMvcConfig extends WebMvcConfigurationSupport {
         List<String> excludePathPatterns = new ArrayList<>();
         excludePathPatterns.add("/api/user/login");
         excludePathPatterns.add("/api/user/update");
+        excludePathPatterns.add("/api/device/ota");
         // Add exclusion for audio files
         excludePathPatterns.add("/audio/**");
-        
+
         registry.addInterceptor(authenticationInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(excludePathPatterns);
-        
+
         registry.addInterceptor(logInterceptor).addPathPatterns("/**");
     }
 
@@ -51,10 +52,10 @@ public class WebMvcConfig extends WebMvcConfigurationSupport {
         try {
             // 获取项目根目录的绝对路径
             String basePath = new File("").getAbsolutePath();
-            
+
             // 音频文件存储在项目根目录下的audio文件夹中
             String audioPath = "file:" + basePath + File.separator + "audio" + File.separator;
-            
+
             // 配置资源映射
             registry.addResourceHandler("/audio/**")
                     .addResourceLocations(audioPath);

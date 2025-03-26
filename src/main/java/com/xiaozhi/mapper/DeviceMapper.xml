@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.DeviceMapper">
 
     <sql id="deviceSql">
-        sys_device.deviceId, sys_device.deviceName, sys_device.ip, sys_device.wifiName, sys_device.state, sys_device.userId, sys_device.lastLogin, sys_device.createTime
+        sys_device.deviceId, sys_device.deviceName, sys_device.ip, sys_device.wifiName, sys_device.chipModelName, sys_device.version, sys_device.state, sys_device.userId, sys_device.lastLogin, sys_device.createTime
     </sql>
 
     <sql id="roleSql">
@@ -68,8 +68,13 @@
         UPDATE
             sys_device
         <set>
-            <if test="state != null and state != ''">state = #{state}</if>
+            <if test="state != null and state != ''">state = #{state},</if>
             <if test="deviceName != null and deviceName != ''">deviceName = #{deviceName},</if>
+            <if test="wifiName != null and wifiName != ''">wifiName = #{wifiName},</if>
+            <if test="chipModelName != null and chipModelName != ''">chipModelName = #{chipModelName},</if>
+            <if test="version != null and version != ''">version = #{version},</if>
+            <if test="ip != null and ip != ''">ip = #{ip},</if>
+            <if test="lastLogin != null and lastLogin != ''">lastLogin = NOW(),</if>
             <if test="configId != null and configId != ''">configId = #{configId},</if>
             <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
         </set>

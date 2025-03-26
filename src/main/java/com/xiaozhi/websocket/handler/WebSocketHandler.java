@@ -80,7 +80,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
         logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
 
         deviceService
-                .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("1").setLastLogin(new Date()));
+                .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("1")
+                        .setLastLogin(new Date().toString()));
 
     }
 
@@ -180,7 +181,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
         // 更新设备在线时间
         if (device != null) {
             deviceService
-                    .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("0").setLastLogin(new Date()));
+                    .update(new SysDevice().setDeviceId(device.getDeviceId()).setState("0")
+                            .setLastLogin(new Date().toString()));
 
             logger.info("WebSocket连接关闭 - SessionId: {}, DeviceId: {}, Status: {}", sessionId, device.getDeviceId(),
                     status);

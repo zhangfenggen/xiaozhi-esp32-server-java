@@ -53,7 +53,27 @@ public class SysDevice extends SysRole {
      * 最后在线时间
      */
     @JsonFormat(timezone = "GMT+8", pattern = "yyyy-MM-dd HH:mm:ss")
-    private Date lastLogin;
+    private String lastLogin;
+
+    /**
+     * WiFi名称
+     */
+    private String wifiName;
+
+    /**
+     * IP
+     */
+    private String ip;
+
+    /**
+     * 芯片型号
+     */
+    private String chipModelName;
+
+    /**
+     * 固件版本
+     */
+    private String version;
 
     public Integer getConfigId() {
         return configId;
@@ -145,21 +165,58 @@ public class SysDevice extends SysRole {
         return this;
     }
 
-    public Date getLastLogin() {
+    public String getLastLogin() {
         return lastLogin;
     }
 
-    public SysDevice setLastLogin(Date lastLogin) {
+    public SysDevice setLastLogin(String lastLogin) {
         this.lastLogin = lastLogin;
+        return this;
+    }
+
+    public String getWifiName() {
+        return wifiName;
+    }
+
+    public SysDevice setWifiName(String wifiName) {
+        this.wifiName = wifiName;
+        return this;
+    }
+
+    public String getIp() {
+        return ip;
+    }
+
+    public SysDevice setIp(String ip) {
+        this.ip = ip;
+        return this;
+    }
+
+    public String getChipModelName() {
+        return chipModelName;
+    }
+
+    public SysDevice setChipModelName(String chipModelName) {
+        this.chipModelName = chipModelName;
+        return this;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public SysDevice setVersion(String version) {
+        this.version = version;
         return this;
     }
 
     @Override
     public String toString() {
         return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", configId=" + configId
-                + ", configName="
-                + configName + ", configDesc=" + configDesc + ", deviceName=" + deviceName + ", state=" + state
+                + ", configName=" + configName + ", configDesc=" + configDesc + ", deviceName=" + deviceName
+                + ", state=" + state + ", ip=" + ip
                 + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin="
-                + lastLogin + "]";
+                + lastLogin + ", wifiName=" + wifiName + ", chipModelName=" + chipModelName + ", version="
+                + version + "]";
     }
 }

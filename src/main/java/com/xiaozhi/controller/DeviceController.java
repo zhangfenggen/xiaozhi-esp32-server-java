@@ -1,10 +1,14 @@
 package com.xiaozhi.controller;
 
+import java.io.BufferedReader;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
 import com.xiaozhi.entity.SysDevice;
@@ -95,6 +99,66 @@ public class DeviceController {
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return AjaxResult.error();
+        }
+    }
+
+    @PostMapping("/ota")
+    public void ota(HttpServletRequest request) {
+        try {
+
+            SysDevice device = new SysDevice();
+
+            // 获取device-id请求头
+            String deviceId = request.getHeader("device-id");
+            if (deviceId != null) {
+                device.setDeviceId(deviceId);
+            }
+
+            // 读取请求体内容
+            StringBuilder requestBody = new StringBuilder();
+            BufferedReader reader = request.getReader();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                requestBody.append(line);
+            }
+
+            // 解析JSON请求体
+            if (request.getContentType() != null && request.getContentType().contains("application/json")) {
+                ObjectMapper mapper = new ObjectMapper();
+                Map<String, Object> jsonData = mapper.readValue(requestBody.toString(), Map.class);
+
+                // 提取chip_model_name
+                if (jsonData.containsKey("chip_model_name")) {
+                    device.setChipModelName((String) jsonData.get("chip_model_name"));
+                }
+
+                // 提取application.version
+                if (jsonData.containsKey("application") && jsonData.get("application") instanceof Map) {
+                    Map<String, Object> application = (Map<String, Object>) jsonData.get("application");
+                    if (application.containsKey("version")) {
+                        device.setVersion((String) application.get("version"));
+                    }
+                }
+
+                // 提取board中的ssid和ip
+                if (jsonData.containsKey("board") && jsonData.get("board") instanceof Map) {
+                    Map<String, Object> board = (Map<String, Object>) jsonData.get("board");
+                    if (board.containsKey("ssid")) {
+                        device.setWifiName((String) board.get("ssid"));
+                    }
+                    if (board.containsKey("ip")) {
+                        device.setIp((String) board.get("ip"));
+                    }
+                }
+
+            }
+
+            device.setState("1");
+            device.setLastLogin(new Date().toString());
+            deviceService.update(device);
+
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
         }
     }
 
