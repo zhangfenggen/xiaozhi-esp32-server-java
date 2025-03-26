@@ -47,6 +47,7 @@ ffmpeg -version
    - 数据库URL: jdbc:mysql://localhost:3306/xiaozhi
    - 用户名: xiaozhi
    - 密码: 123456
+4. update.sql文件用于更新数据库结构，首次仅执行init.sql即可，如果已经执行过init.sql，则无需执行update.sql
 
 ### 3. 下载Vosk语音识别模型（重要）
 项目使用Vosk进行语音识别，需要手动下载模型文件：
@@ -54,8 +55,8 @@ ffmpeg -version
 1. 从Vosk官方网站下载中文模型：https://alphacephei.com/vosk/models
 2. 下载`vosk-model-cn-0.22`模型（或其他中文模型版本）
 3. 解压下载的模型文件
-4. 将解压后的模型文件夹放置在项目的`src/main/resources/`目录下
-5. 确保模型文件夹路径为：`src/main/resources/vosk-model-cn-0.22`
+4. 将解压后的模型文件夹放置在项目的`models/`目录下
+5. 确保模型文件夹路径为：`models/vosk-model-cn-0.22`
 
 ### 4. 后端部署
 1. 克隆项目代码到本地
