@@ -1,7 +1,7 @@
 # 小智ESP32服务器部署文档
 
 ## 系统要求
-- Java JDK 8或更高版本
+- Java JDK 8
 - MySQL数据库
 - Maven（用于构建项目）
 - Node.js和npm或yarn（用于前端构建）
@@ -33,13 +33,9 @@ ffmpeg -version
 ```
 
 **macOS安装：**
-```bash
-# 使用Homebrew
-brew install ffmpeg
 
-# 验证安装
-ffmpeg -version
-```
+*因项目采用 VOSK 做本地 TTS 服务，而 VOSK 在 macOS 上有 bug ，因此后端项目暂时无法在 macOS 上运行。待修复后，再更新本节内容。*
+
 
 ### 2. 数据库配置
 1. 创建名为`xiaozhi`的MySQL数据库

@@ -2,9 +2,10 @@
 
 ## 项目简介
 
-Xiaozhi ESP32 Server Java 是基于 [Xiaozhi ESP32](https://github.com/78/xiaozhi-esp32) 项目开发的 JAVA 版本的服务端，包含前后端管理平台。由于目前缺乏一个直观、高效的前端 Web 平台，并且当前存在的开源 Python Server 显得项目太臃肿，现采用 JAVA Server与后端服务来管理设备和相关功能，因此本项目应运而生。
+Xiaozhi ESP32 Server Java 是基于 [Xiaozhi ESP32](https://github.com/78/xiaozhi-esp32) 项目开发的 JAVA 版本的服务端，包含前后端管理平台。由于目前缺乏一个直观、高效的前端 Web 平台与后端管理平台，因此该项目应运而生。
 
 该项目旨在为用户提供一个功能丰富、操作便捷的管理界面，帮助用户更好地管理设备、配置等。
+并且考虑到企业级应用场景的需求，Java作为一种成熟的企业级开发语言，具备更完善的生态系统支持和更强大的并发处理能力，因此我们选择开发这个Java版本的服务端，为项目提供更多可能性和扩展空间。
 Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应式布局，适配各种设备以及分辨率，使用 MySQL 数据库进行数据存储。
 
 ---
@@ -88,5 +89,9 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 欢迎任何形式的贡献！如果你有好的想法或发现问题，请联系反馈
 
 <img src="./web/static/img/wechat.jpg" alt="微信" width="200" />
+
+也欢迎加入我们的微信交流群，一起讨论和分享。
+
+<img src="docs/images/wechat_group.jpg" alt="微信" width="200" />
 
 ---
