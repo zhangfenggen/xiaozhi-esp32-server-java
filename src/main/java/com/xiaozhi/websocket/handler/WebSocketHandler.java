@@ -272,8 +272,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
         logger.info("收到abort消息 - SessionId: {}, Reason: {}", sessionId, reason);
 
-        // 根据reason处理中断逻辑
-        // 例如，如果是wake_word_detected，可能需要停止当前TTS播放
+        // 终止语音发送
+        audioService.sendStop(session);
     }
 
     // 处理客户端发送的IoT消息
