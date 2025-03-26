@@ -106,7 +106,7 @@ public class LlmResponseService {
 
         try {
             // 获取适合设备的LLM模型
-            Llm llm = llmManager.getLlm(deviceId, device.getModelId());
+            Llm llm = llmManager.getLlm(deviceId, device.getConfigId());
 
             // 获取或创建HistoriesPrompt
             HistoriesPrompt prompt = getOrCreatePrompt(device);

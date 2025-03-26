@@ -10,19 +10,19 @@
         sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName
     </sql>
 
-    <sql id="modelSql">
-        sys_model.modelId, sys_model.modelName, sys_model.modelDesc
+    <sql id="configSql">
+        sys_config.configId, sys_config.configName, sys_config.configDesc
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysDevice">
         SELECT
         <include refid="deviceSql"></include>,
         <include refid="roleSql"></include>,
-        <include refid="modelSql"></include>
+        <include refid="configSql"></include>
         FROM
             sys_device
             LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
-            LEFT JOIN sys_model ON sys_device.modelId = sys_model.modelId
+            LEFT JOIN sys_config ON sys_device.configId = sys_config.configId
         WHERE
             1 = 1
             <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>
@@ -70,7 +70,7 @@
         <set>
             <if test="state != null and state != ''">state = #{state}</if>
             <if test="deviceName != null and deviceName != ''">deviceName = #{deviceName},</if>
-            <if test="modelId != null and modelId != ''">modelId = #{modelId},</if>
+            <if test="configId != null and configId != ''">configId = #{configId},</if>
             <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
         </set>
         WHERE

@@ -5,6 +5,10 @@ import io.github.whitemagic2014.tts.TTSVoice;
 import io.github.whitemagic2014.tts.bean.Voice;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -107,9 +111,30 @@ public class TextToSpeechService {
         File originalFile = new File(audioFilePath);
         File tempFile = new File(tempFilePath);
 
-        if (!tempFile.renameTo(originalFile)) {
-            logger.error("无法用临时文件替换原始文件");
-            throw new RuntimeException("文件覆盖失败");
+        try {
+            // 先尝试删除原始文件
+            if (originalFile.exists()) {
+                if (!originalFile.delete()) {
+                    // 如果删除失败，可能是文件被占用
+                    // 使用Java NIO的Files.copy方法，它支持覆盖选项
+                    Files.copy(tempFile.toPath(), originalFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    // 复制成功后删除临时文件
+                    tempFile.delete();
+                } else {
+                    // 原始文件删除成功，重命名临时文件
+                    if (!tempFile.renameTo(originalFile)) {
+                        throw new RuntimeException("文件重命名失败");
+                    }
+                }
+            } else {
+                // 原始文件不存在，直接重命名
+                if (!tempFile.renameTo(originalFile)) {
+                    throw new RuntimeException("文件重命名失败");
+                }
+            }
+        } catch (IOException e) {
+            logger.error("文件操作失败: " + e.getMessage(), e);
+            throw new RuntimeException("文件操作失败", e);
         }
     }
 }

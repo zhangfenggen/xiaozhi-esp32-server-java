@@ -15,8 +15,8 @@ import com.agentsflex.llm.qwen.QwenLlm;
 import com.agentsflex.llm.qwen.QwenLlmConfig;
 import com.agentsflex.llm.spark.SparkLlm;
 import com.agentsflex.llm.spark.SparkLlmConfig;
-import com.xiaozhi.entity.SysModel;
-import com.xiaozhi.service.SysModelService;
+import com.xiaozhi.entity.SysConfig;
+import com.xiaozhi.service.SysConfigService;
 
 /**
  * 模型管理
@@ -25,7 +25,7 @@ import com.xiaozhi.service.SysModelService;
 public class LlmManager {
 
     @Autowired
-    private SysModelService modelService;
+    private SysConfigService configService;
 
     // LLM 实例缓存
     private Map<String, Map<Integer, Llm>> deviceLlmInstances = new ConcurrentHashMap<>();
@@ -35,17 +35,17 @@ public class LlmManager {
      */
 
     // 获取指定设备的 LLM 实例
-    public Llm getLlm(String deviceId, Integer modelId) {
+    public Llm getLlm(String deviceId, Integer configId) {
         return deviceLlmInstances
                 .computeIfAbsent(deviceId, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(modelId, k -> createLlmInstance(modelId));
+                .computeIfAbsent(configId, k -> createLlmInstance(configId));
     }
 
     // 创建 LLM 实例
-    private Llm createLlmInstance(Integer modelId) {
+    private Llm createLlmInstance(Integer configId) {
         // 根据模型ID查询模型配置
-        SysModel config = modelService.selectModelByModelId(modelId);
-        switch (config.getType().toLowerCase()) {
+        SysConfig config = configService.selectConfigById(configId);
+        switch (config.getProvider().toLowerCase()) {
             case "openai":
                 OpenAILlmConfig openAIConfig = new OpenAILlmConfig();
                 openAIConfig.setApiKey(config.getApiKey());
@@ -54,7 +54,7 @@ public class LlmManager {
             case "qwen":
                 QwenLlmConfig qwenConfig = new QwenLlmConfig();
                 qwenConfig.setApiKey(config.getApiKey());
-                qwenConfig.setModel(config.getModelName());
+                qwenConfig.setModel(config.getConfigName());
                 return new QwenLlm(qwenConfig);
 
             case "spark":
@@ -66,7 +66,7 @@ public class LlmManager {
 
             default:
                 OllamaLlmConfig ollamaConfig = new OllamaLlmConfig();
-                ollamaConfig.setModel(config.getModelName());
+                ollamaConfig.setModel(config.getConfigName());
                 ollamaConfig.setEndpoint(config.getApiUrl());
                 return new OllamaLlm(ollamaConfig);
         }

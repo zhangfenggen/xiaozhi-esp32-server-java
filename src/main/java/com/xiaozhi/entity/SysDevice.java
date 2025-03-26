@@ -18,11 +18,11 @@ public class SysDevice extends SysRole {
 
     private String sessionId;
 
-    private Integer modelId;
+    private Integer configId;
 
-    private String modelName;
+    private String configName;
 
-    private String modelDesc;
+    private String configDesc;
 
     /**
      * 设备名称
@@ -55,30 +55,30 @@ public class SysDevice extends SysRole {
     @JsonFormat(timezone = "GMT+8", pattern = "yyyy-MM-dd HH:mm:ss")
     private Date lastLogin;
 
-    public Integer getModelId() {
-        return modelId;
+    public Integer getConfigId() {
+        return configId;
     }
 
-    public SysDevice setModelId(Integer modelId) {
-        this.modelId = modelId;
+    public SysDevice setConfigId(Integer configId) {
+        this.configId = configId;
         return this;
     }
 
-    public String getModelName() {
-        return modelName;
+    public String getConfigName() {
+        return configName;
     }
 
-    public SysDevice setModelName(String modelName) {
-        this.modelName = modelName;
+    public SysDevice setConfigName(String configName) {
+        this.configName = configName;
         return this;
     }
 
-    public String getModelDesc() {
-        return modelDesc;
+    public String getConfigDesc() {
+        return configDesc;
     }
 
-    public SysDevice setModelDesc(String modelDesc) {
-        this.modelDesc = modelDesc;
+    public SysDevice setConfigDesc(String configDesc) {
+        this.configDesc = configDesc;
         return this;
     }
 
@@ -156,8 +156,9 @@ public class SysDevice extends SysRole {
 
     @Override
     public String toString() {
-        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", modelId=" + modelId + ", modelName="
-                + modelName + ", modelDesc=" + modelDesc + ", deviceName=" + deviceName + ", state=" + state
+        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", configId=" + configId
+                + ", configName="
+                + configName + ", configDesc=" + configDesc + ", deviceName=" + deviceName + ", state=" + state
                 + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin="
                 + lastLogin + "]";
     }

@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.xiaozhi.websocket.audio.detector.VadDetector;
@@ -68,7 +69,7 @@ public class SileroVadDetector implements VadDetector {
 
     public SileroVadDetector() throws OrtException {
         // 默认参数初始化
-        this("src/main/resources/silero_vad.onnx", 0.6f, 16000, 500, 1000);
+        this("models/silero_vad.onnx", 0.6f, 16000, 500, 1000);
     }
 
     public SileroVadDetector(String onnxModelPath, float threshold, int samplingRate,

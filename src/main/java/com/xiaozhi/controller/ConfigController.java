@@ -7,8 +7,8 @@ import javax.servlet.http.HttpServletRequest;
 
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
-import com.xiaozhi.entity.SysModel;
-import com.xiaozhi.service.SysModelService;
+import com.xiaozhi.entity.SysConfig;
+import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.utils.CmsUtils;
 
 import org.slf4j.Logger;
@@ -26,25 +26,25 @@ import org.springframework.web.bind.annotation.RestController;
  */
 
 @RestController
-@RequestMapping("/api/model")
-public class ModelController {
+@RequestMapping("/api/config")
+public class ConfigController {
 
-    private static final Logger log = LoggerFactory.getLogger(ModelController.class);
+    private static final Logger log = LoggerFactory.getLogger(ConfigController.class);
 
     @Resource
-    private SysModelService modelService;
+    private SysConfigService configService;
 
     /**
-     * 模型查询
+     * 配置查询
      * 
-     * @param model
-     * @return modelList
+     * @param config
+     * @return configList
      */
     @GetMapping("/query")
-    public AjaxResult query(SysModel model, HttpServletRequest request) {
+    public AjaxResult query(SysConfig config, HttpServletRequest request) {
         try {
-            model.setUserId(CmsUtils.getUserId(request));
-            List<SysModel> deviceList = modelService.query(model);
+            config.setUserId(CmsUtils.getUserId(request));
+            List<SysConfig> deviceList = configService.query(config);
             AjaxResult result = AjaxResult.success();
             result.put("data", new PageInfo<>(deviceList));
             return result;
@@ -56,15 +56,15 @@ public class ModelController {
     }
 
     /**
-     * 模型信息更新
+     * 配置信息更新
      * 
-     * @param model
+     * @param config
      * @return
      */
     @PostMapping("/update")
-    public AjaxResult update(SysModel model, HttpServletRequest request) {
+    public AjaxResult update(SysConfig config, HttpServletRequest request) {
         try {
-            modelService.update(model);
+            configService.update(config);
             return AjaxResult.success();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -74,15 +74,15 @@ public class ModelController {
     }
 
     /**
-     * 添加角色
+     * 添加配置
      * 
-     * @param model
+     * @param config
      */
     @PostMapping("/add")
-    public AjaxResult add(SysModel model, HttpServletRequest request) {
+    public AjaxResult add(SysConfig config, HttpServletRequest request) {
         try {
-            model.setUserId(CmsUtils.getUserId(request));
-            modelService.add(model);
+            config.setUserId(CmsUtils.getUserId(request));
+            configService.add(config);
             return AjaxResult.success();
         } catch (Exception e) {
             log.error(e.getMessage(), e);

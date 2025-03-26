@@ -123,20 +123,20 @@
                 </a-tooltip>
               </span>
             </template>
-            <template slot="modelName" slot-scope="text, record">
+            <template slot="configName" slot-scope="text, record">
               <a-select
                 v-if="record.editable"
                 style="margin: -5px 0; text-align: center; width: 100%"
                 :value="text"
-                @change="(value) => handleSelectChange(value, record.deviceId, 'model')"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'config')"
                 dropdownClassName="centered-dropdown"
               >
                 <a-select-option
                   v-for="item in modelItems"
-                  :key="item.modelId"
-                  :value="item.modelId"
+                  :key="item.configId"
+                  :value="item.configId"
                 >
-                  <span>{{ item.modelName }}</span>
+                  <span>{{ item.configName }}</span>
                 </a-select-option>
               </a-select>
               <span
@@ -144,7 +144,7 @@
                 @click="edit(record.deviceId)"
                 style="cursor: pointer"
               >
-                <a-tooltip :title="record.modelDesc" :mouseEnterDelay="0.5">
+                <a-tooltip :title="record.configDesc" :mouseEnterDelay="0.5">
                   <span v-if="text">{{ text }}</span>
                   <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
                 </a-tooltip>
@@ -249,8 +249,8 @@ export default {
         },
         {
           title: "模型",
-          dataIndex: "modelName",
-          scopedSlots: { customRender: "modelName" },
+          dataIndex: "configName",
+          scopedSlots: { customRender: "configName" },
           align: "center",
         },
         {
@@ -309,7 +309,7 @@ export default {
   mounted() {
     this.getData();
     this.getRole();
-    this.getModel();
+    this.getConfig();
   },
   methods: {
     /* 查询参数列表 */
@@ -374,10 +374,10 @@ export default {
         items = this.roleItems;
         idField = 'roleId';
         nameField = 'roleName';
-      } else if (type === 'model') {
+      } else if (type === 'config') {
         items = this.modelItems;
-        idField = 'modelId';
-        nameField = 'modelName';
+        idField = 'configId';
+        nameField = 'configName';
       } else {
         return; // 不支持的类型，直接返回
       }
@@ -404,7 +404,7 @@ export default {
           data: {
             deviceId: val.deviceId,
             deviceName: val.deviceName,
-            modelId: val.modelId,
+            configId: val.configId,
             roleId: val.roleId
           },
         })
@@ -456,13 +456,14 @@ export default {
         });
     },
     // 获取模型列表
-    getModel() {
+    getConfig() {
       axios
         .get({
-          url: api.model.query,
+          url: api.config.query,
           data: {
             start: 1,
             limit: 1000,
+            configType: 'llm'
           },
         })
         .then((res) => {

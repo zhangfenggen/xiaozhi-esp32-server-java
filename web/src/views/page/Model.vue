@@ -8,7 +8,7 @@
             <a-row class="filter-flex">
               <a-col :xxl="6" :xl="6" :lg="12" :xs="24">
                 <a-form-item label="模型类别">
-                  <a-select v-model="query.type" @change="getData()">
+                  <a-select v-model="query.provider" @change="getData()">
                     <a-select-option key="" value="">
                       <span>全部</span>
                     </a-select-option>
@@ -32,8 +32,8 @@
             tabBarStyle="margin: 0 0 0 15px">
             <a-tab-pane key="1" tab="模型列表">
               <a-table :columns="columns" :dataSource="modelItems" :loading="loading" :pagination="pagination"
-                rowKey="modelId" :scroll="{ x: 800 }" size="middle">
-                <templace slot="modelDesc" slot-scope="text, record">
+                rowKey="configId" :scroll="{ x: 800 }" size="middle">
+                <templace slot="configDesc" slot-scope="text, record">
                   <a-tooltip :title="text" :mouseEnterDelay="0.5" placement="leftTop">
                     <span v-if="text">{{ text }}</span>
                     <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
@@ -42,7 +42,7 @@
                 <template slot="operation" slot-scope="text, record">
                   <a-space>
                     <a @click="edit(record)">编辑</a>
-                    <a-popconfirm title="确定要删除这个模型配置吗?" @confirm="update(record.modelId)">
+                    <a-popconfirm title="确定要删除这个模型配置吗?" @confirm="update(record.configId)">
                       <a>删除</a>
                     </a-popconfirm>
                   </a-space>
@@ -50,13 +50,13 @@
               </a-table>
             </a-tab-pane>
             <a-tab-pane key="2" tab="创建模型">
-              <a-form layout="horizontal" :form="modelForm" :colon="false" @submit="handleSubmit"
+              <a-form layout="horizontal" :form="configForm" :colon="false" @submit="handleSubmit"
                 style="padding: 10px 24px">
                 <a-row :gutter="20">
                   <a-col :xl="8" :lg="12" :xs="24">
                     <a-form-item label="模型类别">
                       <a-select v-decorator="[
-                        'type',
+                        'provider',
                         { rules: [{ required: true, message: '请选择模型类别' }] }
                       ]" placeholder="请选择模型类别" @change="handleTypeChange">
                         <a-select-option v-for="item in typeOptions" :key="item.value" :value="item.value">
@@ -68,14 +68,14 @@
                   <a-col :xl="16" :lg="12" :xs="24">
                     <a-form-item label="模型名称">
                       <a-input v-decorator="[
-                        'modelName',
+                        'configName',
                         { rules: [{ required: true, message: '请输入模型名称' }] }
                       ]" autocomplete="off" placeholder="请输入模型名称" />
                     </a-form-item>
                   </a-col>
                 </a-row>
                 <a-form-item label="模型描述">
-                  <a-textarea v-decorator="['modelDesc']" placeholder="请输入模型描述" :rows="4" />
+                  <a-textarea v-decorator="['configDesc']" placeholder="请输入模型描述" :rows="4" />
                 </a-form-item>
 
                 <a-divider>参数配置</a-divider>
@@ -102,7 +102,7 @@
 
                   <a-form-item>
                     <a-button type="primary" html-type="submit">
-                      {{ editingModelId ? '更新模型' : '创建模型' }}
+                      {{ editingConfigId ? '更新模型' : '创建模型' }}
                     </a-button>
                     <a-button style="margin-left: 8px" @click="resetForm">
                       取消
@@ -129,26 +129,26 @@ export default {
     return {
       // 查询框
       query: {
-        type: "",
+        provider: "",
       },
       queryFilter: [
         {
           label: "模型名称",
           value: "",
-          index: "modelName",
+          index: "configName",
         },
       ],
       activeTabKey: '1', // 当前激活的标签页
-      modelForm: this.$form.createForm(this, {
+      configForm: this.$form.createForm(this, {
         // 监听表单值变化
         onValuesChange: (props, values) => {
-          if (values.type && values.type !== this.currentType) {
-            this.currentType = values.type;
+          if (values.provider && values.provider !== this.currentType) {
+            this.currentType = values.provider;
           }
         }
       }),
       modelItems: [],
-      editingModelId: null,
+      editingConfigId: null,
       currentType: '',
       // 模型类别选项
       typeOptions: [
@@ -179,27 +179,27 @@ export default {
       columns: [
         {
           title: '模型类别',
-          dataIndex: 'type',
-          key: 'type',
+          dataIndex: 'provider',
+          key: 'provider',
           width: 120,
           align: 'center',
           customRender: (text) => {
-            const type = this.typeOptions.find(item => item.value === text);
-            return type ? type.label : text;
+            const provider = this.typeOptions.find(item => item.value === text);
+            return provider ? provider.label : text;
           }
         },
         {
           title: '模型名称',
-          dataIndex: 'modelName',
-          key: 'modelName',
+          dataIndex: 'configName',
+          key: 'configName',
           width: 200,
           align: 'center'
         },
         {
           title: '描述',
-          dataIndex: 'modelDesc',
-          scopedSlots: { customRender: 'modelDesc' },
-          key: 'modelDesc',
+          dataIndex: 'configDesc',
+          scopedSlots: { customRender: 'configDesc' },
+          key: 'configDesc',
           align: 'center',
           ellipsis: true,
         },
@@ -246,14 +246,14 @@ export default {
 
       // 由于使用了v-decorator，不需要手动设置表单值
       // 但需要清除之前的参数值
-      const { modelForm } = this;
-      const formValues = modelForm.getFieldsValue();
+      const { configForm } = this;
+      const formValues = configForm.getFieldsValue();
 
       // 创建一个新的表单值对象，只保留基本信息
       const newValues = {
-        type: value,
-        modelName: formValues.modelName,
-        modelDesc: formValues.modelDesc
+        provider: value,
+        configName: formValues.configName,
+        configDesc: formValues.configDesc
       };
 
       // 清除所有可能的参数字段
@@ -264,7 +264,7 @@ export default {
       // 重置表单
       this.$nextTick(() => {
         // 设置新的表单值
-        modelForm.setFieldsValue(newValues);
+        configForm.setFieldsValue(newValues);
       });
     },
 
@@ -272,10 +272,11 @@ export default {
     getData() {
       axios
         .get({
-          url: api.model.query,
+          url: api.config.query,
           data: {
             page: this.pagination.page,
             pageSize: this.pagination.pageSize,
+            configType: 'llm',
             ...this.query
           }
         })
@@ -298,26 +299,27 @@ export default {
     // 提交表单
     handleSubmit(e) {
       e.preventDefault()
-      this.modelForm.validateFields((err, values) => {
+      this.configForm.validateFields((err, values) => {
         if (!err) {
           this.loading = true
 
-          const url = this.editingModelId
-            ? api.model.update
-            : api.model.add
+          const url = this.editingConfigId
+            ? api.config.update
+            : api.config.add
 
           axios
             .post({
               url,
               data: {
-                modelId: this.editingModelId,
+                configId: this.editingConfigId,
+                configType: 'llm',
                 ...values
               }
             })
             .then(res => {
               if (res.code === 200) {
                 this.$message.success(
-                  this.editingModelId ? '更新成功' : '创建成功'
+                  this.editingConfigId ? '更新成功' : '创建成功'
                 )
                 this.resetForm()
                 this.getData()
@@ -339,14 +341,14 @@ export default {
 
     // 编辑模型
     edit(record) {
-      this.editingModelId = record.modelId
-      this.currentType = record.type || '';
+      this.editingConfigId = record.configId
+      this.currentType = record.provider || '';
 
       // 切换到创建模型标签页
       this.activeTabKey = '2'
 
       this.$nextTick(() => {
-        const { modelForm } = this
+        const { configForm } = this
 
         // 设置基本信息和所有可能的参数字段
         const formValues = {
@@ -354,18 +356,18 @@ export default {
         };
 
         // 设置表单值
-        modelForm.setFieldsValue(formValues);
+        configForm.setFieldsValue(formValues);
       })
     },
 
     // 删除模型
-    update(modelId) {
+    update(configId) {
       this.loading = true
       axios
         .post({
-          url: api.model.update,
+          url: api.config.update,
           data: {
-            modelId: modelId,
+            configId: configId,
             state: 0
           }
         })
@@ -387,9 +389,9 @@ export default {
 
     // 重置表单
     resetForm() {
-      this.modelForm.resetFields()
+      this.configForm.resetFields()
       this.currentType = ''
-      this.editingModelId = null
+      this.editingConfigId = null
     }
   }
 }

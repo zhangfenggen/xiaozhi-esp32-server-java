@@ -2,4 +2,4 @@ target/
 node_modules/
 audio/*.mp3
 audio/*.vtt
-vosk*
+models/*

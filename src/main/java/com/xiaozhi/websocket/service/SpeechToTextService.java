@@ -22,6 +22,7 @@ import java.util.UUID;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.xiaozhi.utils.DateUtils;
@@ -35,6 +36,9 @@ public class SpeechToTextService {
 
     private final String filePath = "audio/";
 
+    @Value("${vosk.model.path}")
+    private String voskModelPath;
+
     /**
      * 初始化 Vosk 模型，只加载一次
      */
@@ -45,9 +49,12 @@ public class SpeechToTextService {
             LibVosk.setLogLevel(LogLevel.WARNINGS);
             // 初始化FFmpeg
             // 加载模型，路径为 resources 目录下的模型
-            String modelPath = "src/main/resources/vosk-model-cn-0.22";
-            model = new Model(modelPath);
-            logger.info("Vosk 模型加载成功！路径: {}", modelPath);
+            File modelDir = new File(voskModelPath);
+            if (!modelDir.exists() || !modelDir.isDirectory()) {
+                throw new IOException("Vosk模型目录不存在: " + voskModelPath);
+            }
+            model = new Model(voskModelPath);
+            logger.info("Vosk 模型加载成功！路径: {}", voskModelPath);
         } catch (Exception e) {
             logger.error("Vosk 模型加载失败！", e);
             throw new RuntimeException("无法加载 Vosk 模型", e);
