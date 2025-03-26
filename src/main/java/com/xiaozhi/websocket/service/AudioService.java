@@ -43,6 +43,9 @@ public class AudioService {
     // 跟踪每个会话的发送状态
     private final Map<String, AtomicBoolean> isProcessingMap = new ConcurrentHashMap<>();
 
+    // 跟踪每个会话的中断状态
+    private final Map<String, AtomicBoolean> interruptSendingMap = new ConcurrentHashMap<>();
+
     @Resource
     private MessageService messageService;
 
@@ -121,6 +124,7 @@ public class AudioService {
         // 初始化音频队列和处理状态
         audioQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
         isProcessingMap.putIfAbsent(sessionId, new AtomicBoolean(false));
+        interruptSendingMap.putIfAbsent(sessionId, new AtomicBoolean(false));
     }
 
     /**
@@ -160,6 +164,11 @@ public class AudioService {
         AtomicBoolean isProcessing = isProcessingMap.get(sessionId);
         if (isProcessing != null) {
             isProcessing.set(false);
+        }
+        // 重置中断标志
+        AtomicBoolean interruptFlag = interruptSendingMap.get(sessionId);
+        if (interruptFlag != null) {
+            interruptFlag.set(false);
         }
     }
 
@@ -311,9 +320,26 @@ public class AudioService {
             return;
         }
 
+        // 获取中断标志
+        AtomicBoolean interruptFlag = interruptSendingMap.get(sessionId);
+
+        // 如果已设置中断标志，则不处理此任务，直接重置处理状态
+        if (interruptFlag != null && interruptFlag.get()) {
+            interruptFlag.set(false);
+            isProcessingMap.get(sessionId).set(false);
+            return;
+        }
+
         // 异步处理音频任务
         audioSenderExecutor.submit(() -> {
             try {
+                // 检查是否已中断
+                if (interruptFlag != null && interruptFlag.get()) {
+                    interruptFlag.set(false);
+                    isProcessingMap.get(sessionId).set(false);
+                    return;
+                }
+
                 // 发送开始信号和句子开始信号
                 if (task.isFirstText()) {
                     sendStart(session);
@@ -328,6 +354,13 @@ public class AudioService {
                 long playPosition = 0;
 
                 for (int i = 0; i < opusFrames.size(); i++) {
+                    // 检查是否已中断
+                    if (interruptFlag != null && interruptFlag.get()) {
+                        interruptFlag.set(false);
+                        isProcessingMap.get(sessionId).set(false);
+                        return;
+                    }
+
                     byte[] frame = opusFrames.get(i);
 
                     // 计算预期发送时间（纳秒）
@@ -366,6 +399,7 @@ public class AudioService {
                 // 发送句子结束消息
                 if (session.isOpen()) {
                     if (task.isLastText()) {
+                        // 使用内部方法发送停止指令，避免触发清空队列
                         sendStop(session);
                     }
                 }
@@ -400,7 +434,6 @@ public class AudioService {
             }
 
             // 删除可能存在的VTT文件
-
             File vttFile = new File(audioPath + ".vtt");
             if (vttFile.exists()) {
                 if (!vttFile.delete()) {
@@ -430,8 +463,47 @@ public class AudioService {
         messageService.sendMessage(session, "tts", "start");
     }
 
-    // 发送TTS停止指令
+    /**
+     * 发送TTS停止指令，同时清空音频队列并中断当前发送
+     */
     public void sendStop(WebSocketSession session) {
+        if (session == null) {
+            logger.warn("尝试发送停止指令到空的WebSocket会话");
+            return;
+        }
+
+        String sessionId = session.getId();
+
+        // 发送停止指令
         messageService.sendMessage(session, "tts", "stop");
+
+        // 设置中断标志
+        AtomicBoolean interruptFlag = interruptSendingMap.get(sessionId);
+        if (interruptFlag != null) {
+            interruptFlag.set(true);
+        }
+
+        // 清空音频队列
+        Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
+        if (queue != null) {
+            // 保存需要删除的音频文件路径
+            Queue<String> filesToDelete = new ConcurrentLinkedQueue<>();
+            queue.forEach(task -> {
+                if (task != null && task.getOriginalFilePath() != null) {
+                    filesToDelete.add(task.getOriginalFilePath());
+                }
+            });
+
+            // 清空队列
+            queue.clear();
+
+            // 异步删除文件
+            if (!filesToDelete.isEmpty()) {
+                audioPreprocessExecutor.submit(() -> {
+                    filesToDelete.forEach(this::deleteAudioFiles);
+                });
+            }
+        }
+
     }
 }

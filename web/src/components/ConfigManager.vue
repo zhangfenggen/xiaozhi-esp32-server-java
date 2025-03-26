@@ -175,7 +175,7 @@ export default {
               { name: 'apiUrl', label: 'API URL', required: false, span: 12 }
             ],
             qwen: [
-              { name: 'apiKey', label: 'API Key', required: true, span: 12 }
+              { name: 'apiKey', label: 'API Key', required: true, span: 12 },
               { name: 'apiUrl', label: 'API URL', required: false, span: 12 }
             ],
             spark: [
