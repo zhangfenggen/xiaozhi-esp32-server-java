@@ -51,13 +51,14 @@ public class DatabaseChatMemory implements ChatMemory {
         try {
             SysMessage queryMessage = new SysMessage();
             queryMessage.setDeviceId(deviceId);
+            queryMessage.setStart(1);
             queryMessage.setLimit(limit);
 
             List<SysMessage> messages = messageService.query(queryMessage);
             messages = new ArrayList<>(messages);
             messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
-
             return messages;
+            // return messages;
         } catch (Exception e) {
             logger.error("获取历史消息时出错: {}", e.getMessage(), e);
             return new ArrayList<>();

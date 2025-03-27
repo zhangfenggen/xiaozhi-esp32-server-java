@@ -8,12 +8,10 @@ import com.xiaozhi.websocket.llm.api.StreamResponseListener;
 import com.xiaozhi.websocket.llm.factory.LlmServiceFactory;
 import com.xiaozhi.websocket.llm.memory.ChatMemory;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
-import com.xiaozhi.websocket.service.MessageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.socket.WebSocketSession;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,8 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
-
-import javax.annotation.Resource;
 
 /**
  * LLM管理器
@@ -40,9 +36,6 @@ public class LlmManager {
 
     @Autowired
     private SysConfigService configService;
-
-    @Resource
-    private MessageService messageService;
 
     @Autowired
     private ChatMemory chatMemory;
@@ -181,7 +174,8 @@ public class LlmManager {
             // 创建流式响应监听器
             StreamResponseListener streamListener = new StreamResponseListener() {
                 @Override
-                public void onStart() {}
+                public void onStart() {
+                }
 
                 @Override
                 public void onToken(String token) {

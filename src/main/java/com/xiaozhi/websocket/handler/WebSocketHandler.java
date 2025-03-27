@@ -105,7 +105,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
         if (deviceResult.isEmpty()) {
             SysDevice codeResult = deviceService.generateCode(device);
             String audioFilePath;
-            if (ObjectUtils.isEmpty(codeResult.getAudioPath())) {
+            if (StringUtils.hasText(codeResult.getAudioPath())) {
                 audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
                 codeResult.setDeviceId(device.getDeviceId());
                 codeResult.setSessionId(sessionId);
