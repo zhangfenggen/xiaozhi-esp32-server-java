@@ -9,7 +9,7 @@ import com.xiaozhi.service.SysRoleService;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 
@@ -50,7 +50,7 @@ public class SysRoleServiceImpl implements SysRoleService {
      */
     @Override
     public List<SysRole> query(SysRole role) {
-        if (!StringUtils.isEmpty(role.getLimit())) {
+        if (!ObjectUtils.isEmpty(role.getLimit())) {
             PageHelper.startPage(role.getStart(), role.getLimit());
         }
         return roleMapper.query(role);

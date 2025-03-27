@@ -7,7 +7,7 @@ import com.xiaozhi.service.SysConfigService;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.util.List;
 
@@ -59,7 +59,7 @@ public class SysConfigServiceImpl implements SysConfigService {
     @Override
     @Transactional
     public List<SysConfig> query(SysConfig config) {
-        if (!StringUtils.isEmpty(config.getLimit())) {
+        if (!ObjectUtils.isEmpty(config.getLimit())) {
             PageHelper.startPage(config.getStart(), config.getLimit());
         }
         return configMapper.query(config);

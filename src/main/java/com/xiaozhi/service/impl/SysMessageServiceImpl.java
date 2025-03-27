@@ -10,7 +10,7 @@ import com.xiaozhi.service.SysMessageService;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 
@@ -47,7 +47,7 @@ public class SysMessageServiceImpl implements SysMessageService {
      */
     @Override
     public List<SysMessage> query(SysMessage message) {
-        if (!StringUtils.isEmpty(message.getLimit())) {
+        if (!ObjectUtils.isEmpty(message.getLimit())) {
             PageHelper.startPage(message.getStart(), message.getLimit());
         }
         return messageMapper.query(message);

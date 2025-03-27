@@ -9,7 +9,7 @@ import com.xiaozhi.service.SysDeviceService;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 
@@ -50,7 +50,7 @@ public class SysDeviceServiceImpl implements SysDeviceService {
      */
     @Override
     public List<SysDevice> query(SysDevice device) {
-        if (!StringUtils.isEmpty(device.getLimit())) {
+        if (!ObjectUtils.isEmpty(device.getLimit())) {
             PageHelper.startPage(device.getStart(), device.getLimit());
         }
         return deviceMapper.query(device);

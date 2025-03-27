@@ -10,7 +10,7 @@ import com.xiaozhi.utils.DateUtils;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 
@@ -45,7 +45,7 @@ public class SysUserServiceImpl implements SysUserService {
   public SysUser login(String username, String password)
       throws UsernameNotFoundException, UserPasswordNotMatchException {
     SysUser user = userMapper.selectUserByUsername(username);
-    if (StringUtils.isEmpty(user)) {
+    if (ObjectUtils.isEmpty(user)) {
       throw new UsernameNotFoundException();
     } else if (!authenticationService.isPasswordValid(password, user.getPassword())) {
       throw new UserPasswordNotMatchException();

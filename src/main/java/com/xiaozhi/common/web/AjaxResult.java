@@ -2,7 +2,7 @@ package com.xiaozhi.common.web;
 
 import java.util.HashMap;
 
-import org.springframework.util.StringUtils;
+import org.springframework.util.ObjectUtils;
 
 /**
  * API返回封装
@@ -48,7 +48,7 @@ public class AjaxResult extends HashMap<String, Object> {
     public AjaxResult(int code, String msg, Object data) {
         super.put(CODE_TAG, code);
         super.put(MSG_TAG, msg);
-        if (!StringUtils.isEmpty(data)) {
+        if (!ObjectUtils.isEmpty(data)) {
             super.put(DATA_TAG, data);
         }
     }
