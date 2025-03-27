@@ -68,4 +68,10 @@ public class SysRoleServiceImpl implements SysRoleService {
         return roleMapper.update(role);
     }
 
+
+    @Override
+    @Transactional
+    public SysRole selectRoleById(Integer roleId) {
+        return roleMapper.selectRoleById(roleId);
+    }
 }
