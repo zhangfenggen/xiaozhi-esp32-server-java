@@ -34,6 +34,26 @@ config WEBSOCKET_URL
 
 注意：你的地址是`ws://`开头，不是`wss://`开头，一定不要写错了。
 
+**你也可以修改ota地址以提供更多设备信息服务**（修改ota地址后无法通过官方ota自动升级，可选项）
+
+修改前：
+```
+config OTA_VERSION_URL
+    string "OTA Version URL"
+    default "https://api.tenclass.net/xiaozhi/ota/"
+    help
+        The application will access this URL to check for updates.
+```
+
+修改后(示例)：
+```
+config OTA_VERSION_URL
+    string "OTA Version URL"
+    default "http://192.168.5.167:8091/api/device/ota"
+    help
+        The application will access this URL to check for updates.
+```
+
 3. 设置编译参数
 
 ```
