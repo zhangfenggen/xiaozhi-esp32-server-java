@@ -198,9 +198,6 @@ public abstract class AbstractLlmService implements LlmService {
         // 获取格式化的历史记录（包含当前用户消息）
         List<Map<String, String>> formattedMessages = getFormattedHistory(modelContext, userMessage);
 
-        // 输出formattedMessages
-        logger.info("Formatted Messages: {}", formattedMessages);
-
         // 创建一个包装监听器，在完成时保存响应
         StreamResponseListener wrappedListener = new StreamResponseListener() {
             @Override
