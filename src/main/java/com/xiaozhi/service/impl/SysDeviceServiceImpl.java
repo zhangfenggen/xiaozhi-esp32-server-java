@@ -50,7 +50,7 @@ public class SysDeviceServiceImpl implements SysDeviceService {
      */
     @Override
     public List<SysDevice> query(SysDevice device) {
-        if (!ObjectUtils.isEmpty(device.getLimit())) {
+        if (device.getLimit() != null && device.getLimit() > 0) {
             PageHelper.startPage(device.getStart(), device.getLimit());
         }
         return deviceMapper.query(device);

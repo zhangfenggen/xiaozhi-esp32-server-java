@@ -50,7 +50,7 @@ public class SysRoleServiceImpl implements SysRoleService {
      */
     @Override
     public List<SysRole> query(SysRole role) {
-        if (!ObjectUtils.isEmpty(role.getLimit())) {
+        if (role.getLimit() != null && role.getLimit() > 0) {
             PageHelper.startPage(role.getStart(), role.getLimit());
         }
         return roleMapper.query(role);
@@ -68,4 +68,9 @@ public class SysRoleServiceImpl implements SysRoleService {
         return roleMapper.update(role);
     }
 
+    @Override
+    @Transactional
+    public SysRole selectRoleById(Integer roleId) {
+        return roleMapper.selectRoleById(roleId);
+    }
 }

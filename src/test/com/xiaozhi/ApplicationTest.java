@@ -1,58 +1,47 @@
 package com.xiaozhi;
 
-import java.util.HashSet;
+import java.util.List;
+
+import javax.annotation.Resource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.util.ObjectUtils;
 
-import com.agentsflex.core.llm.Llm;
-import com.agentsflex.core.message.HumanMessage;
-import com.agentsflex.core.message.SystemMessage;
-import com.agentsflex.core.prompt.HistoriesPrompt;
-import com.agentsflex.llm.openai.OpenAILlm;
-import com.agentsflex.llm.openai.OpenAILlmConfig;
-import com.xiaozhi.websocket.llm.DatabaseChatMemory;
+import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.service.SysDeviceService;
+import com.xiaozhi.websocket.llm.LlmManager;
+import org.junit.jupiter.api.Test;
+import org.junit.runner.RunWith;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 
+// Change to NONE to avoid starting a web server
+@RunWith(SpringRunner.class)
 @SpringBootTest
-@ActiveProfiles("test")
+@WebAppConfiguration
 public class ApplicationTest {
 
     private static final Logger logger = LoggerFactory.getLogger(ApplicationTest.class);
 
-    public static void main(String[] args) throws Exception {
-        OpenAILlmConfig config = new OpenAILlmConfig();
-        config.setEndpoint("https://api.hunyuan.cloud.tencent.com");
-        config.setModel("hunyuan-turbo");
-        config.setApiKey("");
-        config.setDebug(true);
-        Llm llm = new OpenAILlm(config);
-        HistoriesPrompt prompt = new HistoriesPrompt();
-        prompt.setSystemMessage(new SystemMessage("你是我的助手"));
-        // DatabaseChatMemory.printFieldsRecursive(prompt.getMemory().getMessages(), "",
-        // new HashSet<>(), 5);
+    @Resource
+    private LlmManager llmManager;
 
-        prompt.addMessage(new HumanMessage("你好"));
+    @Resource
+    private SysDeviceService deviceService;
 
-        llm.chatStream(prompt, (context, response) -> {
-            if (response.getMessage().getStatus().toString().equals("END")) {
-                System.out.println("default>>>> " + response);
-            }
-        });
-        ;
+    public void main(String[] args) throws Exception {
+        testLlmProcessQuery();
+    }
 
-        Thread.sleep(5000);
+    @Test
+    public static void testLlmProcessQuery() {
 
-        prompt.addMessage(new HumanMessage("你是谁"));
-
-        llm.chatStream(prompt, (context, response) -> {
-            if (response.getMessage().getStatus().toString().equals("END")) {
-                System.out.println("default>>>> " + response);
-            }
-        });
-        ;
-
-        DatabaseChatMemory.printFieldsRecursive(prompt.getMemory().getMessages(), "", new HashSet<>(), 5);
     }
 }
