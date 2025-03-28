@@ -90,7 +90,11 @@
                             <a-input v-decorator="[
                               field.name,
                               { rules: [{ required: field.required, message: `请输入${field.label}` }] }
-                            ]" :placeholder="`请输入${field.label}`" :type="field.inputType || 'text'" />
+                            ]" :placeholder="`请输入${field.label}`" :type="field.inputType || 'text'">
+                              <template v-if="field.suffix" slot="suffix">
+                                <span style="color: #999">{{ field.suffix }}</span>
+                              </template>
+                            </a-input>
                           </a-form-item>
                         </a-col>
                       </template>
@@ -153,7 +157,7 @@ export default {
       editingConfigId: null,
       currentType: '',
       loading: false,
-      
+
       // 配置类型信息
       configTypeMap: {
         llm: {
@@ -169,18 +173,18 @@ export default {
           typeFields: {
             openai: [
               { name: 'apiKey', label: 'API Key', required: true, span: 12 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12 },
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' },
             ],
             ollama: [
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12 }
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/api/chat' }
             ],
             qwen: [
               { name: 'apiKey', label: 'API Key', required: true, span: 12 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12 }
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' }
             ],
             spark: [
               { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12 }
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' }
             ]
           }
         },
