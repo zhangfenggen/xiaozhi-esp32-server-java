@@ -118,7 +118,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
             SysDevice codeResult = deviceService.generateCode(device);
             String audioFilePath;
             if (StringUtils.hasText(codeResult.getAudioPath())) {
-                audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
+                audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode(), "edge",
+                        "zh-CN-XiaoyiNeural");
                 codeResult.setDeviceId(device.getDeviceId());
                 codeResult.setSessionId(sessionId);
                 codeResult.setAudioPath(audioFilePath);
@@ -196,7 +197,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
                     // 使用句子切分处理流式响应
                     llmManager.chatStreamBySentence(device, result, (sentence, isStart, isEnd) -> {
                         try {
-                            String audioPath = textToSpeechService.textToSpeech(sentence);
+                            String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig.getProvider(),
+                                    device.getVoiceName());
                             audioService.sendAudio(session, audioPath, sentence, isStart, isEnd);
                         } catch (Exception e) {
                             logger.error("处理句子失败: {}", e.getMessage(), e);
@@ -299,7 +301,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 // 使用句子切分处理流式响应
                 llmManager.chatStreamBySentence(device, text, (sentence, isStart, isEnd) -> {
                     try {
-                        String audioPath = textToSpeechService.textToSpeech(sentence);
+                        String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig.getProvider(),
+                                device.getVoiceName());
                         audioService.sendAudio(session, audioPath, sentence, isStart, isEnd);
                     } catch (Exception e) {
                         logger.error("处理句子失败: {}", e.getMessage(), e);

@@ -95,9 +95,9 @@ public class RoleController {
     }
 
     @GetMapping("/testVoice")
-    public AjaxResult testAudio(String voiceName, String message, HttpServletRequest request) {
+    public AjaxResult testAudio(String voiceName, String provider, String message, HttpServletRequest request) {
         try {
-            String audioFilePath = textToSpeechService.textToSpeech(message, voiceName);
+            String audioFilePath = textToSpeechService.textToSpeech(message, provider, voiceName);
             AjaxResult result = AjaxResult.success();
             result.put("data", audioFilePath);
             return result;
