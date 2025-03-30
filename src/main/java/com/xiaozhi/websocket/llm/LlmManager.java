@@ -57,7 +57,7 @@ public class LlmManager {
     public String chat(SysDevice device, String message) {
         try {
             String deviceId = device.getDeviceId();
-            Integer configId = device.getConfigId();
+            Integer configId = device.getModelId();
 
             // 获取LLM服务
             LlmService llmService = getLlmService(deviceId, configId);
@@ -88,7 +88,7 @@ public class LlmManager {
     public void chatStream(SysDevice device, String message, StreamResponseListener streamListener) {
         try {
             String deviceId = device.getDeviceId();
-            Integer configId = device.getConfigId();
+            Integer configId = device.getModelId();
 
             // 获取LLM服务
             LlmService llmService = getLlmService(deviceId, configId);
@@ -235,7 +235,7 @@ public class LlmManager {
                         sentenceHandler.accept(sentence, isStart, isEnd);
                         sentenceCount.incrementAndGet();
                     }
-                    
+
                     // 如果没有任何句子被处理，发送一个空的结束标记
                     if (sentenceCount.get() == 0) {
                         sentenceHandler.accept("", true, true);

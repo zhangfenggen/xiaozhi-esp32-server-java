@@ -10,19 +10,31 @@
         sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName
     </sql>
 
-    <sql id="configSql">
-        sys_config.configId, sys_config.configName, sys_config.configDesc
+    <sql id="modelSql">
+        model_config.configId AS modelId
+    </sql>
+
+    <sql id="sttSql">
+        stt_config.configId AS sttId
+    </sql>
+
+    <sql id="ttsSql">
+        tts_config.configId AS ttsId
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysDevice">
         SELECT
         <include refid="deviceSql"></include>,
         <include refid="roleSql"></include>,
-        <include refid="configSql"></include>
+        <include refid="modelSql"></include>,
+        <include refid="sttSql"></include>,
+        <include refid="ttsSql"></include>
         FROM
             sys_device
             LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
-            LEFT JOIN sys_config ON sys_device.configId = sys_config.configId
+            LEFT JOIN sys_config model_config ON sys_device.modelId = model_config.configId AND model_config.configType = 'llm'
+            LEFT JOIN sys_config stt_config ON sys_device.sttId = stt_config.configId AND stt_config.configType = 'stt'
+            LEFT JOIN sys_config tts_config ON sys_device.ttsId = tts_config.configId AND tts_config.configType = 'tts'
         WHERE
             1 = 1
             <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>
@@ -75,7 +87,9 @@
             <if test="version != null and version != ''">version = #{version},</if>
             <if test="ip != null and ip != ''">ip = #{ip},</if>
             <if test="lastLogin != null and lastLogin != ''">lastLogin = NOW(),</if>
-            <if test="configId != null and configId != ''">configId = #{configId},</if>
+            <if test="modelId != null and modelId != ''">modelId = #{modelId},</if>
+            <if test="sttId != null and sttId != ''">sttId = #{sttId},</if>
+            <if test="ttsId != null and ttsId != ''">ttsId = #{ttsId},</if>
             <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
         </set>
         WHERE
