@@ -33,9 +33,10 @@ ffmpeg -version
 ```
 
 **macOS安装：**
-
-*因项目采用 VOSK 做本地 TTS 服务，而 VOSK 在 macOS 上有 bug ，因此后端项目暂时无法在 macOS 上运行。待修复后，再更新本节内容。*
-
+```bash
+brew install ffmpeg
+ffmpeg -version
+```
 
 ### 2. 数据库配置
 1. 创建名为`xiaozhi`的MySQL数据库
@@ -52,11 +53,13 @@ ffmpeg -version
 ### 3. 下载Vosk语音识别模型（重要）
 项目使用Vosk进行语音识别，需要手动下载模型文件：
 
+*因项目采用 VOSK 做本地 TTS 服务，而 VOSK 在 macOS 上有 bug ，因此后端项目无法使用 VOSK 作为本地语音识别服务，因此需到前端配置管理页面配置语音识别服务后才能正常使用，macOS 用户跳过该步骤*
+
 1. 从Vosk官方网站下载中文模型：https://alphacephei.com/vosk/models
 2. 下载`vosk-model-cn-0.22`模型（或其他中文模型版本）
 3. 解压下载的模型文件
 4. 将解压后的模型文件夹放置在项目的`models/`目录下
-5. 确保模型文件夹路径为：`models/vosk-model-cn-0.22`
+5. 确保模型文件夹路径为：`models/vosk-model`
 
 ### 4. 后端部署
 1. 克隆项目代码到本地
@@ -108,7 +111,7 @@ ffmpeg -version
 - `db`：数据库初始化脚本
 
 ## 常见问题
-1. **语音识别失败**：检查Vosk模型是否正确下载并放置在`src/main/resources/vosk-model-cn-0.22`目录下
+1. **语音识别失败**：检查Vosk模型是否正确下载并放置在`models/vosk-model`目录下
 2. **音频处理失败**：检查FFmpeg是否正确安装，可通过命令行运行`ffmpeg -version`验证
 3. **数据库连接失败**：检查MySQL服务是否启动，以及用户名密码是否正确
 4. **端口冲突**：如果8091端口被占用，可以在application.properties中修改server.port配置，并修改前端代码中的API地址
