@@ -146,7 +146,6 @@ public class SttServiceFactory {
     }
 
     String provider = config.getProvider();
-    logger.info("创建 {} STT服务", provider);
 
     // 根据提供商类型创建对应的服务实例
     if ("tencent".equals(provider)) {

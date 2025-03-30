@@ -192,7 +192,7 @@ export default {
           label: '语音识别',
           typeOptions: [
             { label: 'Tencent', value: 'tencent', key: '0' },
-            // { label: 'Aliyun', value: 'aliyun', key: '1' }
+            { label: 'Aliyun', value: 'aliyun', key: '1' }
           ],
           typeFields: {
             tencent: [
@@ -208,7 +208,7 @@ export default {
           label: '语音合成',
           typeOptions: [
             { label: 'Tencent', value: 'tencent', key: '0' },
-            // { label: 'Aliyun', value: 'aliyun', key: '1' }
+            { label: 'Aliyun', value: 'aliyun', key: '1' }
           ],
           typeFields: {
             tencent: [

@@ -50,6 +50,12 @@ const mixin = {
     },
     /* 点击编辑操作 */
     edit(key) {
+      // 先取消所有行的编辑状态
+      this.data.forEach(item => {
+        if (item.editable) {
+          delete item.editable;
+        }
+      });
       const data = this.editLine(key);
       this.editingKey = key;
       data.target.editable = true;
