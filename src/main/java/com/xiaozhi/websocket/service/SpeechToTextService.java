@@ -38,7 +38,6 @@ public class SpeechToTextService {
       return null;
     }
 
-    logger.info("使用STT服务: {}", sttService.getProviderName());
     long startTime = System.currentTimeMillis(); // 记录开始时间
     String result = sttService.recognition(audioData);
     long endTime = System.currentTimeMillis();

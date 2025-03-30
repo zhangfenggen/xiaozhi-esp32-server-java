@@ -383,7 +383,6 @@ export default {
         })
         .catch(error => {
           this.$message.error('加载语音列表失败')
-          console.log(error)
         })
     },
 

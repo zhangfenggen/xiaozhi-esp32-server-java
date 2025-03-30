@@ -31,7 +31,7 @@ public class LlmManager {
     private static final Logger logger = LoggerFactory.getLogger(LlmManager.class);
 
     // 标点符号模式（中英文标点）
-    private static final Pattern PUNCTUATION_PATTERN = Pattern.compile("[，。！？；,.!?;]");
+    private static final Pattern PUNCTUATION_PATTERN = Pattern.compile("[，。！？；,!?;]");
 
     // 最小句子长度（字符数）
     private static final int MIN_SENTENCE_LENGTH = 5;

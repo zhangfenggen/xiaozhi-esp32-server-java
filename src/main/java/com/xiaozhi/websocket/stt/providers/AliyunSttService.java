@@ -1,27 +1,21 @@
 package com.xiaozhi.websocket.stt.providers;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Base64;
 import java.util.Date;
-import java.util.SimpleTimeZone;
-import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xiaozhi.entity.SysConfig;
-import com.xiaozhi.utils.AudioUtils;
-import com.xiaozhi.utils.DateUtils;
+import com.xiaozhi.utils.AliyunAccessToken;
 import com.xiaozhi.websocket.stt.SttService;
 
 import okhttp3.MediaType;
@@ -35,13 +29,16 @@ public class AliyunSttService implements SttService {
 
     private static final String PROVIDER_NAME = "aliyun";
     private static final String API_URL = "https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr";
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
-    // 阿里云一句话识别的请求格式
-    private static final String FORMAT = "pcm"; // 支持的音频格式：pcm, wav, mp3等
-    private static final int SAMPLE_RATE = 16000; // 采样率，支持8000或16000
+    // 音频格式设置
+    private static final String FORMAT = "pcm";
+    private static final int SAMPLE_RATE = 16000;
 
-    private String appKey; // 阿里云语音识别需要appKey
+    private String appKey;
+    private String accessKeyId;
+    private String accessKeySecret;
+    private String token;
+    private String tokenExpireTime;
 
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -51,10 +48,11 @@ public class AliyunSttService implements SttService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 构造函数，接收配置对象
     public AliyunSttService(SysConfig config) {
         if (config != null) {
             this.appKey = config.getApiKey();
+            this.accessKeyId = config.getAppId();
+            this.accessKeySecret = config.getApiSecret();
         }
     }
 
@@ -70,24 +68,25 @@ public class AliyunSttService implements SttService {
             return null;
         }
 
-        // 将原始音频数据转换为WAV格式并保存（用于调试）
-        String fileName = AudioUtils.saveAsWavFile(audioData);
-
         try {
-            // 检查配置是否已设置
-            if (appKey == null) {
+            // 检查配置
+            if (appKey == null || accessKeyId == null || accessKeySecret == null) {
                 logger.error("阿里云语音识别配置未设置，无法进行识别");
                 return null;
             }
 
-            // 将音频数据转换为Base64编码
-            String base64Audio = Base64.getEncoder().encodeToString(audioData);
+            // 获取有效token
+            String nlsToken = getValidToken();
+            if (nlsToken == null) {
+                logger.error("无法获取有效的阿里云NLS Token");
+                return null;
+            }
 
-            // 构建请求体
-            String requestBody = buildRequestBody(base64Audio);
+            // 构建URL，添加所有必要的参数
+            String url = buildRequestUrl();
 
-            // 计算签名并发送请求
-            String result = sendRequest(requestBody);
+            // 直接发送音频数据
+            String result = sendRequest(url, nlsToken, audioData);
 
             return result;
         } catch (Exception e) {
@@ -97,42 +96,43 @@ public class AliyunSttService implements SttService {
     }
 
     /**
-     * 构建请求体
+     * 构建请求URL，添加所有必要的查询参数
      */
-    private String buildRequestBody(String base64Audio) throws Exception {
-        // 构建请求参数
-        ObjectNode requestMap = objectMapper.createObjectNode();
+    private String buildRequestUrl() {
+        StringBuilder urlBuilder = new StringBuilder(API_URL);
+        urlBuilder.append("?appkey=").append(appKey);
+        urlBuilder.append("&format=").append(FORMAT);
+        urlBuilder.append("&sample_rate=").append(SAMPLE_RATE);
+        urlBuilder.append("&enable_punctuation_prediction=").append(true);
+        urlBuilder.append("&enable_inverse_text_normalization=").append(true);
 
-        // 必需参数
-        requestMap.put("format", FORMAT);
-        requestMap.put("sample_rate", SAMPLE_RATE);
-        requestMap.put("appkey", appKey);
-
-        // 音频数据直接放在请求体中，而不是使用speech字段
-        requestMap.put("audio", base64Audio);
-
-        // 可选参数
-        requestMap.put("enable_punctuation_prediction", true);
-        requestMap.put("enable_inverse_text_normalization", true);
-
-        return objectMapper.writeValueAsString(requestMap);
+        return urlBuilder.toString();
     }
 
     /**
-     * 发送请求到阿里云API
+     * 发送请求到阿里云API，直接传输音频数据
      */
-    private String sendRequest(String requestBody) throws IOException {
+    private String sendRequest(String url, String nlsToken, byte[] audioData) throws IOException {
         try {
-            // 构建请求
-            Request request = new Request.Builder()
-                    .url(API_URL)
-                    .addHeader("Content-Type", "application/octet-stream")
-                    .addHeader("Host", "nls-gateway-cn-shanghai.aliyuncs.com")
-                    .addHeader("x-nls-token", appKey)
-                    .post(RequestBody.create(JSON, requestBody))
-                    .build();
+            // 设置请求头
+            HashMap<String, String> headers = new HashMap<>();
+            headers.put("X-NLS-Token", nlsToken);
+            headers.put("Content-Type", "application/octet-stream");
 
-            logger.debug(request.toString());
+            // 直接使用音频字节数据创建请求体
+            RequestBody requestBody = RequestBody.create(MediaType.parse("application/octet-stream"), audioData);
+
+            Request.Builder requestBuilder = new Request.Builder()
+                    .url(url);
+
+            // 添加所有头部信息
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+            }
+
+            // 设置POST请求体
+            Request request = requestBuilder.post(requestBody).build();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     throw new IOException("请求失败: " + response.code() + " " + response.message());
@@ -162,4 +162,42 @@ public class AliyunSttService implements SttService {
         }
     }
 
+    /**
+     * 获取有效的阿里云NLS Token
+     */
+    private String getValidToken() {
+        // 检查当前token是否存在且未过期
+        if (token != null && tokenExpireTime != null) {
+            try {
+                // 阿里云返回的过期时间是Unix时间戳（秒）
+                long expireTimeInSeconds = Long.parseLong(tokenExpireTime);
+                long currentTimeInSeconds = System.currentTimeMillis() / 1000;
+
+                // 如果token还有效（未过期），直接返回
+                if (expireTimeInSeconds > currentTimeInSeconds) {
+                    logger.debug("使用缓存的token，过期时间: {}", tokenExpireTime);
+                    return token;
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("解析token过期时间出错，将重新获取token", e);
+            }
+        }
+
+        // 获取新token
+        try {
+            Map<String, String> tokenInfo = AliyunAccessToken.createToken(accessKeyId, accessKeySecret);
+
+            if (tokenInfo != null && tokenInfo.containsKey("token") && tokenInfo.containsKey("expireTime")) {
+                token = tokenInfo.get("token");
+                tokenExpireTime = tokenInfo.get("expireTime");
+                return token;
+            } else {
+                logger.error("获取阿里云NLS Token失败");
+                return null;
+            }
+        } catch (Exception e) {
+            logger.error("获取阿里云NLS Token时发生错误", e);
+            return null;
+        }
+    }
 }
