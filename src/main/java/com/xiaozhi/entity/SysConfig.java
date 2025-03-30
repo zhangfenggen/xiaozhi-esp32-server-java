@@ -71,13 +71,16 @@ public class SysConfig extends Base {
     public String getConfigType() {
         return configType;
     }
+
     public SysConfig setConfigType(String configType) {
         this.configType = configType;
         return this;
     }
+
     public String getProvider() {
         return provider;
     }
+
     public SysConfig setProvider(String provider) {
         this.provider = provider;
         return this;
@@ -131,8 +134,17 @@ public class SysConfig extends Base {
     public String getIsDefault() {
         return isDefault;
     }
+
     public SysConfig setIsDefault(String isDefault) {
         this.isDefault = isDefault;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "SysConfig [configId=" + configId + ", configName=" + configName + ", configDesc=" + configDesc
+                + ", configType=" + configType + ", provider=" + provider + ", appId=" + appId + ", apiKey=" + apiKey
+                + ", apiSecret=" + apiSecret + ", apiUrl=" + apiUrl + ", state=" + state + ", isDefault=" + isDefault
+                + "]";
     }
 }

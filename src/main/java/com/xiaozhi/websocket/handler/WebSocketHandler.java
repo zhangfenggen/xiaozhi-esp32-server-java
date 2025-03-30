@@ -3,7 +3,9 @@ package com.xiaozhi.websocket.handler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysDeviceService;
 import com.xiaozhi.websocket.llm.LlmManager;
 import com.xiaozhi.websocket.service.AudioService;
@@ -21,6 +23,7 @@ import javax.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -32,6 +35,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     private SysDeviceService deviceService;
+
+    @Autowired
+    private SysConfigService configService;
 
     @Autowired
     private AudioService audioService;
@@ -55,6 +61,7 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
     // 用于存储会话和设备的映射关系
     private static final ConcurrentHashMap<String, SysDevice> DEVICES_CONFIG = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, SysConfig> CONFIG = new ConcurrentHashMap<>();
 
     // 用于跟踪会话是否处于监听状态
     private static final ConcurrentHashMap<String, Boolean> LISTENING_STATE = new ConcurrentHashMap<>();
@@ -82,6 +89,12 @@ public class WebSocketHandler extends TextWebSocketHandler {
         } else {
             device = devices.get(0);
             device.setSessionId(sessionId);
+            if (device.getSttId() != null) {
+                CONFIG.put(device.getSttId(), configService.selectConfigById(device.getSttId()));
+            }
+            if (device.getTtsId() != null) {
+                CONFIG.put(device.getTtsId(), configService.selectConfigById(device.getTtsId()));
+            }
         }
         DEVICES_CONFIG.put(sessionId, device);
         logger.info("WebSocket连接建立成功 - SessionId: {}, DeviceId: {}", sessionId, deviceId);
@@ -150,6 +163,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
         String sessionId = session.getId();
         SysDevice device = DEVICES_CONFIG.get(sessionId);
+        SysConfig sttConfig = (device.getSttId() != null) ? CONFIG.get(device.getSttId()) : null;
+        SysConfig ttsConfig = (device.getTtsId() != null) ? CONFIG.get(device.getTtsId()) : null;
 
         // 检查会话是否处于监听状态，如果不是则忽略音频数据
         Boolean isListening = LISTENING_STATE.getOrDefault(sessionId, false);
@@ -164,10 +179,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
 
             if (completeAudio != null) {
                 logger.info("检测到语音结束 - SessionId: {}, 音频大小: {} 字节", sessionId, completeAudio.length);
+                String result;
                 // 调用 SpeechToTextService 进行语音识别
-                String jsonResult = speechToTextService.processAudio(completeAudio);
-                JsonNode resultNode = objectMapper.readTree(jsonResult);
-                String result = resultNode.path("text").asText("");
+                if (!ObjectUtils.isEmpty(sttConfig)) {
+                    result = speechToTextService.recognition(completeAudio, sttConfig);
+                } else {
+                    String jsonResult = speechToTextService.recognition(completeAudio);
+                    JsonNode resultNode = objectMapper.readTree(jsonResult);
+                    result = resultNode.path("text").asText("");
+                }
                 if (StringUtils.hasText(result)) {
                     logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
                     // 设置会话为非监听状态，防止处理自己的声音

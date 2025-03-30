@@ -123,20 +123,20 @@
                 </a-tooltip>
               </span>
             </template>
-            <template slot="configName" slot-scope="text, record">
+            <template slot="modelName" slot-scope="text, record">
               <a-select
                 v-if="record.editable"
                 style="margin: -5px 0; text-align: center; width: 100%"
                 :value="text"
-                @change="(value) => handleSelectChange(value, record.deviceId, 'config')"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'model')"
                 dropdownClassName="centered-dropdown"
               >
                 <a-select-option
                   v-for="item in modelItems"
-                  :key="item.configId"
-                  :value="item.configId"
+                  :key="item.modelId"
+                  :value="item.modelId"
                 >
-                  <span>{{ item.configName }}</span>
+                  <span>{{ item.modelName }}</span>
                 </a-select-option>
               </a-select>
               <span
@@ -144,8 +144,62 @@
                 @click="edit(record.deviceId)"
                 style="cursor: pointer"
               >
-                <a-tooltip :title="record.configDesc" :mouseEnterDelay="0.5">
-                  <span v-if="text">{{ text }}</span>
+                <a-tooltip :title="record.modelDesc" :mouseEnterDelay="0.5">
+                  <span v-if="record.modelId">{{ getItemName(modelItems, 'modelId', record.modelId, 'modelName') }}</span>
+                  <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                </a-tooltip>
+              </span>
+            </template>
+            <template slot="sttName" slot-scope="text, record">
+              <a-select
+                v-if="record.editable"
+                style="margin: -5px 0; text-align: center; width: 100%"
+                :value="text"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'stt')"
+                dropdownClassName="centered-dropdown"
+              >
+                <a-select-option
+                  v-for="item in sttItems"
+                  :key="item.sttId"
+                  :value="item.sttId"
+                >
+                  <span>{{ item.sttName }}</span>
+                </a-select-option>
+              </a-select>
+              <span
+                v-else-if="editingKey === ''"
+                @click="edit(record.deviceId)"
+                style="cursor: pointer"
+              >
+                <a-tooltip :title="record.sttDesc" :mouseEnterDelay="0.5">
+                  <span v-if="record.sttId">{{ getItemName(sttItems, 'sttId', record.sttId, 'sttName') }}</span>
+                  <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
+                </a-tooltip>
+              </span>
+            </template>
+            <template slot="ttsName" slot-scope="text, record">
+              <a-select
+                v-if="record.editable"
+                style="margin: -5px 0; text-align: center; width: 100%"
+                :value="text"
+                @change="(value) => handleSelectChange(value, record.deviceId, 'tts')"
+                dropdownClassName="centered-dropdown"
+              >
+                <a-select-option
+                  v-for="item in ttsItems"
+                  :key="item.ttsId"
+                  :value="item.ttsId"
+                >
+                  <span>{{ item.ttsName }}</span>
+                </a-select-option>
+              </a-select>
+              <span
+                v-else-if="editingKey === ''"
+                @click="edit(record.deviceId)"
+                style="cursor: pointer"
+              >
+                <a-tooltip :title="record.ttsDesc" :mouseEnterDelay="0.5">
+                  <span v-if="record.ttsId">{{ getItemName(ttsItems, 'ttsId', record.ttsId, 'ttsName') }}</span>
                   <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
                 </a-tooltip>
               </span>
@@ -249,8 +303,20 @@ export default {
         },
         {
           title: "模型",
-          dataIndex: "configName",
-          scopedSlots: { customRender: "configName" },
+          dataIndex: "modelName",
+          scopedSlots: { customRender: "modelName" },
+          align: "center",
+        },
+        {
+          title: "语音识别",
+          dataIndex: "sttName",
+          scopedSlots: { customRender: "sttName" },
+          align: "center",
+        },
+        {
+          title: "语音合成",
+          dataIndex: "ttsName",
+          scopedSlots: { customRender: "ttsName" },
           align: "center",
         },
         {
@@ -308,6 +374,8 @@ export default {
       ],
       roleItems: [],
       modelItems: [],
+      ttsItems: [],
+      sttItems: [],
       data: [],
       cacheData: [],
       // 操作单元格是否可编辑
@@ -375,6 +443,7 @@ export default {
           this.$message.error("服务器维护/重启中，请稍后再试");
         });
     },
+    // todo 合并到 mixin 中
     // 选择变更处理函数
     handleSelectChange(value, key, type) {
       // 根据类型确定要使用的数据源和字段名
@@ -384,10 +453,18 @@ export default {
         items = this.roleItems;
         idField = 'roleId';
         nameField = 'roleName';
-      } else if (type === 'config') {
+      } else if (type === 'model') {
         items = this.modelItems;
-        idField = 'configId';
-        nameField = 'configName';
+        idField = 'modelId';
+        nameField = 'modelName';
+      } else if (type === 'stt') {
+        items = this.sttItems;
+        idField = 'sttId';
+        nameField = 'sttName';
+      } else if (type === 'tts') {
+        items = this.ttsItems;
+        idField = 'ttsId';
+        nameField = 'ttsName';
       } else {
         return; // 不支持的类型，直接返回
       }
@@ -414,7 +491,9 @@ export default {
           data: {
             deviceId: val.deviceId,
             deviceName: val.deviceName,
-            configId: val.configId,
+            modelId: val.modelId,
+            sttId: val.sttId,
+            ttsId: val.ttsId,
             roleId: val.roleId
           },
         })
@@ -472,13 +551,29 @@ export default {
           url: api.config.query,
           data: {
             start: 1,
-            limit: 1000,
-            configType: 'llm'
+            limit: 1000
           },
         })
         .then((res) => {
           if (res.code === 200) {
-            this.modelItems = res.data.list;
+            res.data.list.forEach((item) => {
+              if (item.configType == 'llm') {
+                item.modelId = item.configId;
+                item.modelName = item.configName;
+                item.modelDesc = item.configDesc;
+                this.modelItems.push(item);
+              } else if (item.configType == 'stt') {
+                item.sttId = item.configId;
+                item.sttName = item.configName;
+                item.sttDesc = item.configDesc;
+                this.sttItems.push(item)
+              } else {
+                item.ttsId = item.configId;
+                item.ttsName = item.configName;
+                item.ttsDesc = item.configDesc;
+                this.ttsItems.push(item)
+              }
+            });
           } else {
             this.$message.error(res.message);
           }
@@ -486,6 +581,12 @@ export default {
         .catch(() => {
           this.$message.error("服务器维护/重启中，请稍后再试");
         });
+    },
+
+    // 获取项目名称的辅助方法
+    getItemName(items, idField, id, nameField) {
+      const item = items.find(item => item[idField] === id);
+      return item ? item[nameField] : '';
     }
   },
 };

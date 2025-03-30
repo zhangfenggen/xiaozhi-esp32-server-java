@@ -16,11 +16,11 @@ public class SysDevice extends SysRole {
 
     private String sessionId;
 
-    private Integer configId;
+    private Integer modelId;
 
-    private String configName;
+    private Integer sttId;
 
-    private String configDesc;
+    private Integer ttsId;
 
     /**
      * 设备名称
@@ -73,30 +73,30 @@ public class SysDevice extends SysRole {
      */
     private String version;
 
-    public Integer getConfigId() {
-        return configId;
+    public Integer getModelId() {
+        return modelId;
     }
 
-    public SysDevice setConfigId(Integer configId) {
-        this.configId = configId;
+    public SysDevice setModelId(Integer modelId) {
+        this.modelId = modelId;
         return this;
     }
 
-    public String getConfigName() {
-        return configName;
+    public Integer getSttId() {
+        return sttId;
     }
 
-    public SysDevice setConfigName(String configName) {
-        this.configName = configName;
+    public SysDevice setSttId(Integer sttId) {
+        this.sttId = sttId;
         return this;
     }
 
-    public String getConfigDesc() {
-        return configDesc;
+    public Integer getTtsId() {
+        return ttsId;
     }
 
-    public SysDevice setConfigDesc(String configDesc) {
-        this.configDesc = configDesc;
+    public SysDevice setTtsId(Integer ttsId) {
+        this.ttsId = ttsId;
         return this;
     }
 
@@ -210,11 +210,10 @@ public class SysDevice extends SysRole {
 
     @Override
     public String toString() {
-        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", configId=" + configId
-                + ", configName=" + configName + ", configDesc=" + configDesc + ", deviceName=" + deviceName
-                + ", state=" + state + ", ip=" + ip
-                + ", totalMessage=" + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin="
-                + lastLogin + ", wifiName=" + wifiName + ", chipModelName=" + chipModelName + ", version="
-                + version + "]";
+        return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", modelId=" + modelId + ", sttId="
+                + sttId + ", ttsId=" + ttsId + ", deviceName=" + deviceName + ", state=" + state + ", totalMessage="
+                + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin=" + lastLogin
+                + ", wifiName=" + wifiName + ", ip=" + ip + ", chipModelName=" + chipModelName + ", version=" + version
+                + "]";
     }
 }
