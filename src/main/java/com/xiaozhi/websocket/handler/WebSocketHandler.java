@@ -196,7 +196,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
                     // 使用句子切分处理流式响应
                     llmManager.chatStreamBySentence(device, result, (sentence, isStart, isEnd) -> {
                         try {
-                            String audioPath = textToSpeechService.textToSpeech(sentence);
+                            String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig,
+                                    device.getVoiceName());
                             audioService.sendAudio(session, audioPath, sentence, isStart, isEnd);
                         } catch (Exception e) {
                             logger.error("处理句子失败: {}", e.getMessage(), e);
@@ -273,6 +274,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private void handleListenMessage(WebSocketSession session, JsonNode jsonNode) {
         String sessionId = session.getId();
         SysDevice device = DEVICES_CONFIG.get(sessionId);
+        SysConfig sttConfig = (device.getSttId() != null) ? CONFIG.get(device.getSttId()) : null;
+        SysConfig ttsConfig = (device.getTtsId() != null) ? CONFIG.get(device.getTtsId()) : null;
+        // 解析listen消息中的state和mode字段
         String state = jsonNode.path("state").asText();
         String mode = jsonNode.path("mode").asText();
 
@@ -299,7 +303,8 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 // 使用句子切分处理流式响应
                 llmManager.chatStreamBySentence(device, text, (sentence, isStart, isEnd) -> {
                     try {
-                        String audioPath = textToSpeechService.textToSpeech(sentence);
+                        String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig,
+                                device.getVoiceName());
                         audioService.sendAudio(session, audioPath, sentence, isStart, isEnd);
                     } catch (Exception e) {
                         logger.error("处理句子失败: {}", e.getMessage(), e);

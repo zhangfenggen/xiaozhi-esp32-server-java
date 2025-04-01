@@ -56,9 +56,19 @@
                 <!-- 语音设置区域 -->
                 <a-space direction="vertical" size="large" style="width: 100%">
                   <a-row :gutter="20">
-                    <a-col :xl="6" :lg="12" :xs="24">
+                    <!-- 新增语音提供商选择 -->
+                    <a-col :xl="5" :lg="12" :xs="24">
+                      <a-form-item label="语音提供商">
+                        <a-select v-decorator="['provider', { initialValue: 'edge' }]" placeholder="请选择语音提供商"
+                          @change="handleProviderChange">
+                          <a-select-option value="edge">微软Edge</a-select-option>
+                          <a-select-option value="aliyun">阿里云</a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :xl="5" :lg="12" :xs="24">
                       <a-form-item label="语音性别">
-                        <a-select v-decorator="['voiceGender', { initialValue: '' }]" placeholder="请选择语音性别"
+                        <a-select v-decorator="['gender', { initialValue: '' }]" placeholder="请选择语音性别"
                           @change="handleGenderChange">
                           <a-select-option value="">不限</a-select-option>
                           <a-select-option value="male">男声</a-select-option>
@@ -66,7 +76,7 @@
                         </a-select>
                       </a-form-item>
                     </a-col>
-                    <a-col :xl="6" :lg="12" :xs="24">
+                    <a-col :xl="5" :lg="12" :xs="24">
                       <a-form-item label="语音名称">
                         <a-select v-decorator="[
                           'voiceName',
@@ -81,7 +91,7 @@
                         </a-select>
                       </a-form-item>
                     </a-col>
-                    <a-col :lg="12" :xs="24">
+                    <a-col :xl="9" :lg="12" :xs="24">
                       <a-form-item label="语音测试">
                         <a-input-search v-model="testText" placeholder="请输入要测试的文本" enter-button="测试"
                           :loading="audioTesting" @search="testVoice" />
@@ -178,7 +188,10 @@ export default {
           index: "roleName",
         },
       ],
-      allVoices: [],
+      // 语音相关
+      edgeVoices: [],
+      aliyunVoices: [],
+      selectedProvider: 'edge', // 默认使用Edge语音
       selectedGender: '', // 存储当前选择的性别
       activeTabKey: '1', // 当前激活的标签页
       roleForm: this.$form.createForm(this),
@@ -258,23 +271,9 @@ export default {
     this.loadVoices()
   },
   computed: {
-    roleSettingsOptions() {
-      return [
-        {
-          name: 'voiceGender',
-          label: '语音性别',
-          options: [
-            { label: '不限', value: '' },
-            { label: '男声', value: 'male' },
-            { label: '女声', value: 'female' }
-          ]
-        },
-        {
-          name: 'voiceName',
-          label: '语音名称',
-          options: this.allVoices  // 在计算属性中使用this是安全的
-        }
-      ];
+    // 获取当前选中提供商的语音列表
+    allVoices() {
+      return this.selectedProvider === 'edge' ? this.edgeVoices : this.aliyunVoices;
     },
     filteredVoices() {
       // 根据选择的性别筛选语音选项
@@ -297,6 +296,37 @@ export default {
     handleTabChange(key) {
       this.activeTabKey = key;
       this.resetForm();
+    },
+
+    // 处理语音提供商选择变化
+    handleProviderChange(value) {
+      this.selectedProvider = value;
+
+      // 如果还没有加载该提供商的语音，则加载
+      if (value === 'edge' && this.edgeVoices.length === 0) {
+        this.loadEdgeVoices();
+      } else if (value === 'aliyun' && this.aliyunVoices.length === 0) {
+        this.loadAliyunVoices();
+      }
+
+      // 重置性别选择
+      this.selectedGender = '';
+      this.roleForm.setFieldsValue({
+        gender: ''
+      });
+
+      // 更新语音名称为新的默认值
+      this.$nextTick(() => {
+        if (this.filteredVoices && this.filteredVoices.length > 0) {
+          this.roleForm.setFieldsValue({
+            voiceName: this.filteredVoices[0].value
+          });
+        } else {
+          this.roleForm.setFieldsValue({
+            voiceName: undefined
+          });
+        }
+      });
     },
 
     // 处理性别选择变化
@@ -345,13 +375,19 @@ export default {
         });
     },
 
-    // 加载语音列表
+    // 加载所有语音列表
     loadVoices() {
-      fetch('/static/assets/voicesList.json')
+      this.loadEdgeVoices();
+      this.loadAliyunVoices();
+    },
+
+    // 加载Edge语音列表
+    loadEdgeVoices() {
+      fetch('/static/assets/edgeVoicesList.json')
         .then(response => response.json())
         .then(data => {
           // 提取中文语音列表
-          this.allVoices = data.filter(voice => voice.Locale.includes('zh'))
+          this.edgeVoices = data.filter(voice => voice.Locale.includes('zh'))
             .sort((a, b) => a.Locale.localeCompare(b.Locale))
             .map(voice => {
               // 从ShortName中提取名称部分 (如从"zh-TW-HsiaoYuNeural"提取"HsiaoYu")
@@ -368,13 +404,14 @@ export default {
               return {
                 label: `${name} (${locale})`,
                 value: voice.ShortName,
-                gender: voice.Gender.toLowerCase()
+                gender: voice.Gender.toLowerCase(),
+                provider: 'edge'
               };
             });
 
           // 加载完语音列表后，设置默认语音
           this.$nextTick(() => {
-            if (this.allVoices.length > 0 && this.activeTabKey === '2') {
+            if (this.selectedProvider === 'edge' && this.edgeVoices.length > 0 && this.activeTabKey === '2') {
               this.roleForm.setFieldsValue({
                 voiceName: this.defaultVoiceName
               });
@@ -382,9 +419,83 @@ export default {
           });
         })
         .catch(error => {
-          this.$message.error('加载语音列表失败')
+          this.$message.error('加载Edge语音列表失败')
         })
     },
+    // 加载阿里云语音列表
+    loadAliyunVoices() {
+      // 创建一个函数来解析HTML并提取语音数据
+      const parseAliyunVoicesFromHTML = (htmlContent) => {
+        // 创建一个临时DOM元素来解析HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlContent, 'text/html');
+        const voicesData = [];
+        // 查找id为5186fe1abb7ag的section元素
+        const sectionElement = doc.getElementById('5186fe1abb7ag');
+        if (sectionElement) {
+          // 查找section元素内的第一个tr元素
+          const trElements = Array.from(sectionElement.querySelectorAll('tr')).slice(2)
+
+          trElements.forEach(trElement => {
+            const childNodes = trElement.childNodes;
+            const label = childNodes[0].innerText
+            const value = childNodes[1].innerText
+            const gender = childNodes[2].innerText.includes('女') ? 'female' : 'male';
+            const type = childNodes[2].innerText
+            const language = childNodes[4].innerText
+            voicesData.push({
+              name: label,
+              voiceId: value,
+              gender: gender,
+              type: type,
+              language: language,
+              provider: 'aliyun'
+            })
+          })
+        }
+        return voicesData;
+      };
+
+      const corsProxy = 'https://api.allorigins.win/raw?url=';
+      const aliyunDocsUrl = 'https://help.aliyun.com/zh/isi/developer-reference/overview-of-speech-synthesis';
+      
+      fetch(`${corsProxy}${encodeURIComponent(aliyunDocsUrl)}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('网络请求失败');
+          }
+          return response.text();
+        })
+        .then(htmlContent => {
+          // 解析HTML并提取语音数据
+          const voicesData = parseAliyunVoicesFromHTML(htmlContent);
+          
+          // 处理阿里云语音列表
+          this.aliyunVoices = voicesData.map(voice => {
+            return {
+              label: `${voice.name} (${voice.type})`,
+              value: voice.voiceId,
+              gender: voice.gender.toLowerCase(),
+              provider: 'aliyun'
+            };
+          });
+            
+        })
+        .catch(error => {
+          this.$message.warning('从阿里云文档加载语音列表失败，使用备用数据');
+        })
+        .finally(() => {
+          this.$nextTick(() => {
+            if (this.selectedProvider === 'aliyun' && this.aliyunVoices.length > 0 && this.activeTabKey === '2') {
+              this.roleForm.setFieldsValue({
+                voiceName: this.defaultVoiceName
+              });
+            }
+          });
+        });
+    },
+
+
 
     // 提交表单
     handleSubmit(e) {
@@ -392,6 +503,12 @@ export default {
       this.roleForm.validateFields((err, values) => {
         if (!err) {
           this.loading = true;
+
+          // 添加语音提供商信息
+          const formData = {
+            ...values,
+            provider: this.selectedProvider
+          };
 
           const url = this.editingRoleId
             ? api.role.update
@@ -402,7 +519,7 @@ export default {
               url,
               data: {
                 roleId: this.editingRoleId,
-                ...values
+                ...formData
               }
             })
             .then(res => {
@@ -438,16 +555,24 @@ export default {
       this.$nextTick(() => {
         const { roleForm } = this;
 
-        // 处理标签，从字符串转为数组
-        const formValues = {
-          ...record
-        };
+        // 设置语音提供商
+        this.selectedProvider = record.provider || 'edge';
+
+        // 确保相应的语音列表已加载
+        if (this.selectedProvider === 'edge' && this.edgeVoices.length === 0) {
+          this.loadEdgeVoices();
+        } else if (this.selectedProvider === 'aliyun' && this.aliyunVoices.length === 0) {
+          this.loadAliyunVoices();
+        }
 
         // 设置当前选择的性别，以便正确筛选语音
-        this.selectedGender = formValues.voiceGender || '';
+        this.selectedGender = record.gender || '';
 
         // 设置表单值
-        roleForm.setFieldsValue(formValues);
+        roleForm.setFieldsValue({
+          ...record,
+          provider: this.selectedProvider
+        });
       });
     },
 
@@ -485,15 +610,15 @@ export default {
       this.promptEditorMode = 'custom';
       this.audioUrl = '';
       this.selectedGender = ''; // 重置性别选择
+      this.selectedProvider = 'edge'; // 重置为默认语音提供商
 
       // 重置后设置默认语音
       this.$nextTick(() => {
-        if (this.allVoices.length > 0) {
-          this.roleForm.setFieldsValue({
-            voiceGender: '',
-            voiceName: this.defaultVoiceName
-          });
-        }
+        this.roleForm.setFieldsValue({
+          provider: 'edge',
+          gender: '',
+          voiceName: this.defaultVoiceName
+        });
       });
     },
 
@@ -514,7 +639,7 @@ export default {
         return;
       }
 
-      // Get the current voice name from the form
+      // Get the current voice name and provider from the form
       this.roleForm.validateFields(['voiceName'], (err, values) => {
         this.audioTesting = true;
 
@@ -523,6 +648,7 @@ export default {
             url: api.role.testVoice,
             data: {
               voiceName: values.voiceName,
+              provider: this.selectedProvider, // 添加语音提供商信息
               message: this.testText
             }
           }).then(res => {
