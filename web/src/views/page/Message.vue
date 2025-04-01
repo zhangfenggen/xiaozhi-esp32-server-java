@@ -158,7 +158,7 @@ export default {
           title: "对话时间",
           dataIndex: "createTime",
           scopedSlots: { customRender: "createTime" },
-          width: 150,
+          width: 180,
           align: "center",
         },
         {
