@@ -8,35 +8,28 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.websocket.tts.TtsService;
 
 public class EdgeTtsService implements TtsService {
     private static final Logger logger = LoggerFactory.getLogger(EdgeTtsService.class);
     
     private static final String PROVIDER_NAME = "edge";
-    private boolean isRateLimited = true;
+   
+    // 音频名称
+    private String voiceName;
 
-    // 语音生成文件保存地址
-    private final String filePath = "audio/";
-
-    // 默认语音
-    private static final String DEFAULT_VOICE = "zh-CN-XiaoyiNeural";
+    // 音频输出路径
+    private String outputPath;
     
-    // 配置信息
-    private SysConfig config;
-    
-    public EdgeTtsService() {
-        // 默认构造函数
-    }
-    
-    public EdgeTtsService(SysConfig config) {
-        this.config = config;
+    public EdgeTtsService(String voiceName, String outputPath) {
+        this.voiceName = voiceName;
+        this.outputPath = outputPath;
     }
 
     @Override
@@ -45,49 +38,35 @@ public class EdgeTtsService implements TtsService {
     }
 
     @Override
+    public String getAudioFileName() {
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        return uuid + ".mp3";
+    }
+
+    @Override
     public String textToSpeech(String text) throws Exception {
-        return textToSpeech(text, DEFAULT_VOICE, 16000, 1);
-    }
 
-    @Override
-    public String textToSpeech(String text, String voiceName) throws Exception {
-        return textToSpeech(text, voiceName, 16000, 1);
-    }
-
-    @Override
-    public String textToSpeech(String text, String voiceName, int sampleRate, int channels) throws Exception {
-        // 如果未指定语音名称，使用默认语音
-        String voice = voiceName != null && !voiceName.isEmpty() ? voiceName : DEFAULT_VOICE;
-        
         // 获取中文语音
         Voice voiceObj = TTSVoice.provides().stream()
-                .filter(v -> v.getShortName().equals(voice))
+                .filter(v -> v.getShortName().equals(voiceName))
                 .collect(Collectors.toList()).get(0);
-
-        // 1. 执行TTS转换获取音频文件
-        String audioFilePath = convertTextToSpeech(voiceObj, text);
-
-        // 2. 转换原始MP3为指定采样率和通道数的MP3
-        convertAndSaveAudio(audioFilePath, sampleRate, channels);
-
-        return audioFilePath;
-    }
-    
-    /**
-     * 将文本转换为语音
-     */
-    private String convertTextToSpeech(Voice voice, String message) {
-        TTS ttsEngine = new TTS(voice, message);
-        String fileName = ttsEngine.findHeadHook()
-                .storage(filePath)
-                .isRateLimited(isRateLimited)
+        
+        TTS ttsEngine = new TTS(voiceObj, text);
+        // 执行TTS转换获取音频文件
+        String audioFilePath = ttsEngine.findHeadHook()
+                .storage(outputPath)
+                .fileName(getAudioFileName().split("\\.")[0])
+                .isRateLimited(true)
                 .overwrite(false)
                 .formatMp3()
                 .trans();
 
-        return filePath + fileName;
-    }
+        // 2. 转换原始MP3为指定采样率和通道数的MP3
+        convertAndSaveAudio(outputPath + audioFilePath, 16000, 1);
 
+        return outputPath + audioFilePath;
+    }
+    
     /**
      * 使用FFmpeg将原始音频转换为指定采样率和通道数的MP3
      */

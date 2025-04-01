@@ -7,7 +7,9 @@ import javax.servlet.http.HttpServletRequest;
 
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
+import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysRole;
+import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysRoleService;
 import com.xiaozhi.utils.CmsUtils;
 import com.xiaozhi.websocket.service.TextToSpeechService;
@@ -37,6 +39,9 @@ public class RoleController {
 
     @Resource
     private TextToSpeechService textToSpeechService;
+
+    @Resource
+    private SysConfigService configService;
 
     /**
      * 角色查询
@@ -95,12 +100,17 @@ public class RoleController {
     }
 
     @GetMapping("/testVoice")
-    public AjaxResult testAudio(String voiceName, String provider, String message, HttpServletRequest request) {
+    public AjaxResult testAudio(String message, String provider, String voiceName, HttpServletRequest request) {
+
         try {
-            String audioFilePath = textToSpeechService.textToSpeech(message, provider, voiceName);
+            SysConfig config = configService.query(new SysConfig().setUserId(CmsUtils.getUserId(request)).setProvider(provider).setConfigType("tts")).get(0);
+
+            String audioFilePath = textToSpeechService.textToSpeech(message, config, voiceName);
             AjaxResult result = AjaxResult.success();
             result.put("data", audioFilePath);
             return result;
+        } catch (IndexOutOfBoundsException e) {
+            return AjaxResult.error("请先到语音合成配置页面配置对应Key");
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return AjaxResult.error();

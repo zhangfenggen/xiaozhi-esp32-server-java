@@ -1,12 +1,8 @@
 package com.xiaozhi.websocket.stt.providers;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -28,7 +24,7 @@ public class AliyunSttService implements SttService {
     private static final Logger logger = LoggerFactory.getLogger(AliyunSttService.class);
 
     private static final String PROVIDER_NAME = "aliyun";
-    private static final String API_URL = "https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr";
+    private static final String API_URL = "https://nls-gateway.aliyuncs.com/stream/v1/asr";
 
     // 音频格式设置
     private static final String FORMAT = "pcm";

@@ -200,7 +200,9 @@ export default {
               { name: 'secretKey', label: 'Secret Key', required: true, span: 12 },
             ],
             aliyun: [
-              { name: 'apiKey', label: 'API Key', required: true, span: 12 }
+              { name: 'apiKey', label: 'APP Key', required: true, span: 12 },
+              { name: 'appId', label: 'Access Key Id', required: true, span: 12 },
+              { name: 'apiSecret', label: 'Access Key Secret', required: true, span: 12 }
             ]
           }
         },

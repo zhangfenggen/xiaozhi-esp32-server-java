@@ -42,7 +42,7 @@ public class SpeechToTextService {
     String result = sttService.recognition(audioData);
     long endTime = System.currentTimeMillis();
     double duration = DateUtils.deltaTime(startTime, endTime);
-    logger.info("语音识别完成，耗时：{} 秒", duration);
+    logger.info("{} 语音识别完成，耗时：{} 秒", sttConfig.getProvider(), duration);
     return result;
   }
 

@@ -9,6 +9,8 @@ package com.xiaozhi.entity;
 public class SysConfig extends Base {
     private Integer configId;
 
+    private Integer userId;
+
     /**
      * 配置名称
      */
@@ -40,6 +42,15 @@ public class SysConfig extends Base {
     private String state;
 
     private String isDefault;
+
+    public Integer getUserId() {
+        return userId;
+    }
+
+    public SysConfig setUserId(Integer userId) {
+        this.userId = userId;
+        return this;
+    }
 
     public Integer getConfigId() {
         return configId;

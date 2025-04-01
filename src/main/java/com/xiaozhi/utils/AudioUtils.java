@@ -14,7 +14,7 @@ import org.bytedeco.javacv.FrameRecorder;
 import org.slf4j.Logger;
 
 public class AudioUtils {
-    public static final String AUDIO_PATH = "audio";
+    public static final String AUDIO_PATH = "audio/";
     private static final Logger logger = org.slf4j.LoggerFactory.getLogger(AudioUtils.class);
 
     /**
@@ -26,13 +26,14 @@ public class AudioUtils {
      */
     public static String saveAsMp3File(byte[] audio) {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        String fileName = AUDIO_PATH + "/" + uuid + ".mp3";
+        String fileName = uuid + ".mp3";
+        String filePath = AUDIO_PATH + fileName;
         int sampleRate = 16000; // 采样率
         int channels = 1; // 单声道
 
         try {
             // 创建内存中的帧记录器，直接输出到MP3文件
-            FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(fileName, channels);
+            FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(filePath, channels);
             recorder.setAudioChannels(channels);
             recorder.setSampleRate(sampleRate);
             recorder.setAudioCodec(avcodec.AV_CODEC_ID_MP3);
@@ -85,13 +86,14 @@ public class AudioUtils {
      */
     public static String saveAsWavFile(byte[] audioData) {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        String fileName = AUDIO_PATH + "/" + uuid + ".mp3";
+        String fileName = uuid + ".mp3";
+        String filePath = AUDIO_PATH + fileName;
         // WAV文件参数
         int sampleRate = 16000; // 与Recognizer使用的采样率保持一致
         int channels = 1; // 单声道
         int bitsPerSample = 16; // 16位采样
 
-        try (FileOutputStream fos = new FileOutputStream(fileName);
+        try (FileOutputStream fos = new FileOutputStream(filePath);
                 DataOutputStream dos = new DataOutputStream(fos)) {
 
             // 写入WAV文件头
