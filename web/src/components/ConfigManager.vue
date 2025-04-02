@@ -210,7 +210,8 @@ export default {
           label: '语音合成',
           typeOptions: [
             { label: 'Tencent', value: 'tencent', key: '0' },
-            { label: 'Aliyun', value: 'aliyun', key: '1' }
+            { label: 'Aliyun', value: 'aliyun', key: '1' },
+            { label: 'Volcengine(doubao)', value: 'volcengine', key: '2' }
           ],
           typeFields: {
             tencent: [
@@ -221,6 +222,10 @@ export default {
               { name: 'apiKey', label: 'API Key', required: true, span: 12 },
               { name: 'appId', label: 'Access Key Id', required: true, span: 12 },
               { name: 'apiSecret', label: 'Access Key Secret', required: true, span: 12 }
+            ],
+            volcengine: [
+              { name: 'appId', label: 'App Id', required: true, span: 12 },
+              { name: 'apiKey', label: 'Access Token', required: true, span: 12 }
             ]
           }
         }

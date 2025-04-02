@@ -16,7 +16,9 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
+import net.sf.json.JSONObject;
 
 public class AliyunTtsService implements TtsService {
     private static final Logger logger = LoggerFactory.getLogger(AliyunTtsService.class);
@@ -71,7 +73,6 @@ public class AliyunTtsService implements TtsService {
         }
 
         try {
-
             // 获取有效token
             String nlsToken = getValidToken();
             if (nlsToken == null) {
@@ -83,9 +84,8 @@ public class AliyunTtsService implements TtsService {
             String audioFileName = getAudioFileName();
             String audioFilePath = outputPath + audioFileName;
             
-            // 构建URL并发送请求
-            String url = buildRequestUrl(text);
-            boolean success = sendRequest(url, nlsToken, audioFilePath);
+            // 发送POST请求
+            boolean success = sendRequest(text, nlsToken, audioFilePath);
             
             if (success) {
                 return audioFilePath;
@@ -99,32 +99,27 @@ public class AliyunTtsService implements TtsService {
     }
     
     /**
-     * 构建请求URL，添加所有必要的查询参数
+     * 发送POST请求到阿里云API，获取语音合成结果
      */
-    private String buildRequestUrl(String text) {
-        StringBuilder urlBuilder = new StringBuilder(API_URL);
-        urlBuilder.append("?appkey=").append(appKey);
-        urlBuilder.append("&text=").append(text);
-        urlBuilder.append("&format=").append("mp3");
-        urlBuilder.append("&sample_rate=").append(16000);
-        urlBuilder.append("&voice=").append(voiceName);
-        
-        return urlBuilder.toString();
-    }
-    
-    /**
-     * 发送请求到阿里云API，获取语音合成结果
-     */
-    private boolean sendRequest(String url, String nlsToken, String audioFilePath) throws Exception {
+    private boolean sendRequest(String text, String nlsToken, String audioFilePath) throws Exception {
         try {
-            // 设置请求头
+            // 构建JSON请求体
+            JSONObject requestJson = new JSONObject();
+            requestJson.put("appkey", appKey);
+            requestJson.put("text", text);
+            requestJson.put("token", nlsToken);
+            requestJson.put("format", "mp3");
+            requestJson.put("sample_rate", 16000);
+            requestJson.put("voice", voiceName);
+            
+            RequestBody requestBody = RequestBody.create(JSON, requestJson.toString());
+            
+            // 设置请求头和请求体
             Request request = new Request.Builder()
-                    .url(url)
-                    .addHeader("X-NLS-Token", nlsToken)
-                    .get()
+                    .url(API_URL)
+                    .addHeader("Content-Type", "application/json")
+                    .post(requestBody)
                     .build();
-
-            logger.info("发送阿里云TTS请求: URL={}", url);
 
             try (Response response = client.newCall(request).execute()) {
                 
@@ -153,7 +148,6 @@ public class AliyunTtsService implements TtsService {
                         }
                     }
                     
-                    logger.info("语音合成成功，保存到: {}", audioFilePath);
                     return true;
                 } else {
                     // 处理错误响应

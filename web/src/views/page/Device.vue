@@ -211,41 +211,6 @@
               }}</span>
             </template>
 
-            <!-- ttsName 下拉框 -->
-            <template slot="ttsName" slot-scope="text, record">
-              <a-select
-                v-if="record.editable"
-                style="margin: -5px 0; text-align: center; width: 100%"
-                :value="record.ttsId"
-                @change="
-                  (value) => handleSelectChange(value, record.deviceId, 'tts')
-                "
-              >
-                <a-select-option
-                  v-for="item in ttsItems"
-                  :key="item.ttsId"
-                  :value="item.ttsId"
-                >
-                  <div style="text-align: center">{{ item.ttsName }}</div>
-                </a-select-option>
-              </a-select>
-              <span
-                v-else-if="editingKey === ''"
-                @click="edit(record.deviceId)"
-                style="cursor: pointer"
-              >
-                <a-tooltip :title="record.ttsDesc" :mouseEnterDelay="0.5">
-                  <span v-if="record.ttsId">{{
-                    getItemName(ttsItems, "ttsId", record.ttsId, "ttsName")
-                  }}</span>
-                  <span v-else style="padding: 0 50px">&nbsp;&nbsp;&nbsp;</span>
-                </a-tooltip>
-              </span>
-              <span v-else>{{
-                getItemName(ttsItems, "ttsId", record.ttsId, "ttsName")
-              }}</span>
-            </template>
-
             <!-- 其他模板保持不变 -->
             <template slot="state" slot-scope="text">
               <a-tag color="green" v-if="text == 1">在线</a-tag>
@@ -358,13 +323,6 @@ export default {
           dataIndex: "sttName",
           scopedSlots: { customRender: "sttName" },
           width: 150,
-          align: "center",
-        },
-        {
-          title: "语音合成",
-          dataIndex: "ttsName",
-          scopedSlots: { customRender: "ttsName" },
-          width: 100,
           align: "center",
         },
         {
@@ -516,10 +474,6 @@ export default {
         items = this.sttItems;
         idField = "sttId";
         nameField = "sttName";
-      } else if (type === "tts") {
-        items = this.ttsItems;
-        idField = "ttsId";
-        nameField = "ttsName";
       } else {
         return; // 不支持的类型，直接返回
       }
@@ -627,11 +581,6 @@ export default {
                 item.sttName = item.configName;
                 item.sttDesc = item.configDesc;
                 this.sttItems.push(item);
-              } else {
-                item.ttsId = item.configId;
-                item.ttsName = item.configName;
-                item.ttsDesc = item.configDesc;
-                this.ttsItems.push(item);
               }
             });
           } else {

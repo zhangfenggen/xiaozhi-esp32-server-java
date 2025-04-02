@@ -4,6 +4,7 @@ import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.websocket.tts.TtsService;
 import com.xiaozhi.websocket.tts.providers.AliyunTtsService;
 import com.xiaozhi.websocket.tts.providers.EdgeTtsService;
+import com.xiaozhi.websocket.tts.providers.VolcengineTtsService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +84,8 @@ public class TtsServiceFactory {
             return new EdgeTtsService(voiceName, outputPath);
         } else if ("aliyun".equals(provider)) {
             return new AliyunTtsService(config, voiceName, outputPath);
+        } else if ("volcengine".equals(provider)) {
+            return new VolcengineTtsService(config, voiceName, outputPath);
         }/*  else if ("tencent".equals(provider)) {
             return new TencentTtsService(config, voiceName, outputPath);
         } */
