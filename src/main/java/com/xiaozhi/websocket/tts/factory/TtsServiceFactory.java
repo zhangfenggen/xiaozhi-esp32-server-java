@@ -48,7 +48,6 @@ public class TtsServiceFactory {
         // 如果提供商为空，则使用默认提供商
         if (ObjectUtils.isEmpty(config)) {
             provider = DEFAULT_PROVIDER;
-            voiceName = DEFAULT_VOICE;
         } else {
             provider = config.getProvider();
         }

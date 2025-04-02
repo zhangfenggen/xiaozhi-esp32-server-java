@@ -20,8 +20,6 @@ public class SysDevice extends SysRole {
 
     private Integer sttId;
 
-    private Integer ttsId;
-
     /**
      * 设备名称
      */
@@ -88,15 +86,6 @@ public class SysDevice extends SysRole {
 
     public SysDevice setSttId(Integer sttId) {
         this.sttId = sttId;
-        return this;
-    }
-
-    public Integer getTtsId() {
-        return ttsId;
-    }
-
-    public SysDevice setTtsId(Integer ttsId) {
-        this.ttsId = ttsId;
         return this;
     }
 
@@ -211,7 +200,7 @@ public class SysDevice extends SysRole {
     @Override
     public String toString() {
         return "SysDevice [deviceId=" + deviceId + ", sessionId=" + sessionId + ", modelId=" + modelId + ", sttId="
-                + sttId + ", ttsId=" + ttsId + ", deviceName=" + deviceName + ", state=" + state + ", totalMessage="
+                + sttId + ", deviceName=" + deviceName + ", state=" + state + ", totalMessage="
                 + totalMessage + ", code=" + code + ", audioPath=" + audioPath + ", lastLogin=" + lastLogin
                 + ", wifiName=" + wifiName + ", ip=" + ip + ", chipModelName=" + chipModelName + ", version=" + version
                 + "]";

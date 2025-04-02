@@ -3,14 +3,20 @@
 <mapper namespace="com.xiaozhi.dao.RoleMapper">
 
     <sql id="roleSql">
-        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName, sys_role.userId, sys_role.state, sys_role.createTime
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName, sys_role.ttsId, sys_role.userId, sys_role.state, sys_role.createTime
+    </sql>
+
+    <sql id="configSql">
+        sys_config.configId, sys_config.provider, sys_config.appId, sys_config.apiKey, sys_config.apiSecret
     </sql>
 
     <select id="query" resultType="com.xiaozhi.entity.SysRole">
         SELECT
-        <include refid="roleSql"></include>
+        <include refid="roleSql"></include>,
+        <include refid="configSql"></include>
         FROM
             sys_role
+            LEFT JOIN sys_config ON sys_role.ttsId = sys_config.configId
         WHERE
             sys_role.userId = #{userId}
             AND sys_role.state = 1
@@ -25,6 +31,7 @@
             <if test="roleName != null and roleName != ''">roleName = #{roleName},</if>
             <if test="roleDesc != null and roleDesc != ''">roleDesc = #{roleDesc},</if>
             <if test="voiceName != null and voiceName != ''">voiceName = #{voiceName},</if>
+            <if test="ttsId != null and ttsId != ''">ttsId = #{ttsId},</if>
             <if test="state != null and state != ''">state = #{state},</if>
         </set>
         WHERE
@@ -32,8 +39,8 @@
     </update>
 
     <insert id="add" useGeneratedKeys="true" keyProperty="roleName" parameterType="com.xiaozhi.entity.SysRole">
-        INSERT INTO sys_role ( roleName, roleDesc, voiceName, userId ) VALUES (
-            #{roleName}, #{roleDesc}, #{voiceName}, #{userId}
+        INSERT INTO sys_role ( roleName, roleDesc, voiceName, ttsId, userId ) VALUES (
+            #{roleName}, #{roleDesc}, #{voiceName}, #{ttsId}, #{userId}
         )
     </insert>
 

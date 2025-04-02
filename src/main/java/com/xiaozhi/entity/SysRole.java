@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * 
  */
 @JsonIgnoreProperties({ "startTime", "endTime", "start", "limit", "userId", "code" })
-public class SysRole extends Base {
+public class SysRole extends SysConfig {
     private Integer roleId;
 
     private String roleName;
@@ -19,6 +19,16 @@ public class SysRole extends Base {
     private String voiceName;
 
     private String state;
+
+    private Integer ttsId;
+
+    public Integer getTtsId() {
+        return ttsId;
+    }
+    public SysRole setTtsId(Integer ttsId) {
+        this.ttsId = ttsId;
+        return this;
+    }
 
     public Integer getRoleId() {
         return roleId;

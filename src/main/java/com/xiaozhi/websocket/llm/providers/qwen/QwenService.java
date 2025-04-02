@@ -1,5 +1,6 @@
 package com.xiaozhi.websocket.llm.providers.qwen;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.xiaozhi.websocket.llm.api.AbstractLlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
 import okhttp3.*;
@@ -51,7 +52,7 @@ public class QwenService extends AbstractLlmService {
             }
 
             String responseBody = response.body().string();
-            Map<String, Object> responseMap = objectMapper.readValue(responseBody, Map.class);
+            Map<String, Object> responseMap = objectMapper.readValue(responseBody, new TypeReference<Map<String, Object>>() {});
 
             // 通义千问API响应格式解析
             Map<String, Object> output = (Map<String, Object>) responseMap.get("output");
@@ -124,7 +125,7 @@ public class QwenService extends AbstractLlmService {
                         if (line.startsWith("data: ")) {
                             String jsonData = line.substring(6);
                             try {
-                                Map<String, Object> data = objectMapper.readValue(jsonData, Map.class);
+                                Map<String, Object> data = objectMapper.readValue(jsonData, new TypeReference<Map<String, Object>>() {});
                                 List<Map<String, Object>> choices = (List<Map<String, Object>>) data.get("choices");
                                 
                                 if (choices != null && !choices.isEmpty()) {

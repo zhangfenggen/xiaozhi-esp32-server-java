@@ -3,6 +3,7 @@ package com.xiaozhi.websocket.tts.providers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.JsonObject;
 import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.utils.AliyunAccessToken;
 import com.xiaozhi.websocket.tts.TtsService;
@@ -18,7 +19,6 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
-import net.sf.json.JSONObject;
 
 public class AliyunTtsService implements TtsService {
     private static final Logger logger = LoggerFactory.getLogger(AliyunTtsService.class);
@@ -104,13 +104,13 @@ public class AliyunTtsService implements TtsService {
     private boolean sendRequest(String text, String nlsToken, String audioFilePath) throws Exception {
         try {
             // 构建JSON请求体
-            JSONObject requestJson = new JSONObject();
-            requestJson.put("appkey", appKey);
-            requestJson.put("text", text);
-            requestJson.put("token", nlsToken);
-            requestJson.put("format", "mp3");
-            requestJson.put("sample_rate", 16000);
-            requestJson.put("voice", voiceName);
+            JsonObject requestJson = new JsonObject();
+            requestJson.addProperty("appkey", appKey);
+            requestJson.addProperty("text", text);
+            requestJson.addProperty("token", nlsToken);
+            requestJson.addProperty("format", "mp3");
+            requestJson.addProperty("sample_rate", 16000);
+            requestJson.addProperty("voice", voiceName);
             
             RequestBody requestBody = RequestBody.create(JSON, requestJson.toString());
             

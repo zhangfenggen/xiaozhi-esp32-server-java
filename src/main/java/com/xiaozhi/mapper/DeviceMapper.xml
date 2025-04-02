@@ -34,7 +34,7 @@
             LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
             LEFT JOIN sys_config model_config ON sys_device.modelId = model_config.configId AND model_config.configType = 'llm'
             LEFT JOIN sys_config stt_config ON sys_device.sttId = stt_config.configId AND stt_config.configType = 'stt'
-            LEFT JOIN sys_config tts_config ON sys_device.ttsId = tts_config.configId AND tts_config.configType = 'tts'
+            LEFT JOIN sys_config tts_config ON ttsId = tts_config.configId AND tts_config.configType = 'tts'
         WHERE
             1 = 1
             <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>

@@ -8,6 +8,7 @@ import java.util.Map;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
@@ -125,7 +126,8 @@ public class DeviceController {
             // 解析JSON请求体
             if (request.getContentType() != null && request.getContentType().contains("application/json")) {
                 ObjectMapper mapper = new ObjectMapper();
-                Map<String, Object> jsonData = mapper.readValue(requestBody.toString(), Map.class);
+                Map<String, Object> jsonData = mapper.readValue(requestBody.toString(), 
+                                                new TypeReference<Map<String, Object>>() {});
 
                 // 提取chip_model_name
                 if (jsonData.containsKey("chip_model_name")) {
@@ -150,7 +152,6 @@ public class DeviceController {
                         device.setIp((String) board.get("ip"));
                     }
                 }
-
             }
 
             device.setState("1");
@@ -161,5 +162,4 @@ public class DeviceController {
             log.error(e.getMessage(), e);
         }
     }
-
 }

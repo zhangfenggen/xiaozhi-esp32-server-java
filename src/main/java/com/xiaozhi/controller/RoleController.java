@@ -100,10 +100,12 @@ public class RoleController {
     }
 
     @GetMapping("/testVoice")
-    public AjaxResult testAudio(String message, String provider, String voiceName, HttpServletRequest request) {
-
+    public AjaxResult testAudio(String message, String provider, Integer ttsId, String voiceName, HttpServletRequest request) {
+        SysConfig config = null;
         try {
-            SysConfig config = configService.query(new SysConfig().setUserId(CmsUtils.getUserId(request)).setProvider(provider).setConfigType("tts")).get(0);
+            if (!provider.equals("edge")) {
+                config = configService.selectConfigById(ttsId);
+            }
 
             String audioFilePath = textToSpeechService.textToSpeech(message, config, voiceName);
             AjaxResult result = AjaxResult.success();

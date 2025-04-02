@@ -7,7 +7,7 @@ import java.util.Enumeration;
 import javax.servlet.http.HttpServletRequest;
 
 import com.xiaozhi.entity.SysUser;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class CmsUtils {
     public static SysUser getUser(HttpServletRequest request) {

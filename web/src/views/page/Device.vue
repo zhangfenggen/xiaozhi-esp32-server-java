@@ -537,10 +537,7 @@ export default {
       axios
         .get({
           url: api.role.query,
-          data: {
-            start: 1,
-            limit: 1000,
-          },
+          data: {},
         })
         .then((res) => {
           if (res.code === 200) {
@@ -558,10 +555,7 @@ export default {
       axios
         .get({
           url: api.config.query,
-          data: {
-            start: 1,
-            limit: 1000,
-          },
+          data: {},
         })
         .then((res) => {
           if (res.code === 200) {
