@@ -17,6 +17,7 @@
 
 <script>
 import WaveSurfer from 'wavesurfer.js';
+import EventBus from '@/utils/eventBus';
 
 export default {
   name: 'AudioPlayer',
@@ -34,18 +35,31 @@ export default {
     return {
       wavesurfer: null,
       isPlaying: false,
-      loading: true
+      loading: true,
+      playerId: null // 添加一个唯一标识符
     };
   },
   mounted() {
     this.$nextTick(() => {
+      // 生成唯一ID
+      this.playerId = `player_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       this.initWaveSurfer();
+      
+      // 监听其他播放器的播放事件
+      EventBus.$on('audio-play', (playerId) => {
+        // 如果不是当前播放器触发的事件，则暂停当前播放
+        if (playerId !== this.playerId && this.isPlaying) {
+          this.wavesurfer.pause();
+        }
+      });
     });
   },
   beforeDestroy() {
     if (this.wavesurfer) {
       this.wavesurfer.destroy();
     }
+    // 移除事件监听
+    EventBus.$off('audio-play', this.handleOtherPlayerPlay);
   },
   watch: {
     audioUrl: {
@@ -87,6 +101,8 @@ export default {
 
       this.wavesurfer.on('play', () => {
         this.isPlaying = true;
+        // 通知其他播放器，当前播放器正在播放
+        EventBus.$emit('audio-play', this.playerId);
       });
 
       this.wavesurfer.on('pause', () => {

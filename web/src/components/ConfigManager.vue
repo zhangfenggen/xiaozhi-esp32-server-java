@@ -235,19 +235,20 @@ export default {
           title: '类别',
           dataIndex: 'provider',
           key: 'provider',
-          width: 120,
+          width: 200,
           align: 'center',
           customRender: (text) => {
             const provider = this.typeOptions.find(item => item.value === text);
             return provider ? provider.label : text;
-          }
+          },
+          ellipsis: true,
         },
         {
           title: '名称',
           dataIndex: 'configName',
           key: 'configName',
           width: 200,
-          align: 'center'
+          align: 'center',
         },
         {
           title: '描述',
