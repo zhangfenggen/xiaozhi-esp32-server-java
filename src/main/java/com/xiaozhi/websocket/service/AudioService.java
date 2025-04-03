@@ -85,7 +85,7 @@ public class AudioService {
         private final String originalFilePath;
 
         public AudioProcessTask(List<byte[]> opusFrames, String text, boolean isFirstText, boolean isLastText,
-                              String originalFilePath) {
+                String originalFilePath) {
             this.opusFrames = opusFrames;
             this.text = text;
             this.isFirstText = isFirstText;
@@ -162,7 +162,7 @@ public class AudioService {
         try {
             // 确保会话状态已初始化
             initializeSession(sessionId);
-            
+
             // 1. 解码Opus数据为PCM
             byte[] pcmData = opusProcessor.decodeOpusFrameToPcm(opusData);
 
@@ -280,43 +280,44 @@ public class AudioService {
     /**
      * 发送音频消息
      * 
-     * @param session WebSocket会话
+     * @param session       WebSocket会话
      * @param audioFilePath 音频文件路径
-     * @param text 文本内容
-     * @param isStart 是否是开始
-     * @param isEnd 是否是结束
+     * @param text          文本内容
+     * @param isStart       是否是开始
+     * @param isEnd         是否是结束
      * @return Mono<Void> 操作结果
      */
-    public Mono<Void> sendAudioMessage(WebSocketSession session, String audioFilePath, String text, boolean isStart, boolean isEnd) {
+    public Mono<Void> sendAudioMessage(WebSocketSession session, String audioFilePath, String text, boolean isStart,
+            boolean isEnd) {
         return Mono.fromCallable(() -> processAudioFile(audioFilePath, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(audioResult -> {
                     List<WebSocketMessage> messages = new ArrayList<>();
-                    
+
                     // 如果是开始，添加开始标记
                     if (isStart) {
                         messages.add(createTextMessage(session, "audio", "start", text));
                     }
-                    
+
                     // 添加音频数据消息
                     for (byte[] frame : audioResult.getOpusFrames()) {
                         DataBuffer buffer = bufferFactory.wrap(frame);
                         messages.add(session.binaryMessage(factory -> buffer));
                     }
-                    
+
                     // 如果是结束，添加结束标记
                     if (isEnd) {
                         messages.add(createTextMessage(session, "audio", "end", text));
                     }
-                    
+
                     // 创建消息发送流，并添加时间间隔
                     return session.send(
-                        Flux.fromIterable(messages)
-                            .delayElements(Duration.ofMillis(FRAME_DURATION_MS))
-                    ).doFinally(signalType -> {
-                        // 删除音频文件
-                        deleteAudioFiles(audioFilePath);
-                    });
+                            Flux.fromIterable(messages)
+                                    .delayElements(Duration.ofMillis(FRAME_DURATION_MS)))
+                            .doFinally(signalType -> {
+                                // 删除音频文件
+                                deleteAudioFiles(audioFilePath);
+                            });
                 })
                 .onErrorResume(e -> {
                     logger.error("发送音频消息失败: {}", e.getMessage(), e);
@@ -347,10 +348,10 @@ public class AudioService {
         if (audioPath == null) {
             return false;
         }
-        
+
         try {
             boolean success = true;
-            
+
             // 删除原始音频文件
             File audioFile = new File(audioPath);
             if (audioFile.exists()) {
@@ -368,7 +369,7 @@ public class AudioService {
                     success = false;
                 }
             }
-            
+
             return success;
         } catch (Exception e) {
             logger.error("删除音频文件时发生错误: {}", audioPath, e);
@@ -452,8 +453,8 @@ public class AudioService {
             // 异步删除文件
             if (!filesToDelete.isEmpty()) {
                 Mono.fromRunnable(() -> filesToDelete.forEach(this::deleteAudioFiles))
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .subscribe();
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
             }
         }
 
