@@ -125,8 +125,8 @@ public class DeviceController {
 
     @PostMapping("/ota")
     public Mono<Void> ota(ServerWebExchange exchange) {
-        // 获取device-id请求头
-        String deviceId = exchange.getRequest().getHeaders().getFirst("device-id");
+        // 获取device-Id请求头
+        String deviceId = exchange.getRequest().getHeaders().getFirst("device-Id");
         SysDevice device = new SysDevice();
         if (deviceId != null) {
             device.setDeviceId(deviceId);

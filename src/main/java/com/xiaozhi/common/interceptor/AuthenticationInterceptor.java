@@ -39,7 +39,8 @@ public class AuthenticationInterceptor implements WebFilter {
             "/api/user/login", 
             "/api/user/update", 
             "/api/device/ota", 
-            "/audio/");
+            "/audio/",
+            "/ws/");
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {

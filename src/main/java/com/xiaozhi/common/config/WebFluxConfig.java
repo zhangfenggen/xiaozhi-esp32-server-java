@@ -54,14 +54,4 @@ public class WebFluxConfig implements WebFluxConfigurer {
             e.printStackTrace();
         }
     }
-
-    /**
-     * 配置WebFlux安全拦截器
-     * 注意：在WebFlux中，拦截器的配置方式与WebMVC不同，
-     * 需要使用WebFilter而不是HandlerInterceptor
-     */
-    @Bean
-    public WebFilterConfig webFilterConfig() {
-        return new WebFilterConfig();
-    }
 }

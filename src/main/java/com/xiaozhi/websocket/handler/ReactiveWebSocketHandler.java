@@ -27,17 +27,12 @@ import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 @Component
 public class ReactiveWebSocketHandler implements WebSocketHandler {
@@ -84,8 +79,10 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         SESSIONS.put(sessionId, session);
         LISTENING_STATE.put(sessionId, false);
 
+        logger.info(session.getHandshakeInfo().getHeaders().toString());
+
         // 从请求头中获取设备ID
-        String deviceId = session.getHandshakeInfo().getHeaders().getFirst("device-id");
+        String deviceId = session.getHandshakeInfo().getHeaders().getFirst("device-Id");
         if (deviceId == null) {
             logger.error("设备ID为空");
             return session.close();
@@ -121,14 +118,22 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     ).subscribeOn(Schedulers.boundedElastic()).then();
                 })
                 .then(
-                    // 处理接收到的消息
-                    Mono.zip(
-                        // 处理文本消息
-                        handleTextMessages(session),
-                        // 处理二进制音频消息
-                        handleBinaryMessages(session)
-                    ).then()
-                )
+                // 处理接收到的消息
+                session.receive()
+                    .flatMap(message -> {
+                        if (message.getType() == WebSocketMessage.Type.TEXT) {
+                            return handleTextMessage(session, message);
+                        } else if (message.getType() == WebSocketMessage.Type.BINARY) {
+                            return handleBinaryMessage(session, message);
+                        }
+                        return Mono.empty();
+                    })
+                    .onErrorResume(e -> {
+                        logger.error("处理WebSocket消息失败", e);
+                        return Mono.empty();
+                    })
+                    .then()
+            )
                 .doFinally(signal -> {
                     // 连接关闭时清理资源
                     SysDevice device = DEVICES_CONFIG.get(sessionId);
@@ -146,100 +151,89 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                 });
     }
 
-    private Mono<Void> handleTextMessages(WebSocketSession session) {
-        return session.receive()
-                .filter(message -> message.getType() == WebSocketMessage.Type.TEXT)
-                .flatMap(message -> {
-                    String sessionId = session.getId();
-                    SysDevice device = DEVICES_CONFIG.get(sessionId);
-                    String payload = message.getPayloadAsText();
-
-                    return Mono.fromCallable(() -> {
-                        List<SysDevice> deviceResult = deviceService.query(
-                                new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId));
-
-                        if (deviceResult.isEmpty()) {
-                            // 设备未绑定，处理未绑定设备的消息
-                            return handleUnboundDevice(session, device);
-                        } else {
-                            // 设备已绑定，处理已绑定设备的消息
-                            return handleJsonMessage(session, payload);
-                        }
-                    }).subscribeOn(Schedulers.boundedElastic());
-                })
-                .onErrorResume(e -> {
-                    logger.error("处理文本消息失败", e);
-                    return Mono.empty();
-                })
-                .then();
+    private Mono<Void> handleTextMessage(WebSocketSession session, WebSocketMessage message) {
+        String sessionId = session.getId();
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
+        String payload = message.getPayloadAsText();
+    
+        return Mono.fromCallable(() -> 
+            deviceService.query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId))
+        )
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(deviceResult -> {
+            if (deviceResult.isEmpty()) {
+                // 设备未绑定，处理未绑定设备的消息
+                return handleUnboundDevice(session, device);
+            } else {
+                // 设备已绑定，处理已绑定设备的消息
+                return handleJsonMessage(session, payload);
+            }
+        });
     }
 
-    private Mono<Void> handleBinaryMessages(WebSocketSession session) {
-        return session.receive()
-                .filter(message -> message.getType() == WebSocketMessage.Type.BINARY)
-                .flatMap(message -> {
-                    String sessionId = session.getId();
-                    SysDevice device = DEVICES_CONFIG.get(sessionId);
-                    SysConfig sttConfig = (device.getSttId() != null) ? CONFIG.get(device.getSttId()) : null;
-                    SysConfig ttsConfig = (device.getTtsId() != null) ? CONFIG.get(device.getTtsId()) : null;
 
-                    // 检查会话是否处于监听状态，如果不是则忽略音频数据
-                    Boolean isListening = LISTENING_STATE.getOrDefault(sessionId, false);
-                    if (!isListening) {
-                        return Mono.empty();
+    private Mono<Void> handleBinaryMessage(WebSocketSession session, WebSocketMessage message) {
+        String sessionId = session.getId();
+        SysDevice device = DEVICES_CONFIG.get(sessionId);
+        SysConfig sttConfig = (device.getSttId() != null) ? CONFIG.get(device.getSttId()) : null;
+        SysConfig ttsConfig = (device.getTtsId() != null) ? CONFIG.get(device.getTtsId()) : null;
+    
+        // 检查会话是否处于监听状态，如果不是则忽略音频数据
+        Boolean isListening = LISTENING_STATE.getOrDefault(sessionId, false);
+        if (!isListening) {
+            return Mono.empty();
+        }
+    
+        // 获取二进制数据
+        DataBuffer dataBuffer = message.getPayload();
+        byte[] opusData = new byte[dataBuffer.readableByteCount()];
+        dataBuffer.read(opusData);
+        DataBufferUtils.release(dataBuffer); // 释放缓冲区
+    
+        return Mono.fromCallable(() -> {
+            // 将所有音频处理逻辑委托给AudioService
+            byte[] completeAudio = audioService.processIncomingAudio(sessionId, opusData);
+    
+            if (completeAudio != null) {
+                logger.info("检测到语音结束 - SessionId: {}, 音频大小: {} 字节", sessionId, completeAudio.length);
+                String result;
+                // 调用 SpeechToTextService 进行语音识别
+                if (!ObjectUtils.isEmpty(sttConfig)) {
+                    result = speechToTextService.recognition(completeAudio, sttConfig);
+                } else {
+                    String jsonResult = speechToTextService.recognition(completeAudio);
+                    try {
+                        JsonNode resultNode = objectMapper.readTree(jsonResult);
+                        result = resultNode.path("text").asText("");
+                    } catch (Exception e) {
+                        logger.error("解析语音识别结果失败", e);
+                        result = "";
                     }
-
-                    // 获取二进制数据
-                    DataBuffer dataBuffer = message.getPayload();
-                    byte[] opusData = new byte[dataBuffer.readableByteCount()];
-                    dataBuffer.read(opusData);
-                    DataBufferUtils.release(dataBuffer); // 释放缓冲区
-
-                    return Mono.fromCallable(() -> {
-                        // 将所有音频处理逻辑委托给AudioService
-                        byte[] completeAudio = audioService.processIncomingAudio(sessionId, opusData);
-
-                        if (completeAudio != null) {
-                            logger.info("检测到语音结束 - SessionId: {}, 音频大小: {} 字节", sessionId, completeAudio.length);
-                            String result;
-                            // 调用 SpeechToTextService 进行语音识别
-                            if (!ObjectUtils.isEmpty(sttConfig)) {
-                                result = speechToTextService.recognition(completeAudio, sttConfig);
-                            } else {
-                                String jsonResult = speechToTextService.recognition(completeAudio);
-                                JsonNode resultNode = objectMapper.readTree(jsonResult);
-                                result = resultNode.path("text").asText("");
-                            }
-                            
-                            if (StringUtils.hasText(result)) {
-                                logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
-                                // 设置会话为非监听状态，防止处理自己的声音
-                                LISTENING_STATE.put(sessionId, false);
-                                
-                                // 发送识别结果
-                                messageService.sendMessage(session, "stt", "start", result);
-                                
-                                // 使用句子切分处理流式响应
-                                final String recognizedText = result;
-                                llmManager.chatStreamBySentence(device, recognizedText, (sentence, isStart, isEnd) -> {
-                                    try {
-                                        String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig,
-                                                device.getVoiceName());
-                                        audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd);
-                                    } catch (Exception e) {
-                                        logger.error("处理句子失败: {}", e.getMessage(), e);
-                                    }
-                                });
-                            }
+                }
+                
+                if (StringUtils.hasText(result)) {
+                    logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, result);
+                    // 设置会话为非监听状态，防止处理自己的声音
+                    LISTENING_STATE.put(sessionId, false);
+                    
+                    // 发送识别结果
+                    messageService.sendMessage(session, "stt", "start", result);
+                    
+                    // 使用句子切分处理流式响应
+                    final String recognizedText = result;
+                    llmManager.chatStreamBySentence(device, recognizedText, (sentence, isStart, isEnd) -> {
+                        try {
+                            String audioPath = textToSpeechService.textToSpeech(sentence, ttsConfig,
+                                    device.getVoiceName());
+                            audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd);
+                        } catch (Exception e) {
+                            logger.error("处理句子失败: {}", e.getMessage(), e);
                         }
-                        return Mono.empty();
-                    }).subscribeOn(Schedulers.boundedElastic());
-                })
-                .onErrorResume(e -> {
-                    logger.error("处理二进制消息失败", e);
-                    return Mono.empty();
-                })
-                .then();
+                    });
+                }
+            }
+            return null; // 返回null而不是Mono.empty()
+        }).subscribeOn(Schedulers.boundedElastic()).then(); // 使用then()转换为Mono<Void>
     }
 
     private Mono<Void> handleUnboundDevice(WebSocketSession session, SysDevice device) {
