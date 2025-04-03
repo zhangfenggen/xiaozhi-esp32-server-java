@@ -1,7 +1,10 @@
 package com.xiaozhi.websocket.service;
 
-import com.xiaozhi.websocket.audio.detector.VadDetector;
 import com.xiaozhi.websocket.audio.processor.OpusProcessor;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
@@ -20,8 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.socket.BinaryMessage;
-import org.springframework.web.socket.WebSocketSession;
 
 @Service
 public class AudioService {
@@ -49,9 +50,6 @@ public class AudioService {
 
     @Autowired
     private OpusProcessor opusProcessor;
-
-    @Autowired
-    private VadDetector vadDetector;
 
     /**
      * 已处理的音频任务类，包含已转码的音频数据
@@ -118,40 +116,15 @@ public class AudioService {
      * 初始化会话的音频处理
      */
     public void initializeSession(String sessionId) {
-        vadDetector.initializeSession(sessionId);
         // 初始化音频队列和处理状态
         audioQueues.putIfAbsent(sessionId, new LinkedBlockingQueue<>());
         isProcessingMap.putIfAbsent(sessionId, new AtomicBoolean(false));
     }
 
     /**
-     * 处理接收到的音频数据
-     * 
-     * @param sessionId 会话ID，用于区分不同设备
-     * @param opusData  Opus编码的音频数据
-     * @return 如果语音结束，返回完整的音频数据；否则返回null
-     */
-    public byte[] processIncomingAudio(String sessionId, byte[] opusData) {
-        try {
-            // 1. 解码Opus数据为PCM
-            byte[] pcmData = opusProcessor.decodeOpusFrameToPcm(opusData);
-
-            // 2. 使用VAD处理PCM数据
-            byte[] completeAudio = vadDetector.processAudio(sessionId, pcmData);
-
-            // 3. 如果检测到语音结束，返回完整的音频数据
-            return completeAudio;
-        } catch (Exception e) {
-            logger.error("处理音频数据时发生错误 - SessionId: {}", sessionId, e);
-            return null;
-        }
-    }
-
-    /**
      * 清理会话的音频处理状态
      */
     public void cleanupSession(String sessionId) {
-        vadDetector.resetSession(sessionId);
         // 清理音频队列
         Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
         if (queue != null) {
@@ -238,28 +211,28 @@ public class AudioService {
     /**
      * 简化版本的发送音频方法
      */
-    public void sendAudio(WebSocketSession session, String audioFilePath, String text) throws Exception {
-        sendAudio(session, audioFilePath, text, true, true);
+    public void sendAudio(Channel channel, String audioFilePath, String text) throws Exception {
+        sendAudio(channel, audioFilePath, text, true, true);
     }
 
     /**
      * 将音频添加到发送队列，并开始处理队列（如果尚未开始）
      * 此方法会先异步预处理音频，然后再添加到队列
      * 
-     * @param session       WebSocket会话
+     * @param channel       Netty Channel
      * @param audioFilePath 音频文件路径
      * @param text          文本内容
      * @param isFirstText   是否是第一段文本
      * @param isLastText    是否是最后一段文本
      */
-    public void sendAudio(WebSocketSession session, String audioFilePath, String text, boolean isFirstText,
+    public void sendAudio(Channel channel, String audioFilePath, String text, boolean isFirstText,
             boolean isLastText) throws Exception {
 
-        if (session == null || !session.isOpen()) {
+        if (channel == null || !channel.isActive()) {
             return;
         }
 
-        String sessionId = session.getId();
+        String sessionId = channel.id().asLongText();
 
         // 确保会话已初始化
         initializeSession(sessionId);
@@ -282,11 +255,11 @@ public class AudioService {
                 audioQueues.get(sessionId).add(task);
                 // 发送开始信号和句子开始信号
                 if (isFirstText) {
-                    sendStart(session);
+                    sendStart(channel);
                 }
                 // 如果当前没有处理任务，开始处理
                 if (isProcessingMap.get(sessionId).compareAndSet(false, true)) {
-                    processNextAudio(session);
+                    processNextAudio(channel);
                 }
             } catch (Exception e) {
                 logger.error("音频预处理失败: {}", e.getMessage(), e);
@@ -297,8 +270,8 @@ public class AudioService {
     /**
      * 处理队列中的下一个音频任务
      */
-    private void processNextAudio(WebSocketSession session) {
-        String sessionId = session.getId();
+    private void processNextAudio(Channel channel) {
+        String sessionId = channel.id().asLongText();
         Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
 
         if (queue == null) {
@@ -318,8 +291,7 @@ public class AudioService {
         // 异步处理音频任务
         audioSenderExecutor.submit(() -> {
             try {
-
-                sendSentenceStart(session, task.getText());
+                sendSentenceStart(channel, task.getText());
 
                 // 获取已处理的Opus帧
                 List<byte[]> opusFrames = task.getOpusFrames();
@@ -329,7 +301,6 @@ public class AudioService {
                 long playPosition = 0;
 
                 for (int i = 0; i < opusFrames.size(); i++) {
-
                     byte[] frame = opusFrames.get(i);
 
                     // 计算预期发送时间（纳秒）
@@ -349,9 +320,10 @@ public class AudioService {
                     }
 
                     // 再次检查会话是否仍然打开
-                    if (session.isOpen()) {
+                    if (channel.isActive()) {
                         // 直接发送Opus帧
-                        session.sendMessage(new BinaryMessage(frame));
+                        ByteBuf buf = Unpooled.wrappedBuffer(frame);
+                        channel.writeAndFlush(buf);
 
                         // 更新播放位置（毫秒）
                         playPosition += FRAME_DURATION_MS;
@@ -366,20 +338,20 @@ public class AudioService {
                 deleteAudioFiles(task.getOriginalFilePath());
 
                 // 发送句子结束消息
-                if (session.isOpen()) {
+                if (channel.isActive()) {
                     if (task.isLastText()) {
                         // 使用内部方法发送停止指令，避免触发清空队列
-                        sendStop(session);
+                        sendStop(channel);
                     }
                 }
 
                 // 处理下一个音频任务
-                processNextAudio(session);
+                processNextAudio(channel);
 
             } catch (Exception e) {
                 logger.error("发送音频数据时发生错误: {}", e.getMessage(), e);
                 // 出错时也尝试处理下一个任务
-                processNextAudio(session);
+                processNextAudio(channel);
             }
         });
     }
@@ -418,33 +390,33 @@ public class AudioService {
     }
 
     // 发送TTS句子开始指令（包含文本）
-    public void sendSentenceStart(WebSocketSession session, String text) {
-        messageService.sendMessage(session, "tts", "sentence_start", text);
+    public void sendSentenceStart(Channel channel, String text) {
+        messageService.sendMessage(channel, "tts", "sentence_start", text);
     }
 
     // 发送TTS句子结束指令
-    public void sendSentenceEnd(WebSocketSession session, String text) {
-        messageService.sendMessage(session, "tts", "sentence_end", text);
+    public void sendSentenceEnd(Channel channel, String text) {
+        messageService.sendMessage(channel, "tts", "sentence_end", text);
     }
 
     // 发送TTS开始指令
-    public void sendStart(WebSocketSession session) {
-        messageService.sendMessage(session, "tts", "start");
+    public void sendStart(Channel channel) {
+        messageService.sendMessage(channel, "tts", "start");
     }
 
     /**
      * 发送TTS停止指令，同时清空音频队列并中断当前发送
      */
-    public void sendStop(WebSocketSession session) {
-        if (session == null) {
-            logger.warn("尝试发送停止指令到空的WebSocket会话");
+    public void sendStop(Channel channel) {
+        if (channel == null) {
+            logger.warn("尝试发送停止指令到空的Channel");
             return;
         }
 
-        String sessionId = session.getId();
+        String sessionId = channel.id().asLongText();
 
         // 发送停止指令
-        messageService.sendMessage(session, "tts", "stop");
+        messageService.sendMessage(channel, "tts", "stop");
 
         // 清空音频队列
         Queue<ProcessedAudioTask> queue = audioQueues.get(sessionId);
@@ -467,6 +439,5 @@ public class AudioService {
                 });
             }
         }
-
     }
 }

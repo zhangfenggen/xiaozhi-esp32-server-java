@@ -1,6 +1,7 @@
 package com.xiaozhi;
 
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.servlet.context.ServletWebServerInitializedEvent;
@@ -16,6 +17,9 @@ public class XiaozhiApplication {
 
     Logger logger = LoggerFactory.getLogger(XiaozhiApplication.class);
 
+    @Value("${netty.websocket.port:8091}")
+    private int nettyPort;
+
     public static void main(String[] args) {
         SpringApplication.run(XiaozhiApplication.class, args);
     }
@@ -23,7 +27,7 @@ public class XiaozhiApplication {
     @Bean
     public ApplicationListener<ServletWebServerInitializedEvent> webServerInitializedListener() {
         return event -> {
-            int port = event.getWebServer().getPort();
+            int springPort = event.getWebServer().getPort();
             String contextPath = event.getApplicationContext().getEnvironment()
                     .getProperty("server.servlet.context-path", "");
 
@@ -32,8 +36,9 @@ public class XiaozhiApplication {
                 String localIp = CmsUtils.getLocalIPAddress();
 
                 logger.info("==========================================================");
-                logger.info("WebSocket service is running at:");
-                logger.info("ws://" + localIp + ":" + port + contextPath + "/ws/xiaozhi/v1/");
+                logger.info("Spring Boot服务运行于: http://{}:{}{}", localIp, springPort, contextPath);
+                logger.info("WebSocket服务运行于:");
+                logger.info("ws://{}:{}/ws/xiaozhi/v1/", localIp, nettyPort);
                 logger.info("==========================================================");
             } catch (Exception e) {
                 logger.error("无法获取本地 IP 地址：" + e.getMessage());
