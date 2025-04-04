@@ -389,7 +389,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                 LISTENING_STATE.put(sessionId, false);
 
                 // 发送识别结果
-                messageService.sendMessage(session, "stt", "start", text);
+                messageService.sendMessage(session, "stt", "start", text).subscribe();
 
                 // 使用句子切分处理流式响应
                 return Mono.fromRunnable(() -> {
