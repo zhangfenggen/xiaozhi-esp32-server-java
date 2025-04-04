@@ -153,18 +153,44 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         SysDevice device = DEVICES_CONFIG.get(sessionId);
         String payload = message.getPayloadAsText();
 
-        return Mono.fromCallable(
-                () -> deviceService.query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId)))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(deviceResult -> {
-                    if (deviceResult.isEmpty()) {
-                        // 设备未绑定，处理未绑定设备的消息
-                        return handleUnboundDevice(session, device);
-                    } else {
-                        // 设备已绑定，处理已绑定设备的消息
-                        return handleJsonMessage(session, payload);
-                    }
-                });
+        try {
+            // 首先尝试解析JSON消息
+            JsonNode jsonNode = objectMapper.readTree(payload);
+            String messageType = jsonNode.path("type").asText();
+
+            // hello消息应该始终处理，无论设备是否绑定
+            if ("hello".equals(messageType)) {
+                return handleHelloMessage(session, jsonNode);
+            }
+
+            // 对于其他消息类型，需要检查设备是否已绑定
+            return Mono.fromCallable(
+                    () -> deviceService
+                            .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId)))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .flatMap(deviceResult -> {
+                        if (deviceResult.isEmpty()) {
+                            // 设备未绑定，处理未绑定设备的消息
+                            return handleUnboundDevice(session, device);
+                        } else {
+                            // 设备已绑定，根据消息类型处理
+                            switch (messageType) {
+                                case "listen":
+                                    return handleListenMessage(session, jsonNode);
+                                case "abort":
+                                    return handleAbortMessage(session, jsonNode);
+                                case "iot":
+                                    return handleIotMessage(session, jsonNode);
+                                default:
+                                    logger.warn("未知的消息类型: {}", messageType);
+                                    return Mono.empty();
+                            }
+                        }
+                    });
+        } catch (Exception e) {
+            logger.error("处理文本消息失败", e);
+            return Mono.empty();
+        }
     }
 
     private Mono<Void> handleBinaryMessage(WebSocketSession session, WebSocketMessage message) {
@@ -274,30 +300,6 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             logger.info("设备未绑定，返回验证码");
             return audioService.sendAudioMessage(session, audioFilePath, codeResult.getCode(), true, true);
         }).subscribeOn(Schedulers.boundedElastic()).then();
-    }
-
-    private Mono<Void> handleJsonMessage(WebSocketSession session, String payload) {
-        try {
-            JsonNode jsonNode = objectMapper.readTree(payload);
-            String messageType = jsonNode.path("type").asText();
-
-            switch (messageType) {
-                case "hello":
-                    return handleHelloMessage(session, jsonNode);
-                case "listen":
-                    return handleListenMessage(session, jsonNode);
-                case "abort":
-                    return handleAbortMessage(session, jsonNode);
-                case "iot":
-                    return handleIotMessage(session, jsonNode);
-                default:
-                    logger.warn("未知的消息类型: {}", messageType);
-                    return Mono.empty();
-            }
-        } catch (Exception e) {
-            logger.error("处理JSON消息失败", e);
-            return Mono.empty();
-        }
     }
 
     private Mono<Void> handleHelloMessage(WebSocketSession session, JsonNode jsonNode) {
