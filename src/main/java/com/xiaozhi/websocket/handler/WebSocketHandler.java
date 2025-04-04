@@ -111,35 +111,40 @@ public class WebSocketHandler extends TextWebSocketHandler {
         SysDevice device = DEVICES_CONFIG.get(sessionId);
         String payload = message.getPayload();
 
-        List<SysDevice> deviceResult = deviceService
-                .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId));
-
-        if (deviceResult.isEmpty()) {
-            SysDevice codeResult = deviceService.generateCode(device);
-            String audioFilePath;
-            if (!StringUtils.hasText(codeResult.getAudioPath())) {
-                audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
-                codeResult.setDeviceId(device.getDeviceId());
-                codeResult.setSessionId(sessionId);
-                codeResult.setAudioPath(audioFilePath);
-                deviceService.updateCode(codeResult);
-            } else {
-                audioFilePath = codeResult.getAudioPath();
-            }
-            logger.info("设备未绑定，返回验证码");
-            audioService.sendAudio(session, audioFilePath, codeResult.getCode());
-            return;
-        }
-
         // 解析JSON消息
         try {
             JsonNode jsonNode = objectMapper.readTree(payload);
             String messageType = jsonNode.path("type").asText();
 
+            // 如果是hello消息，直接处理握手，不进行设备绑定验证
+            if ("hello".equals(messageType)) {
+                handleHelloMessage(session, jsonNode);
+                return;
+            }
+
+            // 对于非hello消息，进行设备绑定验证
+            List<SysDevice> deviceResult = deviceService
+                    .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId));
+
+            if (deviceResult.isEmpty()) {
+                SysDevice codeResult = deviceService.generateCode(device);
+                String audioFilePath;
+                if (!StringUtils.hasText(codeResult.getAudioPath())) {
+                    audioFilePath = textToSpeechService.textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
+                    codeResult.setDeviceId(device.getDeviceId());
+                    codeResult.setSessionId(sessionId);
+                    codeResult.setAudioPath(audioFilePath);
+                    deviceService.updateCode(codeResult);
+                } else {
+                    audioFilePath = codeResult.getAudioPath();
+                }
+                logger.info("设备未绑定，返回验证码");
+                audioService.sendAudio(session, audioFilePath, codeResult.getCode());
+                return;
+            }
+
+            // 处理其他类型的消息
             switch (messageType) {
-                case "hello":
-                    handleHelloMessage(session, jsonNode);
-                    break;
                 case "listen":
                     handleListenMessage(session, jsonNode);
                     break;
