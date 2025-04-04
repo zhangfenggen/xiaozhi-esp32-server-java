@@ -12,6 +12,7 @@ import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.MessageService;
 import com.xiaozhi.websocket.service.SpeechToTextService;
 import com.xiaozhi.websocket.service.TextToSpeechService;
+import com.xiaozhi.websocket.service.VadService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,9 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
     @Autowired
     private SpeechToTextService speechToTextService;
+
+    @Autowired
+    private VadService vadService;
 
     private static final Logger logger = LoggerFactory.getLogger(ReactiveWebSocketHandler.class);
 
@@ -145,6 +149,12 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     SESSIONS.remove(sessionId);
                     DEVICES_CONFIG.remove(sessionId);
                     LISTENING_STATE.remove(sessionId);
+
+                    // 清理VAD会话
+                    vadService.resetSession(sessionId);
+
+                    // 清理音频处理会话
+                    audioService.cleanupSession(sessionId);
                 });
     }
 
@@ -207,14 +217,24 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
         // 获取二进制数据
         DataBuffer dataBuffer = message.getPayload();
-        byte[] opusData = new byte[dataBuffer.readableByteCount()];
-        dataBuffer.read(opusData);
-        DataBufferUtils.release(dataBuffer); // 释放缓冲区
 
-        // 创建一个Mono来处理音频数据
+        // 修复：使用DataBufferUtils.retain()增加引用计数，防止过早释放
+        DataBuffer retainedBuffer = DataBufferUtils.retain(dataBuffer);
+
+        // 从缓冲区复制数据到字节数组（在主线程中完成，避免并发访问）
+        byte[] opusData = new byte[retainedBuffer.readableByteCount()];
+        retainedBuffer.read(opusData);
+        DataBufferUtils.release(retainedBuffer); // 立即释放缓冲区
+
+        // 使用单个Mono处理音频数据，避免链式调用中的并发问题
         return Mono.fromCallable(() -> {
-            // 将所有音频处理逻辑委托给AudioService
-            return audioService.processIncomingAudio(sessionId, opusData);
+            try {
+                // 使用改进的VadService处理音频数据
+                return vadService.processAudio(sessionId, opusData);
+            } catch (Exception e) {
+                logger.error("VAD处理异常: {}", e.getMessage(), e);
+                return null;
+            }
         })
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(completeAudio -> {
