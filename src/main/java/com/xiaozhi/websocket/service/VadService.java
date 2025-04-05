@@ -90,6 +90,7 @@ public class VadService {
     private class VadSessionState {
         private boolean speaking = false;
         private long lastSpeechTime = 0;
+        private long lastSilenceTime = 0; // 添加最后一次检测到静音的时间
         private float averageEnergy = 0;
         private final List<Float> probabilities = new ArrayList<>();
         private final LinkedList<byte[]> preBuffer = new LinkedList<>();
@@ -109,14 +110,33 @@ public class VadService {
             this.speaking = speaking;
             if (speaking) {
                 lastSpeechTime = System.currentTimeMillis();
+                lastSilenceTime = 0; // 重置静音时间
+            } else {
+                // 如果从说话状态变为不说话，记录静音开始时间
+                if (lastSilenceTime == 0) {
+                    lastSilenceTime = System.currentTimeMillis();
+                }
             }
         }
 
         public int getSilenceDuration() {
-            if (speaking) {
-                return (int) (System.currentTimeMillis() - lastSpeechTime);
+            // 如果未检测到静音，返回0
+            if (lastSilenceTime == 0) {
+                return 0;
             }
-            return 0;
+            // 返回从上次检测到静音到现在的时间差
+            return (int) (System.currentTimeMillis() - lastSilenceTime);
+        }
+
+        // 更新静音状态
+        public void updateSilenceState(boolean isSilence) {
+            if (isSilence) {
+                if (lastSilenceTime == 0) { // 首次检测到静音
+                    lastSilenceTime = System.currentTimeMillis();
+                }
+            } else {
+                lastSilenceTime = 0; // 检测到声音，重置静音时间
+            }
         }
 
         public float getAverageEnergy() {
@@ -200,6 +220,7 @@ public class VadService {
         public void reset() {
             speaking = false;
             lastSpeechTime = 0;
+            lastSilenceTime = 0;
             averageEnergy = 0;
             probabilities.clear();
             preBuffer.clear();
@@ -269,6 +290,9 @@ public class VadService {
                 boolean isSpeech = speechProb > speechThreshold && hasSignificantEnergy;
                 boolean isSilence = speechProb < silenceThreshold;
 
+                // 更新静音状态
+                state.updateSilenceState(isSilence);
+
                 if (!state.isSpeaking() && isSpeech) {
                     // 检测到语音开始
                     state.setSpeaking(true);
@@ -289,11 +313,18 @@ public class VadService {
                     }
 
                     return new VadResult(VadStatus.SPEECH_START, combinedData);
-                } else if (state.isSpeaking() && isSilence && state.getSilenceDuration() > minSilenceDuration) {
-                    // 检测到语音结束
-                    state.setSpeaking(false);
-                    logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, state.getSilenceDuration());
-                    return new VadResult(VadStatus.SPEECH_END, processedPcm);
+                } else if (state.isSpeaking() && isSilence) {
+                    // 检查静音持续时间
+                    int silenceDuration = state.getSilenceDuration();
+                    if (silenceDuration > minSilenceDuration) {
+                        // 检测到语音结束
+                        state.setSpeaking(false);
+                        logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, silenceDuration);
+                        return new VadResult(VadStatus.SPEECH_END, processedPcm);
+                    } else {
+                        // 静音但未达到结束阈值，仍然视为语音继续
+                        return new VadResult(VadStatus.SPEECH_CONTINUE, processedPcm);
+                    }
                 } else if (state.isSpeaking()) {
                     // 语音继续
                     return new VadResult(VadStatus.SPEECH_CONTINUE, processedPcm);

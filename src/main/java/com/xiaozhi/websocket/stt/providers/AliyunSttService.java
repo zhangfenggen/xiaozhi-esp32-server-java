@@ -24,7 +24,7 @@ public class AliyunSttService implements SttService {
     private static final String PROVIDER_NAME = "aliyun";
 
     // 阿里云NLS服务的默认URL
-    private static final String NLS_URL = "wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1";
+    private static final String NLS_URL = "wss://nls-gateway.aliyuncs.com/ws/v1";
 
     private String appKey;
     private String accessKeyId;
@@ -61,7 +61,6 @@ public class AliyunSttService implements SttService {
             if (accessToken != null) {
                 // 创建NLS客户端实例
                 client = new NlsClient(NLS_URL, accessToken);
-                logger.info("阿里云NLS客户端初始化成功");
             }
         } catch (Exception e) {
             logger.error("初始化阿里云NLS客户端失败", e);
@@ -123,17 +122,11 @@ public class AliyunSttService implements SttService {
             // 关键：启用中间结果
             transcriber.setEnableIntermediateResult(true);
 
-            // 记录参数设置
-            logger.debug("转写器参数设置 - TaskId: {}, AppKey: {}, Format: PCM, SampleRate: 16K, " +
-                    "EnablePunctuation: true, EnableITN: true, EnableIntermediateResult: true",
-                    taskId, appKey);
-
             // 存储到活跃转写器映射中
             activeTranscribers.put(taskId, transcriber);
 
             // 启动识别
             transcriber.start();
-            logger.info("开始语音识别 - TaskId: {}", taskId);
 
             // 标记是否已经发送了停止信号
             AtomicBoolean stopSent = new AtomicBoolean(false);
@@ -194,18 +187,12 @@ public class AliyunSttService implements SttService {
 
             @Override
             public void onTranscriberStart(SpeechTranscriberResponse response) {
-                // 识别开始
-                logger.debug("识别开始 - task_id: {}, name: {}, status: {}",
-                        response.getTaskId(), response.getName(), response.getStatus());
             }
 
             @Override
             public void onTranscriptionResultChange(SpeechTranscriberResponse response) {
                 // 中间结果
                 String text = response.getTransSentenceText();
-                logger.debug("中间结果 - task_id: {}, name: {}, status: {}, index: {}, result: {}, time: {}",
-                        response.getTaskId(), response.getName(), response.getStatus(),
-                        response.getTransSentenceIndex(), text, response.getTransSentenceTime());
 
                 if (text != null && !text.isEmpty()) {
                     // 发送中间结果
@@ -226,11 +213,6 @@ public class AliyunSttService implements SttService {
             public void onSentenceEnd(SpeechTranscriberResponse response) {
                 // 一句话结束
                 String text = response.getTransSentenceText();
-                logger.info(
-                        "一句话结束 - task_id: {}, name: {}, status: {}, index: {}, result: {}, confidence: {}, begin_time: {}, time: {}",
-                        response.getTaskId(), response.getName(), response.getStatus(),
-                        response.getTransSentenceIndex(), text, response.getConfidence(),
-                        response.getSentenceBeginTime(), response.getTransSentenceTime());
 
                 if (text != null && !text.isEmpty()) {
                     // 如果结果与上一个中间结果不同，则发送结果
@@ -244,9 +226,6 @@ public class AliyunSttService implements SttService {
 
             @Override
             public void onTranscriptionComplete(SpeechTranscriberResponse response) {
-                // 识别完成
-                logger.info("识别完成 - task_id: {}, name: {}, status: {}",
-                        response.getTaskId(), response.getName(), response.getStatus());
 
                 // 从活跃转写器中移除
                 activeTranscribers.remove(taskId);
@@ -276,7 +255,6 @@ public class AliyunSttService implements SttService {
             // 检查当前token是否存在且未过期
             long currentTime = System.currentTimeMillis() / 1000; // 转换为秒
             if (token != null && expireTime > currentTime) {
-                logger.debug("使用缓存的token，过期时间: {}", expireTime);
                 return token;
             }
 
