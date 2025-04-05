@@ -480,19 +480,36 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
                 // 使用句子切分处理流式响应
                 return Mono.fromRunnable(() -> {
-                    llmManager.chatStreamBySentence(device, text, (sentence, isStart, isEnd) -> {
-                        Mono.fromCallable(
-                                () -> textToSpeechService.textToSpeech(sentence, ttsConfig, device.getVoiceName()))
-                                .subscribeOn(Schedulers.boundedElastic())
-                                .flatMap(audioPath -> audioService
-                                        .sendAudioMessage(session, audioPath, sentence, isStart, isEnd)
-                                        .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e)))
-                                .onErrorResume(e -> {
-                                    logger.error("处理句子失败: {}", e.getMessage(), e);
-                                    return Mono.empty();
-                                })
-                                .subscribe(); // 订阅以确保执行
-                    });
+                    // 使用句子切分处理流式响应
+                    llmManager.chatStreamBySentence(device, text,
+                            (sentence, isStart, isEnd) -> {
+                                // 检查是否使用流式TTS
+                                boolean useStreamTts = ttsConfig != null && "true".equals(ttsConfig.getConfigDesc());
+
+                                if (useStreamTts) {
+                                    // 使用流式TTS处理
+                                    audioService
+                                            .streamAudioMessage(session, sentence, isStart, isEnd, ttsConfig,
+                                                    device.getVoiceName())
+                                            .doOnError(e -> logger.error("流式发送音频消息失败: {}", e.getMessage(), e))
+                                            .subscribe();
+                                } else {
+                                    // 使用原有的TTS处理方式
+                                    Mono.fromCallable(() -> textToSpeechService.textToSpeech(
+                                            sentence, ttsConfig, device.getVoiceName()))
+                                            .subscribeOn(Schedulers.boundedElastic())
+                                            .flatMap(audioPath -> audioService
+                                                    .sendAudioMessage(session, audioPath, sentence, isStart,
+                                                            isEnd)
+                                                    .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(),
+                                                            e)))
+                                            .onErrorResume(e -> {
+                                                logger.error("处理句子失败: {}", e.getMessage(), e);
+                                                return Mono.empty();
+                                            })
+                                            .subscribe();
+                                }
+                            });
                 }).subscribeOn(Schedulers.boundedElastic()).then();
             default:
                 logger.warn("未知的listen状态: {}", state);

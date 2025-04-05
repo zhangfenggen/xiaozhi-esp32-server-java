@@ -1,57 +1,73 @@
 package com.xiaozhi.websocket.tts.providers;
 
+import com.alibaba.nls.client.AccessToken;
+import com.alibaba.nls.client.protocol.NlsClient;
+import com.alibaba.nls.client.protocol.OutputFormatEnum;
+import com.alibaba.nls.client.protocol.SampleRateEnum;
+import com.alibaba.nls.client.protocol.tts.SpeechSynthesizer;
+import com.alibaba.nls.client.protocol.tts.SpeechSynthesizerListener;
+import com.alibaba.nls.client.protocol.tts.SpeechSynthesizerResponse;
+import com.xiaozhi.entity.SysConfig;
+import com.xiaozhi.utils.AudioUtils;
+import com.xiaozhi.websocket.tts.TtsService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.JsonObject;
-import com.xiaozhi.entity.SysConfig;
-import com.xiaozhi.utils.AliyunAccessToken;
-import com.xiaozhi.websocket.tts.TtsService;
-
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.Map;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 public class AliyunTtsService implements TtsService {
     private static final Logger logger = LoggerFactory.getLogger(AliyunTtsService.class);
 
     private static final String PROVIDER_NAME = "aliyun";
-    private static final String API_URL = "https://nls-gateway.aliyuncs.com/stream/v1/tts";
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
-    // 音频名称
-    private String voiceName;
+    // 阿里云NLS服务的默认URL
+    private static final String NLS_URL = "wss://nls-gateway.aliyuncs.com/ws/v1";
 
-    // 音频输出路径
-    private String outputPath;
+    // 阿里云配置
+    private final String accessKeyId;
+    private final String accessKeySecret;
+    private final String appKey;
+    private final String voiceName;
+    private final String outputPath;
 
-    // Token相关
-    private String appKey;
-    private String accessKeyId;
-    private String accessKeySecret;
+    // 存储Token信息
     private String token;
-    private String tokenExpireTime;
+    private long expireTime;
 
-    private final OkHttpClient client = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build();
+    // 全局共享的NLS客户端
+    private NlsClient client;
 
-    public AliyunTtsService(SysConfig config, String voiceName, String outputPath) {
-        this.voiceName = voiceName;
-        this.outputPath = outputPath;
-        this.appKey = config.getApiKey();
+    public AliyunTtsService(SysConfig config,
+            String voiceName, String outputPath) {
         this.accessKeyId = config.getAppId();
         this.accessKeySecret = config.getApiSecret();
+        this.appKey = config.getApiKey();
+        this.voiceName = voiceName;
+        this.outputPath = outputPath;
+
+        // 初始化NLS客户端（如果尚未初始化）
+        initClient();
+    }
+
+    private void initClient() {
+        try {
+            // 获取有效Token
+            String accessToken = getValidToken();
+            if (accessToken != null) {
+                // 创建NLS客户端实例
+                client = new NlsClient(NLS_URL, accessToken);
+            }
+        } catch (Exception e) {
+            logger.error("初始化阿里云NLS客户端失败", e);
+        }
     }
 
     @Override
@@ -67,136 +83,169 @@ public class AliyunTtsService implements TtsService {
 
     @Override
     public String textToSpeech(String text) throws Exception {
-        if (text == null || text.isEmpty()) {
-            logger.warn("文本内容为空！");
-            return null;
-        }
+        // 保留原有的一句话转语音功能
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        CountDownLatch latch = new CountDownLatch(1);
 
         try {
-            // 获取有效token
-            String nlsToken = getValidToken();
-            if (nlsToken == null) {
-                logger.error("无法获取有效的阿里云NLS Token");
-                throw new Exception("无法获取阿里云NLS Token");
+            // 创建语音合成请求
+            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, getSynthesizerListener());
+
+            // 设置appKey
+            synthesizer.setAppKey(appKey);
+            // 设置语音输出格式
+            synthesizer.setFormat(OutputFormatEnum.MP3);
+            // 设置采样率
+            synthesizer.setSampleRate(SampleRateEnum.SAMPLE_RATE_16K);
+            // 设置语音
+            synthesizer.setVoice(voiceName);
+            // 设置音量
+            synthesizer.setVolume(50);
+            // 设置语速
+            synthesizer.setSpeechRate(0);
+            // 设置语调
+            synthesizer.setPitchRate(0);
+
+            // 开始语音合成
+            synthesizer.start();
+            // 发送文本
+            synthesizer.setText(text);
+            // 结束语音合成
+            synthesizer.waitForComplete();
+
+            // 等待语音合成完成
+            latch.await();
+
+            // 保存音频文件
+            String audioFileName = getAudioFileName();
+            String filePath = outputPath + audioFileName;
+
+            try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
+                fileOutputStream.write(outputStream.toByteArray());
             }
 
-            // 生成音频文件名
-            String audioFileName = getAudioFileName();
-            String audioFilePath = outputPath + audioFileName;
-            
-            // 发送POST请求
-            boolean success = sendRequest(text, nlsToken, audioFilePath);
-            
-            if (success) {
-                return audioFilePath;
-            } else {
-                throw new Exception("语音合成失败");
-            }
+            return filePath;
         } catch (Exception e) {
-            logger.error("语音合成时发生错误！", e);
+            logger.error("阿里云语音合成失败: {}", e.getMessage(), e);
             throw e;
         }
     }
-    
-    /**
-     * 发送POST请求到阿里云API，获取语音合成结果
-     */
-    private boolean sendRequest(String text, String nlsToken, String audioFilePath) throws Exception {
-        try {
-            // 构建JSON请求体
-            JsonObject requestJson = new JsonObject();
-            requestJson.addProperty("appkey", appKey);
-            requestJson.addProperty("text", text);
-            requestJson.addProperty("token", nlsToken);
-            requestJson.addProperty("format", "mp3");
-            requestJson.addProperty("sample_rate", 16000);
-            requestJson.addProperty("voice", voiceName);
-            
-            RequestBody requestBody = RequestBody.create(JSON, requestJson.toString());
-            
-            // 设置请求头和请求体
-            Request request = new Request.Builder()
-                    .url(API_URL)
-                    .addHeader("Content-Type", "application/json")
-                    .post(requestBody)
-                    .build();
 
-            try (Response response = client.newCall(request).execute()) {
-                
-                if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "无响应体";
-                    logger.error("TTS请求失败: {} {}, 错误信息: {}", response.code(), response.message(), errorBody);
-                    return false;
-                }
-                
-                String contentType = response.header("Content-Type");
-                if (contentType != null && contentType.contains("audio/")) {
-                    // 确保目录存在
-                    File audioFileDir = new File(outputPath);
-                    if (!audioFileDir.exists()) {
-                        audioFileDir.mkdirs();
-                    }
-                    
-                    // 保存音频文件
-                    File audioFile = new File(audioFilePath);
-                    try (FileOutputStream fout = new FileOutputStream(audioFile)) {
-                        if (response.body() != null) {
-                            fout.write(response.body().bytes());
-                        } else {
-                            logger.error("TTS响应体为空");
-                            return false;
-                        }
-                    }
-                    
-                    return true;
-                } else {
-                    // 处理错误响应
-                    String errorMessage = response.body() != null ? response.body().string() : "未知错误";
-                    logger.error("TTS请求失败，非音频响应: {}", errorMessage);
-                    return false;
-                }
-            }
+    @Override
+    public void streamTextToSpeech(String text, Consumer<byte[]> audioDataConsumer) throws Exception {
+        try {
+            // 创建语音合成请求
+            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, getSynthesizerListener());
+            // 设置appKey
+            synthesizer.setAppKey(appKey);
+            // 设置PCM格式输出，便于直接处理
+            synthesizer.setFormat(OutputFormatEnum.PCM);
+            // 设置采样率
+            synthesizer.setSampleRate(SampleRateEnum.SAMPLE_RATE_16K);
+            // 设置语音
+            synthesizer.setVoice(voiceName);
+            // 设置音量
+            synthesizer.setVolume(50);
+            // 设置语速
+            synthesizer.setSpeechRate(0);
+            // 设置语调
+            synthesizer.setPitchRate(0);
+
+            // 开始语音合成
+            synthesizer.start();
+            // 发送文本
+            synthesizer.setText(text);
+            // 结束语音合成
+            synthesizer.waitForComplete();
+
         } catch (Exception e) {
-            logger.error("发送TTS请求时发生错误", e);
-            throw new Exception("发送TTS请求失败", e);
+            logger.error("阿里云流式语音合成失败: {}", e.getMessage(), e);
+            throw e;
         }
+    }
+
+    private static SpeechSynthesizerListener getSynthesizerListener() {
+        SpeechSynthesizerListener listener = null;
+        try {
+            listener = new SpeechSynthesizerListener() {
+                File f = new File("tts_test.wav");
+                FileOutputStream fout = new FileOutputStream(f);
+                private boolean firstRecvBinary = true;
+
+                // 语音合成结束
+                @Override
+                public void onComplete(SpeechSynthesizerResponse response) {
+                    // 调用onComplete时表示所有TTS数据已接收完成，因此为整个合成数据的延迟。该延迟可能较大，不一定满足实时场景。
+                    System.out.println("name: " + response.getName() +
+                            ", status: " + response.getStatus() +
+                            ", output file :" + f.getAbsolutePath());
+                }
+
+                // 语音合成的语音二进制数据
+                @Override
+                public void onMessage(ByteBuffer message) {
+                    try {
+                        if (firstRecvBinary) {
+                            // 计算首包语音流的延迟，收到第一包语音流时，即可以进行语音播放，以提升响应速度（特别是实时交互场景下）。
+                            firstRecvBinary = false;
+                            long now = System.currentTimeMillis();
+                        }
+                        byte[] bytesArray = new byte[message.remaining()];
+                        message.get(bytesArray, 0, bytesArray.length);
+                        fout.write(bytesArray);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onFail(SpeechSynthesizerResponse response) {
+                    // task_id是调用方和服务端通信的唯一标识，当遇到问题时需要提供task_id以便排查。
+                    System.out.println(
+                            "task_id: " + response.getTaskId() +
+                    // 状态码 20000000 表示识别成功
+                                    ", status: " + response.getStatus() +
+                    // 错误信息
+                                    ", status_text: " + response.getStatusText());
+                }
+            };
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return listener;
     }
 
     /**
      * 获取有效的阿里云NLS Token
      */
     private String getValidToken() {
-        // 检查当前token是否存在且未过期
-        if (token != null && tokenExpireTime != null) {
-            try {
-                // 阿里云返回的过期时间是Unix时间戳（秒）
-                long expireTimeInSeconds = Long.parseLong(tokenExpireTime);
-                long currentTimeInSeconds = System.currentTimeMillis() / 1000;
-
-                // 如果token还有效（未过期），直接返回
-                if (expireTimeInSeconds > currentTimeInSeconds) {
-                    return token;
-                }
-            } catch (NumberFormatException e) {
-                logger.warn("解析token过期时间出错，将重新获取token", e);
-            }
-        }
-
-        // 获取新token
         try {
-            Map<String, String> tokenInfo = AliyunAccessToken.createToken(accessKeyId, accessKeySecret);
-
-            if (tokenInfo != null && tokenInfo.containsKey("token") && tokenInfo.containsKey("expireTime")) {
-                token = tokenInfo.get("token");
-                tokenExpireTime = tokenInfo.get("expireTime");
+            // 检查当前token是否存在且未过期
+            long currentTime = System.currentTimeMillis() / 1000; // 转换为秒
+            if (token != null && expireTime > currentTime) {
                 return token;
-            } else {
-                logger.error("获取阿里云NLS Token失败");
-                return null;
             }
+
+            // 获取新token
+            AccessToken accessToken = new AccessToken(accessKeyId, accessKeySecret);
+            accessToken.apply();
+            token = accessToken.getToken();
+            expireTime = accessToken.getExpireTime();
+
+            logger.info("成功获取阿里云NLS Token，过期时间: {}", expireTime);
+            return token;
         } catch (Exception e) {
             logger.error("获取阿里云NLS Token时发生错误", e);
             return null;
+        }
+    }
+
+    // 关闭资源
+    public void shutdown() {
+        if (client != null) {
+            client.shutdown();
+            client = null;
+            logger.info("NLS客户端已关闭");
         }
     }
 }

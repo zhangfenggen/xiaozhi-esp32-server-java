@@ -1,5 +1,6 @@
 package com.xiaozhi.websocket.service;
 
+import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.utils.OpusProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * 音频服务 - 负责音频处理和WebSocket发送
@@ -34,6 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AudioService {
 
     private static final Logger logger = LoggerFactory.getLogger(AudioService.class);
+
+    @Autowired
+    private TextToSpeechService textToSpeechService;
 
     // 播放帧持续时间（毫秒）
     private static final int FRAME_DURATION_MS = 60;
@@ -324,6 +329,83 @@ public class AudioService {
                     logger.error("[消息#{}-错误] 准备音频消息失败: {}", sequenceNumber, e.getMessage(), e);
                     return Mono.empty();
                 });
+    }
+
+    /**
+     * 处理流式音频数据并发送
+     * 
+     * @param session   WebSocket会话
+     * @param text      文本内容
+     * @param isStart   是否是对话开始
+     * @param isEnd     是否是对话结束
+     * @param config    TTS配置
+     * @param voiceName 语音名称
+     * @return 操作结果
+     */
+    public Mono<Void> streamAudioMessage(WebSocketSession session, String text, boolean isStart, boolean isEnd,
+            SysConfig config, String voiceName) {
+        String sessionId = session.getId();
+
+        // 确保会话已初始化
+        initializeSession(sessionId);
+
+        // 获取消息序列号
+        int sequenceNumber = sessionMessageCounters.get(sessionId).incrementAndGet();
+
+        // 创建消息序列
+        List<Mono<Void>> messageSequence = new ArrayList<>();
+
+        // 1. 如果是第一条消息，发送开始标记
+        if (isStart) {
+            messageSequence.add(sendTtsStartMessage(session, sequenceNumber));
+        }
+
+        // 2. 如果有文本，发送句子开始标记
+        if (text != null && !text.isEmpty()) {
+            messageSequence.add(sendSentenceStartMessage(session, text, sequenceNumber));
+        }
+
+        // 3. 创建音频数据处理流
+        Flux<WebSocketMessage> audioMessageFlux = Flux.create(sink -> {
+            try {
+                // 创建音频数据消费者
+                Consumer<byte[]> audioDataConsumer = pcmData -> {
+                    try {
+                        // 转换PCM数据为Opus格式
+                        List<byte[]> opusFrames = opusProcessor.convertPcmToOpus(
+                                pcmData, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, FRAME_DURATION_MS);
+
+                        // 发送每一帧
+                        for (byte[] frame : opusFrames) {
+                            DataBuffer buffer = bufferFactory.wrap(frame);
+                            sink.next(session.binaryMessage(factory -> buffer));
+                        }
+                    } catch (Exception e) {
+                        logger.error("[消息#{}-错误] 处理流式音频数据失败", sequenceNumber, e);
+                    }
+                };
+
+                // 调用TTS服务进行流式转换
+                textToSpeechService.streamTextToSpeech(text, config, voiceName, audioDataConsumer);
+
+                // 完成数据流
+                sink.complete();
+            } catch (Exception e) {
+                logger.error("[消息#{}-错误] 流式音频转换失败", sequenceNumber, e);
+                sink.complete();
+            }
+        });
+
+        // 添加音频发送操作到序列
+        messageSequence.add(session.send(audioMessageFlux.delayElements(Duration.ofMillis(FRAME_DURATION_MS))));
+
+        // 4. 如果是最后一条消息，发送结束标记
+        if (isEnd) {
+            messageSequence.add(sendTtsStopMessage(session, sequenceNumber));
+        }
+
+        // 执行所有消息发送操作
+        return Flux.concat(messageSequence).then();
     }
 
     /**
