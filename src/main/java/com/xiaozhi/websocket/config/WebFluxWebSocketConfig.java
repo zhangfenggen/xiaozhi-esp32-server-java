@@ -17,25 +17,23 @@ public class WebFluxWebSocketConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(WebFluxWebSocketConfig.class);
 
+    // 定义为public static以便其他类可以访问
+    public static final String WS_PATH = "/ws/xiaozhi/v1/";
+
     @Bean
     public HandlerMapping webSocketHandlerMapping(ReactiveWebSocketHandler webSocketHandler) {
         Map<String, WebSocketHandler> map = new HashMap<>();
-        map.put("/ws/xiaozhi/v1/", webSocketHandler);
+        map.put(WS_PATH, webSocketHandler);
 
         SimpleUrlHandlerMapping handlerMapping = new SimpleUrlHandlerMapping();
         handlerMapping.setOrder(1);
         handlerMapping.setUrlMap(map);
 
-        logger.info("==========================================================");
-        logger.info("WebFlux WebSocket配置已加载，路径: /ws/xiaozhi/v1/");
-        logger.info("==========================================================");
-        
         return handlerMapping;
     }
 
     @Bean
     public WebSocketHandlerAdapter handlerAdapter() {
-        logger.info("WebSocketHandlerAdapter 已加载");
         return new WebSocketHandlerAdapter();
     }
 }
