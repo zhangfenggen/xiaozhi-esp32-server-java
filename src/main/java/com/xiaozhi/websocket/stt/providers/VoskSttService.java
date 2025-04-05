@@ -14,6 +14,8 @@ import org.vosk.Recognizer;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.stt.SttService;
 
+import reactor.core.publisher.Flux;
+
 /**
  * Vosk STT服务实现
  */
@@ -82,6 +84,12 @@ public class VoskSttService implements SttService {
       logger.error("处理音频时发生错误！", e);
       return null;
     }
+  }
+
+  @Override
+  public Flux<String> streamRecognition(Flux<byte[]> audioStream) {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'streamRecognition'");
   }
 
 }

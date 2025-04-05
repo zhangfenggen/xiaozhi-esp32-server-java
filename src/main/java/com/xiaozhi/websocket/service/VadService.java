@@ -14,7 +14,7 @@ import javax.annotation.PostConstruct;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * VAD服务 - 负责语音活动检测的核心功能
+ * VAD服务 - 负责语音活动检测
  */
 @Service
 public class VadService {
@@ -49,9 +49,8 @@ public class VadService {
     @PostConstruct
     private void initializeNoiseReducer() {
         if (tarsosNoiseReducer != null) {
-            // 根据VAD的需求调整噪声抑制参数
-            tarsosNoiseReducer.setSpectralSubtractionFactor(1.5); // 设置适中的频谱减法因子
-            tarsosNoiseReducer.setNoiseEstimationFrames(10); // 设置噪声估计窗口大小
+            tarsosNoiseReducer.setSpectralSubtractionFactor(1.5);
+            tarsosNoiseReducer.setNoiseEstimationFrames(10);
             logger.info("TarsosDSP噪声抑制器参数已优化配置");
         }
     }
@@ -64,7 +63,7 @@ public class VadService {
     }
 
     /**
-     * 初始化会话 - 只有当会话不存在时才进行初始化
+     * 初始化会话
      * 
      * @param sessionId 会话ID
      * @return 如果是新会话返回true，否则返回false
@@ -73,21 +72,17 @@ public class VadService {
         Object lock = getSessionLock(sessionId);
 
         synchronized (lock) {
-            // 检查会话是否已存在
             if (sessionStates.containsKey(sessionId)) {
-                return false; // 会话已存在，不需要初始化
+                return false;
             }
 
-            // 创建新会话
             sessionStates.put(sessionId, new VadSessionState());
-
-            // 如果启用了降噪，初始化其会话
             if (enableNoiseReduction && tarsosNoiseReducer != null) {
                 tarsosNoiseReducer.initializeSession(sessionId);
             }
 
             logger.debug("VAD会话初始化 - SessionId: {}", sessionId);
-            return true; // 返回true表示这是一个新会话
+            return true;
         }
     }
 
@@ -96,10 +91,9 @@ public class VadService {
      * 
      * @param sessionId 会话ID
      * @param opusData  Opus编码的音频数据
-     * @return 如果检测到语音结束，返回完整的PCM音频数据；否则返回null
+     * @return VadResult 包含VAD检测结果和处理后的PCM数据
      */
-    public byte[] processAudio(String sessionId, byte[] opusData) {
-        // 获取会话锁
+    public VadResult processAudio(String sessionId, byte[] opusData) {
         Object lock = getSessionLock(sessionId);
 
         synchronized (lock) {
@@ -110,7 +104,6 @@ public class VadService {
                     state = new VadSessionState();
                     sessionStates.put(sessionId, state);
 
-                    // 如果启用了降噪，初始化其会话
                     if (enableNoiseReduction && tarsosNoiseReducer != null) {
                         tarsosNoiseReducer.initializeSession(sessionId);
                     }
@@ -153,12 +146,17 @@ public class VadService {
 
                         // 检查是否满足语音开始条件
                         if (state.shouldStartSpeech()) {
-                            state.setSpeaking(true);
-                            state.transferPrebufferToMainBuffer();
+                            if (!state.isSpeaking()) {
+                                state.setSpeaking(true);
+                                state.transferPrebufferToMainBuffer();
+                                logger.info("检测到语音开始 - SessionId: {}, 概率: {}", sessionId, speechProb);
+                                return new VadResult(VadStatus.SPEECH_START, pcmData);
+                            }
                         }
 
                         if (state.isSpeaking()) {
                             state.resetSilenceCount();
+                            return new VadResult(VadStatus.SPEECH_CONTINUE, pcmData);
                         }
                     } else {
                         state.resetConsecutiveSpeechFrames();
@@ -172,84 +170,35 @@ public class VadService {
 
                             // 如果静音时间超过阈值，认为语音结束
                             if (silenceDurationMs >= minSilenceDurationMs) {
-                                byte[] completeAudio = state.getCompleteAudio();
-                                byte[] processedResult = postProcessAudio(completeAudio);
+                                state.setSpeaking(false);
                                 state.reset();
-                                return processedResult;
+                                logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, silenceDurationMs);
+                                return new VadResult(VadStatus.SPEECH_END, pcmData);
                             }
+
+                            // 静音但未达到结束阈值
+                            return new VadResult(VadStatus.SPEECH_CONTINUE, pcmData);
                         }
                     }
 
                     // 检查是否超过最大静音时间（防止无限等待）
                     if (state.isSpeaking() && state.getTimeSinceLastSpeech() > maxSilenceDurationMs) {
-                        byte[] completeAudio = state.getCompleteAudio();
-                        byte[] processedResult = postProcessAudio(completeAudio);
+                        state.setSpeaking(false);
                         state.reset();
-                        return processedResult;
+                        logger.info("语音超时结束 - SessionId: {}, 超时: {}ms", sessionId, maxSilenceDurationMs);
+                        return new VadResult(VadStatus.SPEECH_END, pcmData);
                     }
                 }
 
-                // 如果没有检测到语音结束，返回null
-                return null;
+                // 如果没有检测到明确的语音活动
+                return new VadResult(
+                        state.isSpeaking() ? VadStatus.SPEECH_CONTINUE : VadStatus.NO_SPEECH,
+                        pcmData);
             } catch (Exception e) {
                 logger.error("VAD处理音频失败 - SessionId: {}", sessionId, e);
-                return null;
+                return new VadResult(VadStatus.ERROR, null);
             }
         }
-    }
-
-    /**
-     * 对录制的音频进行后处理，去除低能量部分
-     */
-    private byte[] postProcessAudio(byte[] audioData) {
-        if (audioData == null || audioData.length < 4) {
-            return audioData;
-        }
-
-        // 将字节数据转换为short数组
-        short[] samples = new short[audioData.length / 2];
-        for (int i = 0; i < samples.length; i++) {
-            samples[i] = (short) ((audioData[i * 2] & 0xFF) | ((audioData[i * 2 + 1] & 0xFF) << 8));
-        }
-
-        // 计算平均能量
-        float avgEnergy = 0;
-        for (short sample : samples) {
-            avgEnergy += Math.abs(sample) / 32767.0f;
-        }
-        avgEnergy /= samples.length;
-
-        // 找到高能量段的起始和结束位置
-        int start = 0, end = samples.length - 1;
-        float threshold = avgEnergy * 2.0f; // 能量阈值为平均能量的2倍
-
-        // 从前向后找到第一个高能量点
-        for (int i = 0; i < samples.length; i++) {
-            if (Math.abs(samples[i]) / 32767.0f > threshold) {
-                start = Math.max(0, i - 1600); // 向前预留0.1秒
-                break;
-            }
-        }
-
-        // 从后向前找到最后一个高能量点
-        for (int i = samples.length - 1; i >= 0; i--) {
-            if (Math.abs(samples[i]) / 32767.0f > threshold) {
-                end = Math.min(samples.length - 1, i + 1600); // 向后预留0.1秒
-                break;
-            }
-        }
-
-        // 如果找不到高能量段，或者高能量段太短，返回原始数据
-        if (end - start < 3200) { // 至少0.2秒
-            return audioData;
-        }
-
-        // 截取高能量段
-        int newLength = (end - start + 1) * 2;
-        byte[] trimmedAudio = new byte[newLength];
-        System.arraycopy(audioData, start * 2, trimmedAudio, 0, newLength);
-
-        return trimmedAudio;
     }
 
     /**
@@ -293,14 +242,11 @@ public class VadService {
             }
             sessionStates.remove(sessionId);
 
-            // 如果启用了降噪，重置其会话
             if (enableNoiseReduction && tarsosNoiseReducer != null) {
                 tarsosNoiseReducer.cleanupSession(sessionId);
             }
 
-            // 移除会话锁
             sessionLocks.remove(sessionId);
-
             logger.info("VAD会话重置 - SessionId: {}", sessionId);
         }
     }
@@ -332,23 +278,6 @@ public class VadService {
         }
     }
 
-    /**
-     * 强制结束当前语音，返回已收集的音频数据
-     */
-    public byte[] forceEndSession(String sessionId) {
-        Object lock = getSessionLock(sessionId);
-
-        synchronized (lock) {
-            VadSessionState state = sessionStates.get(sessionId);
-            if (state != null && state.hasAudioData()) {
-                byte[] completeAudio = state.getCompleteAudio();
-                state.reset();
-                return completeAudio;
-            }
-            return null;
-        }
-    }
-
     // Getter和Setter方法
     public void setSpeechThreshold(float threshold) {
         if (threshold < 0.0f || threshold > 1.0f) {
@@ -370,5 +299,45 @@ public class VadService {
     public void setEnableNoiseReduction(boolean enable) {
         this.enableNoiseReduction = enable;
         logger.info("噪声抑制功能已{}", enable ? "启用" : "禁用");
+    }
+
+    /**
+     * VAD处理结果状态枚举
+     */
+    public enum VadStatus {
+        NO_SPEECH, // 没有检测到语音
+        SPEECH_START, // 检测到语音开始
+        SPEECH_CONTINUE, // 语音继续中
+        SPEECH_END, // 检测到语音结束
+        ERROR // 处理错误
+    }
+
+    /**
+     * VAD处理结果类
+     */
+    public static class VadResult {
+        private final VadStatus status;
+        private final byte[] processedData;
+
+        public VadResult(VadStatus status, byte[] processedData) {
+            this.status = status;
+            this.processedData = processedData;
+        }
+
+        public VadStatus getStatus() {
+            return status;
+        }
+
+        public byte[] getProcessedData() {
+            return processedData;
+        }
+
+        public boolean isSpeechActive() {
+            return status == VadStatus.SPEECH_START || status == VadStatus.SPEECH_CONTINUE;
+        }
+
+        public boolean isSpeechEnd() {
+            return status == VadStatus.SPEECH_END;
+        }
     }
 }

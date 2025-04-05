@@ -122,6 +122,18 @@
             <artifactId>kotlin-stdlib</artifactId>
             <version>1.9.0</version> <!-- 使用与OkHttp 5.0.0-alpha.14兼容的版本 -->
         </dependency>
+        <!-- 腾讯云STT -->
+        <dependency>
+            <groupId>com.tencentcloudapi</groupId>
+            <artifactId>tencentcloud-speech-sdk-java</artifactId>
+            <version>1.0.53</version>
+        </dependency>
+        <!-- 阿里云STT -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>dashscope-sdk-java</artifactId>
+            <version>2.19.1</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -13,14 +13,15 @@ import com.xiaozhi.websocket.service.MessageService;
 import com.xiaozhi.websocket.service.SpeechToTextService;
 import com.xiaozhi.websocket.service.TextToSpeechService;
 import com.xiaozhi.websocket.service.VadService;
+import com.xiaozhi.websocket.service.VadService.VadResult;
+import com.xiaozhi.websocket.service.VadService.VadStatus;
+import com.xiaozhi.websocket.stt.providers.TencentSttService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
@@ -28,11 +29,12 @@ import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Date;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -74,14 +76,20 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     // 用于跟踪会话是否处于监听状态
     private static final ConcurrentHashMap<String, Boolean> LISTENING_STATE = new ConcurrentHashMap<>();
 
+    // 用于存储每个会话的音频数据流
+    private static final ConcurrentHashMap<String, Sinks.Many<byte[]>> AUDIO_SINKS = new ConcurrentHashMap<>();
+
+    // 用于跟踪会话是否正在进行流式识别
+    private static final ConcurrentHashMap<String, Boolean> STREAMING_STATE = new ConcurrentHashMap<>();
+
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
         String sessionId = session.getId();
         SESSIONS.put(sessionId, session);
         LISTENING_STATE.put(sessionId, false);
+        STREAMING_STATE.put(sessionId, false);
 
         logger.info(session.getHandshakeInfo().getHeaders().toString());
 
@@ -149,6 +157,13 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     SESSIONS.remove(sessionId);
                     DEVICES_CONFIG.remove(sessionId);
                     LISTENING_STATE.remove(sessionId);
+                    STREAMING_STATE.remove(sessionId);
+
+                    // 清理音频流
+                    Sinks.Many<byte[]> sink = AUDIO_SINKS.remove(sessionId);
+                    if (sink != null) {
+                        sink.tryEmitComplete();
+                    }
 
                     // 清理VAD会话
                     vadService.resetSession(sessionId);
@@ -217,90 +232,211 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
         // 获取二进制数据
         DataBuffer dataBuffer = message.getPayload();
-
-        // 修复：使用DataBufferUtils.retain()增加引用计数，防止过早释放
         DataBuffer retainedBuffer = DataBufferUtils.retain(dataBuffer);
-
-        // 从缓冲区复制数据到字节数组（在主线程中完成，避免并发访问）
         byte[] opusData = new byte[retainedBuffer.readableByteCount()];
         retainedBuffer.read(opusData);
-        DataBufferUtils.release(retainedBuffer); // 立即释放缓冲区
+        DataBufferUtils.release(retainedBuffer);
 
-        // 使用单个Mono处理音频数据，避免链式调用中的并发问题
         return Mono.fromCallable(() -> {
-            try {
-                // 使用改进的VadService处理音频数据
-                return vadService.processAudio(sessionId, opusData);
-            } catch (Exception e) {
-                logger.error("VAD处理异常: {}", e.getMessage(), e);
-                return null;
-            }
+            // 使用VAD处理音频数据，获取语音活动状态和处理后的PCM数据
+            return vadService.processAudio(sessionId, opusData);
         })
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(completeAudio -> {
-                    if (completeAudio == null) {
-                        // 如果没有完整的音频数据（语音未结束），直接返回空
-                        return Mono.<Void>empty();
+                .flatMap(vadResult -> {
+                    // 如果VAD处理出错，直接返回
+                    if (vadResult.getStatus() == VadStatus.ERROR || vadResult.getProcessedData() == null) {
+                        return Mono.empty();
                     }
 
-                    logger.info("检测到语音结束 - SessionId: {}, 音频大小: {} 字节", sessionId, completeAudio.length);
+                    // 检查是否支持流式处理
+                    boolean supportsStreaming = (sttConfig != null && "tencent".equals(sttConfig.getProvider()));
 
-                    // 进行语音识别
-                    return Mono.fromCallable(() -> {
-                        String result;
-                        // 调用 SpeechToTextService 进行语音识别
-                        if (!ObjectUtils.isEmpty(sttConfig)) {
-                            result = speechToTextService.recognition(completeAudio, sttConfig);
-                        } else {
-                            String jsonResult = speechToTextService.recognition(completeAudio);
-                            try {
-                                JsonNode resultNode = objectMapper.readTree(jsonResult);
-                                result = resultNode.path("text").asText("");
-                            } catch (Exception e) {
-                                logger.error("解析语音识别结果失败", e);
-                                result = "";
+                    // 根据VAD状态处理
+                    switch (vadResult.getStatus()) {
+                        case SPEECH_START:
+                            // 检测到语音开始，初始化流式识别
+                            if (supportsStreaming) {
+                                return initializeStreamingRecognition(session, sessionId, sttConfig, ttsConfig, device,
+                                        vadResult.getProcessedData());
                             }
-                        }
-                        return result;
-                    })
-                            .subscribeOn(Schedulers.boundedElastic())
-                            .flatMap(recognizedText -> {
-                                if (!StringUtils.hasText(recognizedText)) {
-                                    return Mono.empty();
+                            return Mono.empty();
+
+                        case SPEECH_CONTINUE:
+                            // 语音继续，发送数据到流式识别
+                            if (supportsStreaming) {
+                                Sinks.Many<byte[]> audioSink = AUDIO_SINKS.get(sessionId);
+                                if (audioSink != null && STREAMING_STATE.getOrDefault(sessionId, false)) {
+                                    audioSink.tryEmitNext(vadResult.getProcessedData());
                                 }
+                            }
+                            return Mono.empty();
 
-                                logger.info("语音识别结果 - SessionId: {}, 内容: {}", sessionId, recognizedText);
+                        case SPEECH_END:
+                            // 语音结束，完成流式识别
+                            if (supportsStreaming) {
+                                Sinks.Many<byte[]> audioSink = AUDIO_SINKS.get(sessionId);
+                                if (audioSink != null) {
+                                    audioSink.tryEmitComplete();
+                                    STREAMING_STATE.put(sessionId, false);
+                                }
+                            } else {
+                                // 如果不支持流式识别，使用一次性识别
+                                return performOneTimeRecognition(session, sessionId, sttConfig, ttsConfig, device,
+                                        vadResult.getProcessedData());
+                            }
+                            return Mono.empty();
 
-                                // 设置会话为非监听状态，防止处理自己的声音
-                                LISTENING_STATE.put(sessionId, false);
-
-                                // 发送识别结果
-                                return messageService.sendMessage(session, "stt", "start", recognizedText)
-                                        .then(Mono.fromRunnable(() -> {
-                                            // 使用句子切分处理流式响应
-                                            llmManager.chatStreamBySentence(device, recognizedText,
-                                                    (sentence, isStart, isEnd) -> {
-                                                        // 为每个句子创建一个独立的响应式流并订阅它
-                                                        Mono.fromCallable(() -> textToSpeechService.textToSpeech(
-                                                                sentence, ttsConfig, device.getVoiceName()))
-                                                                .subscribeOn(Schedulers.boundedElastic())
-                                                                .flatMap(audioPath -> audioService
-                                                                        .sendAudioMessage(session, audioPath, sentence,
-                                                                                isStart, isEnd)
-                                                                        .doOnError(e -> logger.error("发送音频消息失败: {}",
-                                                                                e.getMessage(), e)))
-                                                                .onErrorResume(e -> {
-                                                                    logger.error("处理句子失败: {}", e.getMessage(), e);
-                                                                    return Mono.empty();
-                                                                })
-                                                                .subscribe();
-                                                    });
-                                        }));
-                            });
+                        default:
+                            return Mono.empty();
+                    }
                 })
                 .onErrorResume(e -> {
                     logger.error("处理音频数据失败: {}", e.getMessage(), e);
                     return Mono.empty();
+                });
+    }
+
+    /**
+     * 初始化流式语音识别
+     */
+    private Mono<Void> initializeStreamingRecognition(
+            WebSocketSession session,
+            String sessionId,
+            SysConfig sttConfig,
+            SysConfig ttsConfig,
+            SysDevice device,
+            byte[] initialAudio) {
+
+        // 如果已经在进行流式识别，先清理旧的资源
+        Sinks.Many<byte[]> existingSink = AUDIO_SINKS.get(sessionId);
+        if (existingSink != null) {
+            existingSink.tryEmitComplete();
+        }
+
+        // 创建新的音频数据接收器
+        Sinks.Many<byte[]> audioSink = Sinks.many().multicast().onBackpressureBuffer();
+        AUDIO_SINKS.put(sessionId, audioSink);
+        STREAMING_STATE.put(sessionId, true);
+
+        // 创建腾讯云流式识别服务
+        TencentSttService tencentSttService = new TencentSttService(sttConfig);
+
+        // 发送初始音频数据
+        if (initialAudio != null && initialAudio.length > 0) {
+            audioSink.tryEmitNext(initialAudio);
+        }
+
+        // 启动流式识别
+        tencentSttService.streamRecognition(audioSink.asFlux())
+                .doOnNext(text -> {
+                    // 发送中间识别结果
+                    if (StringUtils.hasText(text)) {
+                        messageService.sendMessage(session, "stt", "interim", text).subscribe();
+                    }
+                })
+                .last() // 获取最终结果
+                .flatMap(finalText -> {
+                    if (!StringUtils.hasText(finalText)) {
+                        return Mono.empty();
+                    }
+
+                    logger.info("流式识别最终结果 - SessionId: {}, 内容: {}", sessionId, finalText);
+
+                    // 设置会话为非监听状态，防止处理自己的声音
+                    LISTENING_STATE.put(sessionId, false);
+
+                    // 发送最终识别结果
+                    return messageService.sendMessage(session, "stt", "final", finalText)
+                            .then(Mono.fromRunnable(() -> {
+                                // 使用句子切分处理流式响应
+                                llmManager.chatStreamBySentence(device, finalText,
+                                        (sentence, isStart, isEnd) -> {
+                                            Mono.fromCallable(() -> textToSpeechService.textToSpeech(
+                                                    sentence, ttsConfig, device.getVoiceName()))
+                                                    .subscribeOn(Schedulers.boundedElastic())
+                                                    .flatMap(audioPath -> audioService
+                                                            .sendAudioMessage(session, audioPath, sentence, isStart,
+                                                                    isEnd)
+                                                            .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(),
+                                                                    e)))
+                                                    .onErrorResume(e -> {
+                                                        logger.error("处理句子失败: {}", e.getMessage(), e);
+                                                        return Mono.empty();
+                                                    })
+                                                    .subscribe();
+                                        });
+                            }));
+                })
+                .onErrorResume(error -> {
+                    logger.error("流式识别错误: {}", error.getMessage(), error);
+                    return Mono.empty();
+                })
+                .subscribe();
+
+        return Mono.empty();
+    }
+
+    /**
+     * 执行一次性语音识别
+     */
+    private Mono<Void> performOneTimeRecognition(
+            WebSocketSession session,
+            String sessionId,
+            SysConfig sttConfig,
+            SysConfig ttsConfig,
+            SysDevice device,
+            byte[] audioData) {
+
+        logger.info("执行一次性语音识别 - SessionId: {}, 音频大小: {} 字节", sessionId, audioData.length);
+
+        return Mono.fromCallable(() -> {
+            String result;
+            if (!ObjectUtils.isEmpty(sttConfig)) {
+                result = speechToTextService.recognition(audioData, sttConfig);
+            } else {
+                String jsonResult = speechToTextService.recognition(audioData);
+                try {
+                    JsonNode resultNode = objectMapper.readTree(jsonResult);
+                    result = resultNode.path("text").asText("");
+                } catch (Exception e) {
+                    logger.error("解析语音识别结果失败", e);
+                    result = "";
+                }
+            }
+            return result;
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(recognizedText -> {
+                    if (!StringUtils.hasText(recognizedText)) {
+                        return Mono.empty();
+                    }
+
+                    logger.info("一次性识别结果 - SessionId: {}, 内容: {}", sessionId, recognizedText);
+
+                    // 设置会话为非监听状态，防止处理自己的声音
+                    LISTENING_STATE.put(sessionId, false);
+
+                    // 发送识别结果
+                    return messageService.sendMessage(session, "stt", "final", recognizedText)
+                            .then(Mono.fromRunnable(() -> {
+                                // 使用句子切分处理流式响应
+                                llmManager.chatStreamBySentence(device, recognizedText,
+                                        (sentence, isStart, isEnd) -> {
+                                            Mono.fromCallable(() -> textToSpeechService.textToSpeech(
+                                                    sentence, ttsConfig, device.getVoiceName()))
+                                                    .subscribeOn(Schedulers.boundedElastic())
+                                                    .flatMap(audioPath -> audioService
+                                                            .sendAudioMessage(session, audioPath, sentence,
+                                                                    isStart, isEnd)
+                                                            .doOnError(e -> logger.error("发送音频消息失败: {}",
+                                                                    e.getMessage(), e)))
+                                                    .onErrorResume(e -> {
+                                                        logger.error("处理句子失败: {}", e.getMessage(), e);
+                                                        return Mono.empty();
+                                                    })
+                                                    .subscribe();
+                                        });
+                            }));
                 });
     }
 
@@ -374,11 +510,26 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                 // 开始监听，准备接收音频数据
                 logger.info("开始监听 - Mode: {}", mode);
                 LISTENING_STATE.put(sessionId, true);
+
+                // 初始化VAD会话
+                vadService.initializeSession(sessionId);
+
                 return Mono.empty();
             case "stop":
                 // 停止监听
                 logger.info("停止监听");
                 LISTENING_STATE.put(sessionId, false);
+
+                // 如果正在进行流式识别，发送完成信号
+                Sinks.Many<byte[]> audioSink = AUDIO_SINKS.get(sessionId);
+                if (audioSink != null) {
+                    audioSink.tryEmitComplete();
+                    STREAMING_STATE.put(sessionId, false);
+                }
+
+                // 重置VAD会话
+                vadService.resetSession(sessionId);
+
                 return Mono.empty();
             case "detect":
                 // 检测到唤醒词
@@ -419,6 +570,13 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
         logger.info("收到abort消息 - SessionId: {}, Reason: {}", sessionId, reason);
 
+        // 如果正在进行流式识别，发送完成信号
+        Sinks.Many<byte[]> audioSink = AUDIO_SINKS.get(sessionId);
+        if (audioSink != null) {
+            audioSink.tryEmitComplete();
+            STREAMING_STATE.put(sessionId, false);
+        }
+
         // 终止语音发送
         return audioService.sendStop(session);
     }
@@ -443,5 +601,4 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
         return Mono.empty();
     }
-
 }

@@ -3,7 +3,10 @@ package com.xiaozhi.websocket.stt.providers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,12 +22,18 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
+import okio.ByteString;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 public class AliyunSttService implements SttService {
     private static final Logger logger = LoggerFactory.getLogger(AliyunSttService.class);
 
     private static final String PROVIDER_NAME = "aliyun";
     private static final String API_URL = "https://nls-gateway.aliyuncs.com/stream/v1/asr";
+    private static final String WS_API_URL = "wss://nls-gateway.aliyuncs.com/ws/v1";
 
     // 音频格式设置
     private static final String FORMAT = "pcm";
@@ -44,6 +53,9 @@ public class AliyunSttService implements SttService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // 存储当前活跃的WebSocket连接
+    private final ConcurrentHashMap<String, WebSocket> activeWebSockets = new ConcurrentHashMap<>();
+
     public AliyunSttService(SysConfig config) {
         if (config != null) {
             this.appKey = config.getApiKey();
@@ -55,6 +67,11 @@ public class AliyunSttService implements SttService {
     @Override
     public String getProviderName() {
         return PROVIDER_NAME;
+    }
+
+    @Override
+    public boolean supportsStreaming() {
+        return true;
     }
 
     @Override
@@ -89,6 +106,222 @@ public class AliyunSttService implements SttService {
             logger.error("处理音频时发生错误！", e);
             return null;
         }
+    }
+
+    @Override
+    public Flux<String> streamRecognition(Flux<byte[]> audioStream) {
+        // 检查配置是否已设置
+        if (appKey == null || accessKeyId == null || accessKeySecret == null) {
+            logger.error("阿里云语音识别配置未设置，无法进行识别");
+            return Flux.error(new IllegalStateException("阿里云语音识别配置未设置"));
+        }
+
+        // 创建结果接收器
+        Sinks.Many<String> resultSink = Sinks.many().multicast().onBackpressureBuffer();
+
+        // 生成唯一的任务ID
+        String taskId = UUID.randomUUID().toString();
+
+        try {
+            // 获取有效token
+            String nlsToken = getValidToken();
+            if (nlsToken == null) {
+                logger.error("无法获取有效的阿里云NLS Token");
+                return Flux.error(new IllegalStateException("无法获取有效的阿里云NLS Token"));
+            }
+
+            // 构建WebSocket连接URL
+            String url = WS_API_URL;
+
+            // 创建WebSocket监听器
+            WebSocketListener listener = new WebSocketListener() {
+                private final StringBuilder partialResult = new StringBuilder();
+
+                @Override
+                public void onOpen(WebSocket webSocket, Response response) {
+                    logger.info("WebSocket连接已打开 - TaskId: {}", taskId);
+
+                    try {
+                        // 发送开始指令
+                        Map<String, Object> startParams = new HashMap<>();
+                        startParams.put("header", createHeader("StartRecognition", taskId));
+                        startParams.put("payload", createPayload());
+
+                        String startMessage = objectMapper.writeValueAsString(startParams);
+                        webSocket.send(startMessage);
+                        logger.debug("发送开始识别指令 - TaskId: {}", taskId);
+                    } catch (Exception e) {
+                        logger.error("发送开始指令失败 - TaskId: {}", taskId, e);
+                        resultSink.tryEmitError(e);
+                        webSocket.close(1000, "发送开始指令失败");
+                    }
+                }
+
+                @Override
+                public void onMessage(WebSocket webSocket, String text) {
+                    try {
+                        JsonNode response = objectMapper.readTree(text);
+                        String header = response.path("header").path("name").asText();
+
+                        if ("RecognitionStarted".equals(header)) {
+                            logger.debug("识别已开始 - TaskId: {}", taskId);
+                        } else if ("RecognitionResultChanged".equals(header)) {
+                            // 中间结果
+                            String result = response.path("payload").path("result").asText();
+                            logger.debug("识别中间结果 - TaskId: {}, 结果: {}", taskId, result);
+                            resultSink.tryEmitNext(result);
+                            partialResult.setLength(0);
+                            partialResult.append(result);
+                        } else if ("RecognitionCompleted".equals(header)) {
+                            // 最终结果
+                            String result = response.path("payload").path("result").asText();
+                            logger.info("识别完成 - TaskId: {}, 最终结果: {}", taskId, result);
+
+                            // 如果最终结果与上一个中间结果不同，则发送最终结果
+                            if (!result.equals(partialResult.toString())) {
+                                resultSink.tryEmitNext(result);
+                            }
+
+                            // 发送结束指令
+                            Map<String, Object> stopParams = new HashMap<>();
+                            stopParams.put("header", createHeader("StopRecognition", taskId));
+                            String stopMessage = objectMapper.writeValueAsString(stopParams);
+                            webSocket.send(stopMessage);
+                        } else if ("TaskFailed".equals(header)) {
+                            // 任务失败
+                            String errorCode = response.path("header").path("status").asInt() + "";
+                            String errorMessage = response.path("header").path("message").asText("未知错误");
+                            logger.error("识别任务失败 - TaskId: {}, 错误码: {}, 错误信息: {}", taskId, errorCode, errorMessage);
+                            resultSink.tryEmitError(new RuntimeException("识别失败: " + errorCode + " - " + errorMessage));
+                        }
+                    } catch (Exception e) {
+                        logger.error("处理WebSocket消息失败 - TaskId: {}", taskId, e);
+                        resultSink.tryEmitError(e);
+                    }
+                }
+
+                @Override
+                public void onMessage(WebSocket webSocket, ByteString bytes) {
+                    logger.debug("收到二进制消息 - TaskId: {}, 大小: {} 字节", taskId, bytes.size());
+                }
+
+                @Override
+                public void onClosing(WebSocket webSocket, int code, String reason) {
+                    logger.info("WebSocket正在关闭 - TaskId: {}, 代码: {}, 原因: {}", taskId, code, reason);
+                    webSocket.close(1000, "客户端主动关闭");
+                    activeWebSockets.remove(taskId);
+                }
+
+                @Override
+                public void onClosed(WebSocket webSocket, int code, String reason) {
+                    logger.info("WebSocket已关闭 - TaskId: {}, 代码: {}, 原因: {}", taskId, code, reason);
+                    resultSink.tryEmitComplete();
+                    activeWebSockets.remove(taskId);
+                }
+
+                @Override
+                public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+                    logger.error("WebSocket连接失败 - TaskId: {}", taskId, t);
+                    resultSink.tryEmitError(t);
+                    activeWebSockets.remove(taskId);
+                }
+            };
+
+            // 创建WebSocket连接
+            Request request = new Request.Builder()
+                    .url(url)
+                    .addHeader("X-NLS-Token", nlsToken)
+                    .build();
+
+            WebSocket webSocket = client.newWebSocket(request, listener);
+            activeWebSockets.put(taskId, webSocket);
+
+            // 标记是否已经发送了停止信号
+            AtomicBoolean stopSent = new AtomicBoolean(false);
+
+            // 订阅音频流并发送数据
+            audioStream.subscribe(
+                    data -> {
+                        try {
+                            if (activeWebSockets.containsKey(taskId)) {
+                                // 发送二进制音频数据
+                                webSocket.send(ByteString.of(data));
+                            }
+                        } catch (Exception e) {
+                            logger.error("发送音频数据时发生错误 - TaskId: {}", taskId, e);
+                            resultSink.tryEmitError(e);
+                        }
+                    },
+                    error -> {
+                        logger.error("音频流错误 - TaskId: {}", taskId, error);
+                        resultSink.tryEmitError(error);
+                        if (activeWebSockets.containsKey(taskId)) {
+                            try {
+                                // 发送结束指令
+                                if (!stopSent.getAndSet(true)) {
+                                    Map<String, Object> stopParams = new HashMap<>();
+                                    stopParams.put("header", createHeader("StopRecognition", taskId));
+                                    String stopMessage = objectMapper.writeValueAsString(stopParams);
+                                    webSocket.send(stopMessage);
+                                }
+                                webSocket.close(1000, "音频流错误");
+                            } catch (Exception e) {
+                                logger.error("关闭WebSocket时发生错误 - TaskId: {}", taskId, e);
+                            } finally {
+                                activeWebSockets.remove(taskId);
+                            }
+                        }
+                    },
+                    () -> {
+                        if (activeWebSockets.containsKey(taskId) && !stopSent.getAndSet(true)) {
+                            try {
+                                // 发送结束指令
+                                Map<String, Object> stopParams = new HashMap<>();
+                                stopParams.put("header", createHeader("StopRecognition", taskId));
+                                String stopMessage = objectMapper.writeValueAsString(stopParams);
+                                webSocket.send(stopMessage);
+
+                                // 等待一段时间后关闭连接，确保结果能够返回
+                                Thread.sleep(1000);
+                                webSocket.close(1000, "音频流结束");
+                            } catch (Exception e) {
+                                logger.error("关闭WebSocket时发生错误 - TaskId: {}", taskId, e);
+                                resultSink.tryEmitError(e);
+                            }
+                        }
+                    });
+
+        } catch (Exception e) {
+            logger.error("创建语音识别会话时发生错误", e);
+            return Flux.error(e);
+        }
+
+        return resultSink.asFlux();
+    }
+
+    /**
+     * 创建请求头部
+     */
+    private Map<String, Object> createHeader(String name, String taskId) {
+        Map<String, Object> header = new HashMap<>();
+        header.put("message_id", UUID.randomUUID().toString());
+        header.put("task_id", taskId);
+        header.put("namespace", "SpeechRecognizer");
+        header.put("name", name);
+        header.put("appkey", appKey);
+        return header;
+    }
+
+    /**
+     * 创建请求负载
+     */
+    private Map<String, Object> createPayload() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("format", FORMAT);
+        payload.put("sample_rate", SAMPLE_RATE);
+        payload.put("enable_punctuation_prediction", true);
+        payload.put("enable_inverse_text_normalization", true);
+        return payload;
     }
 
     /**
@@ -195,5 +428,18 @@ public class AliyunSttService implements SttService {
             logger.error("获取阿里云NLS Token时发生错误", e);
             return null;
         }
+    }
+
+    // 在服务关闭时释放资源
+    public void shutdown() {
+        // 关闭所有活跃的WebSocket连接
+        activeWebSockets.forEach((id, webSocket) -> {
+            try {
+                webSocket.close(1000, "服务关闭");
+            } catch (Exception e) {
+                logger.error("关闭WebSocket时发生错误 - TaskId: {}", id, e);
+            }
+        });
+        activeWebSockets.clear();
     }
 }
