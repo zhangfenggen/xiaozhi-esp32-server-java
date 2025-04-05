@@ -810,7 +810,8 @@ export default {
               url,
               data: {
                 roleId: this.editingRoleId,
-                ...formData
+                ...formData,
+                ttsId: formData.provider === 'edge' ? -1 : formData.ttsId
               }
             })
             .then(res => {
@@ -975,7 +976,7 @@ export default {
           voiceName: values.voiceName,
           provider: this.selectedProvider,
           message: this.testText,
-          ttsId: this.selectedttsId // 始终传递TTS配置ID
+          ttsId: this.selectedProvider === 'edge' ? -1 : this.selectedttsId
         };
 
         axios
