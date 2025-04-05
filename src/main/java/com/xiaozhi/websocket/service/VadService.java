@@ -1,204 +1,380 @@
 package com.xiaozhi.websocket.service;
 
+import com.xiaozhi.utils.OpusProcessor;
+import com.xiaozhi.utils.TarsosNoiseReducer;
+import com.xiaozhi.websocket.vad.impl.SileroVadModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
-import com.xiaozhi.utils.OpusProcessor;
-import com.xiaozhi.utils.TarsosNoiseReducer;
-import com.xiaozhi.websocket.vad.VadModel;
-import com.xiaozhi.websocket.vad.VadSessionState;
-
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * VAD服务 - 负责语音活动检测
- */
 @Service
 public class VadService {
     private static final Logger logger = LoggerFactory.getLogger(VadService.class);
 
     @Autowired
-    private VadModel vadModel;
+    private OpusProcessor opusDecoder;
 
     @Autowired
-    private OpusProcessor opusProcessor;
+    private ResourceLoader resourceLoader;
 
-    @Autowired(required = false)
+    // 注入SileroVadModel
+    @Autowired
+    private SileroVadModel sileroVadModel;
+
+    // VAD参数
+    @Value("${app.vad.speech-threshold:0.5}")
+    private float speechThreshold;
+
+    @Value("${app.vad.silence-threshold:0.35}")
+    private float silenceThreshold;
+
+    @Value("${app.vad.energy-threshold:0.01}")
+    private float energyThreshold;
+
+    @Value("${app.vad.min-silence-duration:500}")
+    private int minSilenceDuration;
+
+    @Value("${app.vad.pre-buffer-duration:300}")
+    private int preBufferDuration;
+
+    @Value("${app.vad.enable-noise-reduction:true}")
+    private boolean enableNoiseReduction;
+
+    // 噪声抑制器
     private TarsosNoiseReducer tarsosNoiseReducer;
-
-    // 配置参数
-    private float speechThreshold = 0.6f;
-    private float silenceThreshold = 0.45f; // speechThreshold - 0.15f
-    private float energyThreshold = 0.05f;
-    private int minSilenceDurationMs = 500;
-    private int maxSilenceDurationMs = 1000;
-    private boolean enableNoiseReduction = true;
 
     // 会话状态管理
     private final ConcurrentHashMap<String, VadSessionState> sessionStates = new ConcurrentHashMap<>();
-
-    // 会话锁管理 - 为每个会话提供独立的锁对象
     private final ConcurrentHashMap<String, Object> sessionLocks = new ConcurrentHashMap<>();
 
-    /**
-     * 初始化噪声抑制器
-     */
     @PostConstruct
-    private void initializeNoiseReducer() {
-        if (tarsosNoiseReducer != null) {
-            tarsosNoiseReducer.setSpectralSubtractionFactor(1.5);
-            tarsosNoiseReducer.setNoiseEstimationFrames(10);
-            logger.info("TarsosDSP噪声抑制器参数已优化配置");
+    public void init() {
+        try {
+            // 初始化噪声抑制器
+            if (enableNoiseReduction) {
+                tarsosNoiseReducer = new TarsosNoiseReducer();
+                logger.info("噪声抑制器初始化成功");
+            }
+
+            // 检查SileroVadModel是否已注入
+            if (sileroVadModel != null) {
+                logger.info("VAD服务初始化成功，使用SileroVadModel进行语音活动检测");
+            } else {
+                logger.error("SileroVadModel未注入，VAD功能将不可用");
+            }
+        } catch (Exception e) {
+            logger.error("初始化VAD服务失败", e);
+        }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        logger.info("VAD服务资源已释放");
+    }
+
+    /**
+     * 会话状态类
+     */
+    private class VadSessionState {
+        private boolean speaking = false;
+        private long lastSpeechTime = 0;
+        private float averageEnergy = 0;
+        private final List<Float> probabilities = new ArrayList<>();
+        private final LinkedList<byte[]> preBuffer = new LinkedList<>();
+        private int preBufferSize = 0; // 当前缓冲区大小（字节）
+        private final int maxPreBufferSize; // 最大缓冲区大小（字节）
+
+        public VadSessionState() {
+            // 计算预缓冲区大小（16kHz, 16bit, mono = 32 bytes/ms）
+            this.maxPreBufferSize = preBufferDuration * 32;
+        }
+
+        public boolean isSpeaking() {
+            return speaking;
+        }
+
+        public void setSpeaking(boolean speaking) {
+            this.speaking = speaking;
+            if (speaking) {
+                lastSpeechTime = System.currentTimeMillis();
+            }
+        }
+
+        public int getSilenceDuration() {
+            if (speaking) {
+                return (int) (System.currentTimeMillis() - lastSpeechTime);
+            }
+            return 0;
+        }
+
+        public float getAverageEnergy() {
+            return averageEnergy;
+        }
+
+        public void updateAverageEnergy(float currentEnergy) {
+            if (averageEnergy == 0) {
+                averageEnergy = currentEnergy;
+            } else {
+                averageEnergy = 0.95f * averageEnergy + 0.05f * currentEnergy;
+            }
+        }
+
+        public void addProbability(float prob) {
+            probabilities.add(prob);
+            if (probabilities.size() > 10) {
+                probabilities.remove(0);
+            }
+        }
+
+        public float getLastProbability() {
+            if (probabilities.isEmpty()) {
+                return 0.0f;
+            }
+            return probabilities.get(probabilities.size() - 1);
+        }
+
+        public List<Float> getProbabilities() {
+            return probabilities;
+        }
+
+        /**
+         * 添加数据到预缓冲区
+         */
+        public void addToPreBuffer(byte[] data) {
+            // 如果已经在说话，不需要添加到预缓冲区
+            if (speaking) {
+                return;
+            }
+
+            // 添加到预缓冲区
+            preBuffer.add(data);
+            preBufferSize += data.length;
+
+            // 如果超出最大缓冲区大小，移除最旧的数据
+            while (preBufferSize > maxPreBufferSize && !preBuffer.isEmpty()) {
+                byte[] removed = preBuffer.removeFirst();
+                preBufferSize -= removed.length;
+            }
+        }
+
+        /**
+         * 获取并清空预缓冲区数据
+         */
+        public byte[] drainPreBuffer() {
+            if (preBuffer.isEmpty()) {
+                return new byte[0];
+            }
+
+            // 计算总大小并创建结果数组
+            byte[] result = new byte[preBufferSize];
+            int offset = 0;
+
+            // 复制所有缓冲区数据
+            for (byte[] chunk : preBuffer) {
+                System.arraycopy(chunk, 0, result, offset, chunk.length);
+                offset += chunk.length;
+            }
+
+            // 清空缓冲区
+            preBuffer.clear();
+            preBufferSize = 0;
+
+            return result;
+        }
+
+        /**
+         * 重置状态
+         */
+        public void reset() {
+            speaking = false;
+            lastSpeechTime = 0;
+            averageEnergy = 0;
+            probabilities.clear();
+            preBuffer.clear();
+            preBufferSize = 0;
         }
     }
 
     /**
-     * 获取会话的锁对象
+     * 初始化会话状态
      */
-    private Object getSessionLock(String sessionId) {
-        return sessionLocks.computeIfAbsent(sessionId, id -> new Object());
-    }
-
-    /**
-     * 初始化会话
-     * 
-     * @param sessionId 会话ID
-     * @return 如果是新会话返回true，否则返回false
-     */
-    public boolean initializeSession(String sessionId) {
+    public void initializeSession(String sessionId) {
         Object lock = getSessionLock(sessionId);
 
         synchronized (lock) {
-            if (sessionStates.containsKey(sessionId)) {
-                return false;
+            VadSessionState state = sessionStates.get(sessionId);
+            if (state == null) {
+                state = new VadSessionState();
+                sessionStates.put(sessionId, state);
+            } else {
+                state.reset();
             }
-
-            sessionStates.put(sessionId, new VadSessionState());
-            if (enableNoiseReduction && tarsosNoiseReducer != null) {
-                tarsosNoiseReducer.initializeSession(sessionId);
-            }
-
-            logger.debug("VAD会话初始化 - SessionId: {}", sessionId);
-            return true;
+            logger.info("VAD会话初始化 - SessionId: {}", sessionId);
         }
     }
 
     /**
-     * 处理音频数据并检测语音活动
-     * 
-     * @param sessionId 会话ID
-     * @param opusData  Opus编码的音频数据
-     * @return VadResult 包含VAD检测结果和处理后的PCM数据
+     * 获取会话锁对象
+     */
+    private Object getSessionLock(String sessionId) {
+        return sessionLocks.computeIfAbsent(sessionId, k -> new Object());
+    }
+
+    /**
+     * 处理音频数据
      */
     public VadResult processAudio(String sessionId, byte[] opusData) {
         Object lock = getSessionLock(sessionId);
 
         synchronized (lock) {
             try {
-                // 获取会话状态，如果不存在则创建
-                VadSessionState state = sessionStates.get(sessionId);
-                if (state == null) {
-                    state = new VadSessionState();
-                    sessionStates.put(sessionId, state);
-
-                    if (enableNoiseReduction && tarsosNoiseReducer != null) {
-                        tarsosNoiseReducer.initializeSession(sessionId);
-                    }
-
-                    logger.debug("VAD会话初始化（处理中） - SessionId: {}", sessionId);
-                }
+                // 确保会话状态已初始化
+                VadSessionState state = sessionStates.computeIfAbsent(sessionId, k -> new VadSessionState());
 
                 // 解码Opus数据为PCM
-                byte[] pcmData = opusProcessor.decodeOpusFrameToPcm(opusData);
-
-                // 应用噪声抑制（如果启用）
-                if (enableNoiseReduction) {
-                    pcmData = applyNoiseReduction(sessionId, pcmData);
+                byte[] pcmData = opusDecoder.decodeOpusFrameToPcm(opusData);
+                if (pcmData == null || pcmData.length == 0) {
+                    return new VadResult(VadStatus.NO_SPEECH, null);
                 }
 
-                // 将PCM数据添加到预缓冲区
-                state.addToPrebuffer(pcmData);
+                // 添加到预缓冲区
+                state.addToPreBuffer(pcmData);
 
-                // 如果已经在说话状态，则将数据添加到主缓冲区
-                if (state.isSpeaking()) {
-                    state.addToMainBuffer(pcmData);
-                }
+                // 应用噪声抑制
+                byte[] processedPcm = applyNoiseReduction(sessionId, pcmData);
 
-                // 分析音频帧
-                if (state.hasEnoughDataForAnalysis()) {
-                    float[] samples = state.extractSamplesForAnalysis();
-                    float currentEnergy = calculateEnergy(samples);
-                    state.updateAverageEnergy(currentEnergy);
+                // 计算音频能量
+                float[] samples = convertBytesToFloats(processedPcm);
+                float currentEnergy = calculateEnergy(samples);
+                state.updateAverageEnergy(currentEnergy);
 
-                    // 使用VAD模型获取语音概率
-                    float speechProb = vadModel.getSpeechProbability(samples);
-                    state.addProbability(speechProb);
+                // 执行VAD推断
+                float speechProb = runVadInference(samples);
+                state.addProbability(speechProb);
 
-                    // 检查是否有显著能量
-                    boolean hasSignificantEnergy = hasSignificantEnergy(currentEnergy, state.getAverageEnergy());
+                // 根据VAD结果和能量判断语音状态
+                boolean hasSignificantEnergy = hasSignificantEnergy(currentEnergy, state.getAverageEnergy());
+                boolean isSpeech = speechProb > speechThreshold && hasSignificantEnergy;
+                boolean isSilence = speechProb < silenceThreshold;
 
-                    // 检测语音状态变化
-                    if (speechProb >= speechThreshold && hasSignificantEnergy) {
-                        state.incrementConsecutiveSpeechFrames();
+                if (!state.isSpeaking() && isSpeech) {
+                    // 检测到语音开始
+                    state.setSpeaking(true);
+                    logger.info("检测到语音开始 - SessionId: {}, 概率: {}, 能量: {}", sessionId, speechProb, currentEnergy);
 
-                        // 检查是否满足语音开始条件
-                        if (state.shouldStartSpeech()) {
-                            if (!state.isSpeaking()) {
-                                state.setSpeaking(true);
-                                state.transferPrebufferToMainBuffer();
-                                logger.info("检测到语音开始 - SessionId: {}, 概率: {}", sessionId, speechProb);
-                                return new VadResult(VadStatus.SPEECH_START, pcmData);
-                            }
-                        }
+                    // 获取预缓冲区数据
+                    byte[] preBufferData = state.drainPreBuffer();
 
-                        if (state.isSpeaking()) {
-                            state.resetSilenceCount();
-                            return new VadResult(VadStatus.SPEECH_CONTINUE, pcmData);
-                        }
+                    // 合并预缓冲区数据和当前数据
+                    byte[] combinedData;
+                    if (preBufferData.length > 0) {
+                        combinedData = new byte[preBufferData.length + processedPcm.length];
+                        System.arraycopy(preBufferData, 0, combinedData, 0, preBufferData.length);
+                        System.arraycopy(processedPcm, 0, combinedData, preBufferData.length, processedPcm.length);
+                        logger.debug("添加了{}字节的预缓冲音频 (约{}ms)", preBufferData.length, preBufferData.length / 32);
                     } else {
-                        state.resetConsecutiveSpeechFrames();
-
-                        // 如果当前是说话状态，检测静音
-                        if (state.isSpeaking() && speechProb < silenceThreshold) {
-                            state.incrementSilenceFrames();
-
-                            // 计算静音持续时间
-                            int silenceDurationMs = state.getSilenceDurationMs();
-
-                            // 如果静音时间超过阈值，认为语音结束
-                            if (silenceDurationMs >= minSilenceDurationMs) {
-                                state.setSpeaking(false);
-                                state.reset();
-                                logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, silenceDurationMs);
-                                return new VadResult(VadStatus.SPEECH_END, pcmData);
-                            }
-
-                            // 静音但未达到结束阈值
-                            return new VadResult(VadStatus.SPEECH_CONTINUE, pcmData);
-                        }
+                        combinedData = processedPcm;
                     }
 
-                    // 检查是否超过最大静音时间（防止无限等待）
-                    if (state.isSpeaking() && state.getTimeSinceLastSpeech() > maxSilenceDurationMs) {
-                        state.setSpeaking(false);
-                        state.reset();
-                        logger.info("语音超时结束 - SessionId: {}, 超时: {}ms", sessionId, maxSilenceDurationMs);
-                        return new VadResult(VadStatus.SPEECH_END, pcmData);
-                    }
+                    return new VadResult(VadStatus.SPEECH_START, combinedData);
+                } else if (state.isSpeaking() && isSilence && state.getSilenceDuration() > minSilenceDuration) {
+                    // 检测到语音结束
+                    state.setSpeaking(false);
+                    logger.info("检测到语音结束 - SessionId: {}, 静音持续: {}ms", sessionId, state.getSilenceDuration());
+                    return new VadResult(VadStatus.SPEECH_END, processedPcm);
+                } else if (state.isSpeaking()) {
+                    // 语音继续
+                    return new VadResult(VadStatus.SPEECH_CONTINUE, processedPcm);
+                } else {
+                    // 没有检测到语音
+                    return new VadResult(VadStatus.NO_SPEECH, null);
                 }
-
-                // 如果没有检测到明确的语音活动
-                return new VadResult(
-                        state.isSpeaking() ? VadStatus.SPEECH_CONTINUE : VadStatus.NO_SPEECH,
-                        pcmData);
             } catch (Exception e) {
-                logger.error("VAD处理音频失败 - SessionId: {}", sessionId, e);
+                logger.error("处理音频数据失败 - SessionId: {}", sessionId, e);
                 return new VadResult(VadStatus.ERROR, null);
             }
         }
+    }
+
+    /**
+     * 运行VAD模型推断
+     */
+    private float runVadInference(float[] audioSamples) {
+        if (sileroVadModel == null) {
+            logger.error("SileroVadModel未注入，无法执行VAD推断");
+            return 0.0f;
+        }
+
+        // 如果样本为空或长度为0，返回低概率
+        if (audioSamples == null || audioSamples.length == 0) {
+            return 0.0f;
+        }
+
+        try {
+            // SileroVadModel需要固定大小的输入(512)
+            final int requiredSize = 512;
+
+            // 如果样本长度正好是512，直接使用
+            if (audioSamples.length == requiredSize) {
+                return sileroVadModel.getSpeechProbability(audioSamples);
+            }
+
+            // 如果样本长度小于512，需要填充到512
+            if (audioSamples.length < requiredSize) {
+                float[] paddedSamples = new float[requiredSize];
+                System.arraycopy(audioSamples, 0, paddedSamples, 0, audioSamples.length);
+                // 剩余部分用0填充
+                for (int i = audioSamples.length; i < requiredSize; i++) {
+                    paddedSamples[i] = 0.0f;
+                }
+                return sileroVadModel.getSpeechProbability(paddedSamples);
+            }
+
+            // 如果样本长度大于512，取中间的512个样本
+            // 或者也可以分块处理并返回最大概率值
+            float maxProbability = 0.0f;
+            for (int offset = 0; offset <= audioSamples.length - requiredSize; offset += requiredSize / 2) { // 使用50%重叠
+                float[] chunk = new float[requiredSize];
+                System.arraycopy(audioSamples, offset, chunk, 0, requiredSize);
+                float probability = sileroVadModel.getSpeechProbability(chunk);
+                maxProbability = Math.max(maxProbability, probability);
+            }
+
+            return maxProbability;
+        } catch (Exception e) {
+            logger.error("VAD推断失败: {}", e.getMessage());
+            return 0.0f; // 出错时返回低概率
+        }
+    }
+
+    /**
+     * 将PCM字节数组转换为浮点数组
+     */
+    private float[] convertBytesToFloats(byte[] pcmData) {
+        // 16位PCM，每个样本2个字节
+        int sampleCount = pcmData.length / 2;
+        float[] samples = new float[sampleCount];
+
+        // 将字节转换为16位整数，然后归一化到[-1, 1]
+        ByteBuffer buffer = ByteBuffer.wrap(pcmData).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < sampleCount; i++) {
+            short sample = buffer.getShort();
+            samples[i] = sample / 32768.0f; // 归一化
+        }
+
+        return samples;
     }
 
     /**
@@ -299,6 +475,17 @@ public class VadService {
     public void setEnableNoiseReduction(boolean enable) {
         this.enableNoiseReduction = enable;
         logger.info("噪声抑制功能已{}", enable ? "启用" : "禁用");
+    }
+
+    /**
+     * 设置预缓冲区持续时间（毫秒）
+     */
+    public void setPreBufferDuration(int durationMs) {
+        if (durationMs < 0) {
+            throw new IllegalArgumentException("预缓冲区持续时间不能为负值");
+        }
+        this.preBufferDuration = durationMs;
+        logger.info("预缓冲区持续时间已更新为: {}ms", durationMs);
     }
 
     /**

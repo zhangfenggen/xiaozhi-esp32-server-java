@@ -295,9 +295,6 @@ public class AudioService {
         // 获取消息序列号
         int sequenceNumber = sessionMessageCounters.get(sessionId).incrementAndGet();
 
-        logger.info("[消息#{}-请求] 准备音频消息 - 文本: {}, 是否开始: {}, 是否结束: {}, 文件: {}",
-                sequenceNumber, text, isStart, isEnd, audioFilePath);
-
         // 处理音频文件，转换为Opus格式
         return Mono.fromCallable(() -> processAudioFile(audioFilePath, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS))
                 .subscribeOn(Schedulers.boundedElastic())
@@ -311,19 +308,13 @@ public class AudioService {
                             audioFilePath,
                             sequenceNumber);
 
-                    logger.info("[消息#{}-入队] 添加到音频队列 - 文本: {}, 是否开始: {}, 是否结束: {}, 帧数: {}",
-                            sequenceNumber, text, isStart, isEnd, audioResult.getOpusFrames().size());
-
                     Queue<AudioMessageTask> queue = sessionAudioQueues.get(sessionId);
                     queue.add(task);
 
                     // 如果当前没有正在处理的任务，开始处理队列
                     AtomicBoolean isProcessing = sessionProcessingFlags.get(sessionId);
                     if (isProcessing.compareAndSet(false, true)) {
-                        logger.info("[消息#{}-处理] 开始处理音频队列 - 当前队列大小: {}", sequenceNumber, queue.size());
                         return processAudioQueue(session, sessionId);
-                    } else {
-                        logger.info("[消息#{}-等待] 已有任务在处理中，等待处理 - 当前队列大小: {}", sequenceNumber, queue.size());
                     }
 
                     // 如果已经有任务在处理，直接返回
@@ -348,8 +339,6 @@ public class AudioService {
 
         // 如果队列为空或会话已关闭，结束处理
         if (queue.isEmpty() || !session.isOpen()) {
-            logger.info("[队列处理-结束] 队列为空或会话已关闭 - SessionId: {}, 队列为空: {}, 会话开启: {}",
-                    sessionId, queue.isEmpty(), session.isOpen());
             isProcessing.set(false);
             return Mono.empty();
         }
@@ -358,21 +347,16 @@ public class AudioService {
         AudioMessageTask task = queue.poll();
         int sequenceNumber = task.getSequenceNumber();
 
-        logger.info("[消息#{}-开始处理] 从队列取出任务 - 文本: {}, 是否开始: {}, 是否结束: {}, 剩余队列大小: {}",
-                sequenceNumber, task.getText(), task.isFirstMessage(), task.isLastMessage(), queue.size());
-
         // 创建消息序列
         List<Mono<Void>> messageSequence = new ArrayList<>();
 
         // 1. 如果是第一条消息，发送开始标记
         if (task.isFirstMessage()) {
-            logger.info("[消息#{}-TTS开始] 发送TTS开始标记", sequenceNumber);
             messageSequence.add(sendTtsStartMessage(session, sequenceNumber));
         }
 
         // 2. 如果有文本，发送句子开始标记
         if (task.getText() != null && !task.getText().isEmpty()) {
-            logger.info("[消息#{}-句子开始] 发送句子开始标记 - 文本: {}", sequenceNumber, task.getText());
             messageSequence.add(sendSentenceStartMessage(session, task.getText(), sequenceNumber));
         }
 
@@ -385,7 +369,6 @@ public class AudioService {
 
         // 4. 添加音频发送操作到序列
         if (!audioMessages.isEmpty()) {
-            logger.info("[消息#{}-音频数据] 准备发送音频数据 - 帧数: {}", sequenceNumber, audioMessages.size());
             messageSequence.add(
                     session.send(
                             Flux.fromIterable(audioMessages)
@@ -395,7 +378,6 @@ public class AudioService {
 
         // 6. 如果是最后一条消息，发送结束标记
         if (task.isLastMessage()) {
-            logger.info("[消息#{}-TTS结束] 发送TTS结束标记", sequenceNumber);
             messageSequence.add(sendTtsStopMessage(session, sequenceNumber));
         }
 
@@ -405,16 +387,13 @@ public class AudioService {
                 .doFinally(signalType -> {
                     // 删除音频文件
                     deleteAudioFiles(task.getAudioFilePath());
-                    logger.info("[消息#{}-清理] 音频文件已删除: {}", sequenceNumber, task.getAudioFilePath());
 
                     // 继续处理队列中的下一个任务
                     if (!queue.isEmpty() && session.isOpen()) {
-                        logger.info("[消息#{}-继续] 继续处理队列中的下一个任务 - 剩余任务数: {}", sequenceNumber, queue.size());
                         processAudioQueue(session, sessionId)
                                 .subscribe();
                     } else {
                         // 队列为空，重置处理状态
-                        logger.info("[消息#{}-队列空] 队列处理完毕，重置处理状态", sequenceNumber);
                         isProcessing.set(false);
                     }
                 });
@@ -476,7 +455,6 @@ public class AudioService {
             jsonBuilder.append("}");
 
             String message = jsonBuilder.toString();
-            logger.info("[消息#{}-发送] 发送句子开始消息: {}", sequenceNumber, message);
 
             return session.send(Mono.just(session.textMessage(message)));
         } catch (Exception e) {
@@ -494,10 +472,8 @@ public class AudioService {
     public Mono<Void> sendTtsStartMessage(WebSocketSession session, int sequenceNumber) {
         try {
             String message = "{\"type\":\"tts\",\"state\":\"start\"}";
-            logger.info("[消息#{}-发送] 发送TTS开始消息: {}", sequenceNumber, message);
             return session.send(Mono.just(session.textMessage(message)));
         } catch (Exception e) {
-            logger.error("[消息#{}-错误] 发送TTS开始消息失败", sequenceNumber, e);
             return Mono.empty();
         }
     }
@@ -510,7 +486,6 @@ public class AudioService {
      */
     public Mono<Void> sendTtsStopMessage(WebSocketSession session, int sequenceNumber) {
         if (session == null || !session.isOpen()) {
-            logger.warn("[消息#{}-错误] 尝试发送停止指令到无效的WebSocket会话", sequenceNumber);
             return Mono.empty();
         }
 
@@ -528,13 +503,10 @@ public class AudioService {
             });
 
             // 清空队列
-            int queueSize = queue.size();
             queue.clear();
-            logger.info("[消息#{}-清空队列] 清空音频队列 - 清除任务数: {}", sequenceNumber, queueSize);
 
             // 异步删除文件
             if (!filesToDelete.isEmpty()) {
-                logger.info("[消息#{}-清理文件] 异步删除音频文件 - 文件数: {}", sequenceNumber, filesToDelete.size());
                 Mono.fromRunnable(() -> filesToDelete.forEach(this::deleteAudioFiles))
                         .subscribeOn(Schedulers.boundedElastic())
                         .subscribe();
@@ -544,7 +516,6 @@ public class AudioService {
         // 发送停止指令
         try {
             String message = "{\"type\":\"tts\",\"state\":\"stop\"}";
-            logger.info("[消息#{}-发送] 发送TTS停止消息: {}", sequenceNumber, message);
             return session.send(Mono.just(session.textMessage(message)));
         } catch (Exception e) {
             logger.error("[消息#{}-错误] 发送TTS停止消息失败", sequenceNumber, e);
@@ -561,7 +532,6 @@ public class AudioService {
     public Mono<Void> sendStop(WebSocketSession session) {
         String sessionId = session.getId();
         int sequenceNumber = sessionMessageCounters.getOrDefault(sessionId, new AtomicInteger(0)).incrementAndGet();
-        logger.info("[中断#{}-请求] 收到中断请求 - SessionId: {}", sequenceNumber, sessionId);
 
         // 复用现有的停止方法
         return sendTtsStopMessage(session, sequenceNumber);

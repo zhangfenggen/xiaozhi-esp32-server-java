@@ -10,12 +10,11 @@ import com.xiaozhi.service.SysDeviceService;
 import com.xiaozhi.websocket.llm.LlmManager;
 import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.MessageService;
-import com.xiaozhi.websocket.service.SpeechToTextService;
+import com.xiaozhi.websocket.stt.factory.SttServiceFactory;
 import com.xiaozhi.websocket.service.TextToSpeechService;
 import com.xiaozhi.websocket.service.VadService;
-import com.xiaozhi.websocket.service.VadService.VadResult;
 import com.xiaozhi.websocket.service.VadService.VadStatus;
-import com.xiaozhi.websocket.stt.providers.TencentSttService;
+import com.xiaozhi.websocket.stt.SttService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,13 +22,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Component;
-import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
@@ -59,7 +56,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     private TextToSpeechService textToSpeechService;
 
     @Autowired
-    private SpeechToTextService speechToTextService;
+    private SttServiceFactory sttServiceFactory;
 
     @Autowired
     private VadService vadService;
@@ -249,7 +246,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     }
 
                     // 检查是否支持流式处理
-                    boolean supportsStreaming = (sttConfig != null && "tencent".equals(sttConfig.getProvider()));
+                    boolean supportsStreaming = true;
 
                     // 根据VAD状态处理
                     switch (vadResult.getStatus()) {
@@ -279,10 +276,6 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                                     audioSink.tryEmitComplete();
                                     STREAMING_STATE.put(sessionId, false);
                                 }
-                            } else {
-                                // 如果不支持流式识别，使用一次性识别
-                                return performOneTimeRecognition(session, sessionId, sttConfig, ttsConfig, device,
-                                        vadResult.getProcessedData());
                             }
                             return Mono.empty();
 
@@ -318,8 +311,15 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         AUDIO_SINKS.put(sessionId, audioSink);
         STREAMING_STATE.put(sessionId, true);
 
-        // 创建腾讯云流式识别服务
-        TencentSttService tencentSttService = new TencentSttService(sttConfig);
+        // 获取对应的STT服务
+        SttService sttService = sttServiceFactory.getSttService(sttConfig);
+
+        if (sttService == null) {
+            logger.error("无法获取STT服务 - Provider: {}", sttConfig != null ? sttConfig.getProvider() : "null");
+            return Mono.empty();
+        }
+
+        logger.info("初始化流式识别 - Provider: {}, SessionId: {}", sttService.getProviderName(), sessionId);
 
         // 发送初始音频数据
         if (initialAudio != null && initialAudio.length > 0) {
@@ -327,7 +327,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         }
 
         // 启动流式识别
-        tencentSttService.streamRecognition(audioSink.asFlux())
+        sttService.streamRecognition(audioSink.asFlux())
                 .doOnNext(text -> {
                     // 发送中间识别结果
                     if (StringUtils.hasText(text)) {
@@ -374,70 +374,6 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                 .subscribe();
 
         return Mono.empty();
-    }
-
-    /**
-     * 执行一次性语音识别
-     */
-    private Mono<Void> performOneTimeRecognition(
-            WebSocketSession session,
-            String sessionId,
-            SysConfig sttConfig,
-            SysConfig ttsConfig,
-            SysDevice device,
-            byte[] audioData) {
-
-        logger.info("执行一次性语音识别 - SessionId: {}, 音频大小: {} 字节", sessionId, audioData.length);
-
-        return Mono.fromCallable(() -> {
-            String result;
-            if (!ObjectUtils.isEmpty(sttConfig)) {
-                result = speechToTextService.recognition(audioData, sttConfig);
-            } else {
-                String jsonResult = speechToTextService.recognition(audioData);
-                try {
-                    JsonNode resultNode = objectMapper.readTree(jsonResult);
-                    result = resultNode.path("text").asText("");
-                } catch (Exception e) {
-                    logger.error("解析语音识别结果失败", e);
-                    result = "";
-                }
-            }
-            return result;
-        })
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(recognizedText -> {
-                    if (!StringUtils.hasText(recognizedText)) {
-                        return Mono.empty();
-                    }
-
-                    logger.info("一次性识别结果 - SessionId: {}, 内容: {}", sessionId, recognizedText);
-
-                    // 设置会话为非监听状态，防止处理自己的声音
-                    LISTENING_STATE.put(sessionId, false);
-
-                    // 发送识别结果
-                    return messageService.sendMessage(session, "stt", "final", recognizedText)
-                            .then(Mono.fromRunnable(() -> {
-                                // 使用句子切分处理流式响应
-                                llmManager.chatStreamBySentence(device, recognizedText,
-                                        (sentence, isStart, isEnd) -> {
-                                            Mono.fromCallable(() -> textToSpeechService.textToSpeech(
-                                                    sentence, ttsConfig, device.getVoiceName()))
-                                                    .subscribeOn(Schedulers.boundedElastic())
-                                                    .flatMap(audioPath -> audioService
-                                                            .sendAudioMessage(session, audioPath, sentence,
-                                                                    isStart, isEnd)
-                                                            .doOnError(e -> logger.error("发送音频消息失败: {}",
-                                                                    e.getMessage(), e)))
-                                                    .onErrorResume(e -> {
-                                                        logger.error("处理句子失败: {}", e.getMessage(), e);
-                                                        return Mono.empty();
-                                                    })
-                                                    .subscribe();
-                                        });
-                            }));
-                });
     }
 
     private Mono<Void> handleUnboundDevice(WebSocketSession session, SysDevice device) {
