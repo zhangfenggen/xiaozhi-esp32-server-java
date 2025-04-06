@@ -351,6 +351,8 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                                 // 使用句子切分处理流式响应
                                 llmManager.chatStreamBySentence(device, finalText,
                                         (sentence, isStart, isEnd) -> {
+                                            logger.debug("接收到句子用于TTS: '{}', isStart={}, isEnd={}",
+                                                    sentence, isStart, isEnd);
                                             Mono.fromCallable(() -> textToSpeechService.textToSpeech(
                                                     sentence, ttsConfig, device.getVoiceName()))
                                                     .subscribeOn(Schedulers.boundedElastic())
@@ -484,7 +486,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     llmManager.chatStreamBySentence(device, text,
                             (sentence, isStart, isEnd) -> {
                                 // 检查是否使用流式TTS
-                                boolean useStreamTts = ttsConfig != null && "true".equals(ttsConfig.getConfigDesc());
+                                boolean useStreamTts = true;
 
                                 if (useStreamTts) {
                                     // 使用流式TTS处理

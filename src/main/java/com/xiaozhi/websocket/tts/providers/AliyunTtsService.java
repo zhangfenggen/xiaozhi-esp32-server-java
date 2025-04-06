@@ -89,7 +89,31 @@ public class AliyunTtsService implements TtsService {
 
         try {
             // 创建语音合成请求
-            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, getSynthesizerListener());
+            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, new SpeechSynthesizerListener() {
+                @Override
+                public void onComplete(SpeechSynthesizerResponse response) {
+                    logger.info("语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFail(SpeechSynthesizerResponse response) {
+                    logger.error("语音合成失败 - TaskId: {}, Status: {}, StatusText: {}",
+                            response.getTaskId(), response.getStatus(), response.getStatusText());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onMessage(ByteBuffer message) {
+                    byte[] buffer = new byte[message.remaining()];
+                    message.get(buffer);
+                    try {
+                        outputStream.write(buffer);
+                    } catch (IOException e) {
+                        logger.error("写入音频数据失败", e);
+                    }
+                }
+            });
 
             // 设置appKey
             synthesizer.setAppKey(appKey);
@@ -106,12 +130,10 @@ public class AliyunTtsService implements TtsService {
             // 设置语调
             synthesizer.setPitchRate(0);
 
-            // 开始语音合成
-            synthesizer.start();
             // 发送文本
             synthesizer.setText(text);
-            // 结束语音合成
-            synthesizer.waitForComplete();
+            // 开始语音合成
+            synthesizer.start();
 
             // 等待语音合成完成
             latch.await();
@@ -119,6 +141,12 @@ public class AliyunTtsService implements TtsService {
             // 保存音频文件
             String audioFileName = getAudioFileName();
             String filePath = outputPath + audioFileName;
+
+            // 确保输出目录存在
+            File outputDir = new File(outputPath);
+            if (!outputDir.exists()) {
+                outputDir.mkdirs();
+            }
 
             try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
                 fileOutputStream.write(outputStream.toByteArray());
@@ -133,9 +161,45 @@ public class AliyunTtsService implements TtsService {
 
     @Override
     public void streamTextToSpeech(String text, Consumer<byte[]> audioDataConsumer) throws Exception {
+        logger.info("开始阿里云流式语音合成 - 文本长度: {}", text.length());
+
+        // 创建合成完成信号
+        CountDownLatch latch = new CountDownLatch(1);
+
         try {
             // 创建语音合成请求
-            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, getSynthesizerListener());
+            SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, new SpeechSynthesizerListener() {
+                private boolean firstPacket = true;
+
+                @Override
+                public void onComplete(SpeechSynthesizerResponse response) {
+                    logger.info("流式语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFail(SpeechSynthesizerResponse response) {
+                    logger.error("流式语音合成失败 - TaskId: {}, Status: {}, StatusText: {}",
+                            response.getTaskId(), response.getStatus(), response.getStatusText());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onMessage(ByteBuffer message) {
+                    if (firstPacket) {
+                        logger.info("收到首个音频数据包，延迟: {} ms", System.currentTimeMillis());
+                        firstPacket = false;
+                    }
+
+                    // 从ByteBuffer中获取字节数组
+                    byte[] buffer = new byte[message.remaining()];
+                    message.get(buffer);
+
+                    // 将音频数据传递给消费者函数
+                    audioDataConsumer.accept(buffer);
+                }
+            });
+
             // 设置appKey
             synthesizer.setAppKey(appKey);
             // 设置PCM格式输出，便于直接处理
@@ -145,74 +209,30 @@ public class AliyunTtsService implements TtsService {
             // 设置语音
             synthesizer.setVoice(voiceName);
             // 设置音量
-            synthesizer.setVolume(50);
+            synthesizer.setVolume(100);
             // 设置语速
             synthesizer.setSpeechRate(0);
             // 设置语调
             synthesizer.setPitchRate(0);
 
-            // 开始语音合成
-            synthesizer.start();
             // 发送文本
             synthesizer.setText(text);
-            // 结束语音合成
-            synthesizer.waitForComplete();
+
+            // 开始语音合成
+            long startTime = System.currentTimeMillis();
+            synthesizer.start();
+            logger.info("语音合成请求已发送，耗时: {} ms", System.currentTimeMillis() - startTime);
+
+            // 我们需要等待合成完成后再关闭synthesizer
+            latch.await();
+
+            // 合成完成后关闭synthesizer
+            synthesizer.close();
 
         } catch (Exception e) {
             logger.error("阿里云流式语音合成失败: {}", e.getMessage(), e);
             throw e;
         }
-    }
-
-    private static SpeechSynthesizerListener getSynthesizerListener() {
-        SpeechSynthesizerListener listener = null;
-        try {
-            listener = new SpeechSynthesizerListener() {
-                File f = new File("tts_test.wav");
-                FileOutputStream fout = new FileOutputStream(f);
-                private boolean firstRecvBinary = true;
-
-                // 语音合成结束
-                @Override
-                public void onComplete(SpeechSynthesizerResponse response) {
-                    // 调用onComplete时表示所有TTS数据已接收完成，因此为整个合成数据的延迟。该延迟可能较大，不一定满足实时场景。
-                    System.out.println("name: " + response.getName() +
-                            ", status: " + response.getStatus() +
-                            ", output file :" + f.getAbsolutePath());
-                }
-
-                // 语音合成的语音二进制数据
-                @Override
-                public void onMessage(ByteBuffer message) {
-                    try {
-                        if (firstRecvBinary) {
-                            // 计算首包语音流的延迟，收到第一包语音流时，即可以进行语音播放，以提升响应速度（特别是实时交互场景下）。
-                            firstRecvBinary = false;
-                            long now = System.currentTimeMillis();
-                        }
-                        byte[] bytesArray = new byte[message.remaining()];
-                        message.get(bytesArray, 0, bytesArray.length);
-                        fout.write(bytesArray);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                @Override
-                public void onFail(SpeechSynthesizerResponse response) {
-                    // task_id是调用方和服务端通信的唯一标识，当遇到问题时需要提供task_id以便排查。
-                    System.out.println(
-                            "task_id: " + response.getTaskId() +
-                    // 状态码 20000000 表示识别成功
-                                    ", status: " + response.getStatus() +
-                    // 错误信息
-                                    ", status_text: " + response.getStatusText());
-                }
-            };
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return listener;
     }
 
     /**

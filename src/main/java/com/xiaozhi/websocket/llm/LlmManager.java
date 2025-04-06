@@ -180,12 +180,19 @@ public class LlmManager {
 
                 @Override
                 public void onToken(String token) {
+                    // 记录每个接收到的token
+                    logger.debug("收到token: '{}'", token);
+
                     // 将token添加到完整响应
                     fullResponse.append(token);
 
                     // 检查是否有待处理的句子
                     String pending = pendingSentence.get();
                     if (pending != null) {
+                        // 记录待处理的句子
+                        logger.debug("发送待处理句子: '{}', isStart={}, isEnd={}",
+                                pending, sentenceCount.get() == 0, false);
+
                         // 有待处理的句子，发送它
                         boolean isStart = sentenceCount.get() == 0;
                         boolean isEnd = false; // 中间句子不是结束
@@ -196,30 +203,40 @@ public class LlmManager {
 
                     // 将token添加到当前句子
                     currentSentence.append(token);
+                    logger.debug("当前句子缓冲区: '{}'", currentSentence.toString());
 
                     // 检查是否包含标点符号
-                    if (PUNCTUATION_PATTERN.matcher(token).matches()) {
+                    if (PUNCTUATION_PATTERN.matcher(token).find()) {
+                        logger.debug("检测到标点符号: '{}'", token);
+
                         // 检查当前句子是否达到最小长度
                         if (currentSentence.length() >= MIN_SENTENCE_LENGTH) {
                             String sentence = currentSentence.toString().trim();
+                            logger.debug("设置待处理句子: '{}'", sentence);
 
                             // 不立即发送，而是将其设置为待处理
                             pendingSentence.set(sentence);
 
                             // 重置当前句子
                             currentSentence.setLength(0);
+                        } else {
+                            logger.debug("句子长度不足: {} < {}", currentSentence.length(), MIN_SENTENCE_LENGTH);
                         }
                     }
                 }
 
                 @Override
                 public void onComplete(String completeResponse) {
+                    logger.debug("流式响应完成，完整响应: '{}'", completeResponse);
+
                     // 处理待发送的句子（如果有）
                     String pending = pendingSentence.getAndSet(null);
                     if (pending != null) {
                         // 如果这是第一个句子，isStart=true，如果是最后一个，isEnd=true
                         boolean isStart = sentenceCount.get() == 0;
                         boolean isEnd = true; // 最后一个待处理句子是结束
+                        logger.debug("发送最后一个待处理句子: '{}', isStart={}, isEnd={}",
+                                pending, isStart, isEnd);
                         sentenceHandler.accept(pending, isStart, isEnd);
                         sentenceCount.incrementAndGet();
                     }
@@ -227,17 +244,18 @@ public class LlmManager {
                     // 处理可能剩余的最后一个句子
                     if (currentSentence.length() > 0) {
                         String sentence = currentSentence.toString().trim();
-
                         // 确定句子状态
                         boolean isStart = sentenceCount.get() == 0;
                         boolean isEnd = true; // 最后一个句子是结束
-
+                        logger.debug("发送剩余最后一个句子: '{}', isStart={}, isEnd={}",
+                                sentence, isStart, isEnd);
                         sentenceHandler.accept(sentence, isStart, isEnd);
                         sentenceCount.incrementAndGet();
                     }
 
                     // 如果没有任何句子被处理，发送一个空的结束标记
                     if (sentenceCount.get() == 0) {
+                        logger.debug("没有句子被处理，发送空结束标记");
                         sentenceHandler.accept("", true, true);
                     }
                 }

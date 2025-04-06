@@ -13,6 +13,7 @@ import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
@@ -352,6 +353,8 @@ public class AudioService {
         // 获取消息序列号
         int sequenceNumber = sessionMessageCounters.get(sessionId).incrementAndGet();
 
+        logger.info("开始流式TTS处理 - 文本: {}, 序列号: {}", text, sequenceNumber);
+
         // 创建消息序列
         List<Mono<Void>> messageSequence = new ArrayList<>();
 
@@ -365,41 +368,45 @@ public class AudioService {
             messageSequence.add(sendSentenceStartMessage(session, text, sequenceNumber));
         }
 
-        // 3. 创建音频数据处理流
-        Flux<WebSocketMessage> audioMessageFlux = Flux.create(sink -> {
-            try {
-                // 创建音频数据消费者
-                Consumer<byte[]> audioDataConsumer = pcmData -> {
-                    try {
-                        // 转换PCM数据为Opus格式
-                        List<byte[]> opusFrames = opusProcessor.convertPcmToOpus(
-                                pcmData, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, FRAME_DURATION_MS);
+        // 3. 创建一个Sink用于接收音频数据
+        Sinks.Many<byte[]> audioSink = Sinks.many().unicast().onBackpressureBuffer();
 
-                        // 发送每一帧
-                        for (byte[] frame : opusFrames) {
-                            DataBuffer buffer = bufferFactory.wrap(frame);
-                            sink.next(session.binaryMessage(factory -> buffer));
-                        }
-                    } catch (Exception e) {
-                        logger.error("[消息#{}-错误] 处理流式音频数据失败", sequenceNumber, e);
+        // 4. 启动TTS流式处理，将音频数据发送到Sink
+        try {
+            // 创建音频数据消费者
+            Consumer<byte[]> audioDataConsumer = pcmData -> {
+                try {
+                    // 将PCM数据转换为Opus格式
+                    List<byte[]> opusFrames = opusProcessor.convertPcmToOpus(pcmData, 16000, 1, 20);
+
+                    // 将每一帧添加到Sink
+                    for (byte[] frame : opusFrames) {
+                        audioSink.tryEmitNext(frame);
                     }
-                };
+                } catch (Exception e) {
+                    logger.error("PCM转Opus失败: {}", e.getMessage(), e);
+                }
+            };
 
-                // 调用TTS服务进行流式转换
-                textToSpeechService.streamTextToSpeech(text, config, voiceName, audioDataConsumer);
+            // 启动流式TTS
+            textToSpeechService.streamTextToSpeech(text, config, voiceName, audioDataConsumer);
 
-                // 完成数据流
-                sink.complete();
-            } catch (Exception e) {
-                logger.error("[消息#{}-错误] 流式音频转换失败", sequenceNumber, e);
-                sink.complete();
-            }
-        });
+        } catch (Exception e) {
+            logger.error("启动流式TTS失败: {}", e.getMessage(), e);
+            audioSink.tryEmitComplete();
+        }
+
+        // 5. 将Sink转换为Flux，并发送到WebSocket
+        Flux<WebSocketMessage> audioMessages = audioSink.asFlux()
+                .map(frame -> {
+                    DataBuffer buffer = bufferFactory.wrap(frame);
+                    return session.binaryMessage(factory -> buffer);
+                });
 
         // 添加音频发送操作到序列
-        messageSequence.add(session.send(audioMessageFlux.delayElements(Duration.ofMillis(FRAME_DURATION_MS))));
+        messageSequence.add(session.send(audioMessages));
 
-        // 4. 如果是最后一条消息，发送结束标记
+        // 6. 如果是最后一条消息，发送结束标记
         if (isEnd) {
             messageSequence.add(sendTtsStopMessage(session, sequenceNumber));
         }
