@@ -20,6 +20,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -233,6 +234,119 @@ public class AliyunTtsService implements TtsService {
             logger.error("阿里云流式语音合成失败: {}", e.getMessage(), e);
             throw e;
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> streamTextToSpeechAsync(String text, Consumer<byte[]> audioDataConsumer) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+
+        // 在单独的线程中执行，避免阻塞
+        CompletableFuture.runAsync(() -> {
+            logger.info("开始阿里云流式语音合成 - 文本长度: {}", text.length());
+
+            SpeechSynthesizer synthesizer = null;
+            try {
+                // 确保有有效的客户端
+                if (client == null || token == null) {
+                    initClient();
+                    if (client == null) {
+                        throw new RuntimeException("无法初始化阿里云NLS客户端");
+                    }
+                }
+
+                // 创建语音合成请求
+                synthesizer = new SpeechSynthesizer(client, new SpeechSynthesizerListener() {
+                    private boolean firstPacket = true;
+                    private ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    private static final int BUFFER_SIZE = 4096; // 4KB 缓冲区
+
+                    @Override
+                    public void onComplete(SpeechSynthesizerResponse response) {
+                        logger.info("流式语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
+
+                        // 发送最后剩余的数据
+                        if (buffer.size() > 0) {
+                            audioDataConsumer.accept(buffer.toByteArray());
+                        }
+
+                        // 合成完成，完成Future
+                        future.complete(null);
+                    }
+
+                    @Override
+                    public void onFail(SpeechSynthesizerResponse response) {
+                        logger.error("流式语音合成失败 - TaskId: {}, Status: {}, StatusText: {}",
+                                response.getTaskId(), response.getStatus(), response.getStatusText());
+                        // 合成失败，异常完成Future
+                        future.completeExceptionally(new RuntimeException(
+                                "阿里云TTS失败: " + response.getStatusText()));
+                    }
+
+                    @Override
+                    public void onMessage(ByteBuffer message) {
+                        if (firstPacket) {
+                            logger.info("收到首个音频数据包，延迟: {} ms", System.currentTimeMillis());
+                            firstPacket = false;
+                        }
+
+                        // 从ByteBuffer中获取字节数组
+                        byte[] data = new byte[message.remaining()];
+                        message.get(data);
+
+                        try {
+                            // 将数据添加到缓冲区
+                            buffer.write(data);
+
+                            // 当缓冲区达到一定大小时，发送数据并清空缓冲区
+                            if (buffer.size() >= BUFFER_SIZE) {
+                                audioDataConsumer.accept(buffer.toByteArray());
+                                buffer.reset();
+                            }
+                        } catch (IOException e) {
+                            logger.error("处理音频数据时发生错误", e);
+                        }
+                    }
+                });
+
+                // 设置appKey
+                synthesizer.setAppKey(appKey);
+                // 设置PCM格式输出，便于直接处理
+                synthesizer.setFormat(OutputFormatEnum.PCM);
+                // 设置采样率
+                synthesizer.setSampleRate(SampleRateEnum.SAMPLE_RATE_16K);
+                // 设置语音
+                synthesizer.setVoice(voiceName);
+                // 设置音量
+                synthesizer.setVolume(100);
+                // 设置语速
+                synthesizer.setSpeechRate(0);
+                // 设置语调
+                synthesizer.setPitchRate(0);
+
+                // 发送文本
+                synthesizer.setText(text);
+
+                // 开始语音合成
+                long startTime = System.currentTimeMillis();
+                synthesizer.start();
+                logger.info("语音合成请求已发送，耗时: {} ms", System.currentTimeMillis() - startTime);
+
+            } catch (Exception e) {
+                logger.error("阿里云流式语音合成失败: {}", e.getMessage(), e);
+                future.completeExceptionally(e);
+
+                // 关闭synthesizer
+                if (synthesizer != null) {
+                    try {
+                        synthesizer.close();
+                    } catch (Exception closeEx) {
+                        logger.error("关闭synthesizer失败", closeEx);
+                    }
+                }
+            }
+        });
+
+        return future;
     }
 
     /**
