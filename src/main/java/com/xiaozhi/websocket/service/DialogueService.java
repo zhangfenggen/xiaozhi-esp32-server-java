@@ -17,6 +17,12 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * 对话处理服务
  * 负责处理语音识别和对话生成的业务逻辑
@@ -45,6 +51,14 @@ public class DialogueService {
 
     @Autowired
     private SessionManager sessionManager;
+    
+    // 添加一个每个会话的TTS请求限制器
+    private final Map<String, Semaphore> sessionTtsLimiters = new ConcurrentHashMap<>();
+    
+    // 添加一个每个会话的句子序列号计数器
+    private final Map<String, AtomicInteger> sessionSentenceCounters = new ConcurrentHashMap<>();
+
+    private final Semaphore ttsRequestLimit = new Semaphore(2); // 限制同时进行的TTS请求数量，试用版通常限制为2个并发
 
     /**
      * 处理音频数据
@@ -178,29 +192,30 @@ public class DialogueService {
                     // 设置会话为非监听状态，防止处理自己的声音
                     sessionManager.setListeningState(sessionId, false);
 
+                    // 确保为此会话创建TTS限制器
+                    sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 最多2个并发TTS请求
+                    sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
+
                     // 发送最终识别结果
                     return messageService.sendMessage(session, "stt", "final", finalText)
                             .then(Mono.fromRunnable(() -> {
                                 // 使用句子切分处理流式响应
                                 llmManager.chatStreamBySentence(device, finalText,
                                         (sentence, isStart, isEnd) -> {
-                                            // 使用非流式TTS处理
-                                            Mono.fromCallable(
-                                                    () -> ttsService
-                                                            .getTtsService(finalTtsConfig, device.getVoiceName())
-                                                            .textToSpeech(
-                                                                    sentence))
-                                                    .subscribeOn(Schedulers.boundedElastic())
-                                                    .flatMap(audioPath -> audioService
-                                                            .sendAudioMessage(session, audioPath, sentence, isStart,
-                                                                    isEnd)
-                                                            .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(),
-                                                                    e)))
-                                                    .onErrorResume(e -> {
-                                                        logger.error("处理句子失败: {}", e.getMessage(), e);
-                                                        return Mono.empty();
-                                                    })
-                                                    .subscribe();
+                                            // 获取句子序列号
+                                            int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
+                                            
+                                            // 使用TTS限制器控制并发
+                                            processSentenceWithRateLimit(
+                                                session, 
+                                                sessionId, 
+                                                sentence, 
+                                                isStart, 
+                                                isEnd, 
+                                                finalTtsConfig, 
+                                                device.getVoiceName(), 
+                                                sentenceNumber
+                                            );
                                         });
                             }));
                 })
@@ -211,6 +226,56 @@ public class DialogueService {
                 .subscribe();
 
         return Mono.empty();
+    }
+    
+    /**
+     * 使用限流器处理句子的TTS转换
+     */
+    private void processSentenceWithRateLimit(
+            WebSocketSession session, 
+            String sessionId, 
+            String sentence, 
+            boolean isStart, 
+            boolean isEnd, 
+            SysConfig ttsConfig, 
+            String voiceName,
+            int sentenceNumber) {
+        
+        Semaphore limiter = sessionTtsLimiters.get(sessionId);
+        
+        // 尝试获取许可
+        Mono.fromCallable(() -> {
+            // 尝试获取许可，如果无法获取，等待一段时间
+            boolean acquired = limiter.tryAcquire();
+            if (!acquired) {
+                // 阻塞获取许可
+                limiter.acquire();
+            }
+            return true;
+        })
+        .subscribeOn(Schedulers.boundedElastic())
+        .flatMap(acquired -> 
+            // 使用非流式TTS处理
+            Mono.fromCallable(() -> 
+                ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence)
+            )
+            .subscribeOn(Schedulers.boundedElastic())
+            .flatMap(audioPath -> 
+                audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd)
+                .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e))
+            )
+        )
+        .doFinally(signalType -> {
+            // 释放许可
+            limiter.release();
+        })
+        .onErrorResume(e -> {
+            logger.error("处理句子 #{} 失败: {}", sentenceNumber, e.getMessage(), e);
+            // 确保释放许可
+            limiter.release();
+            return Mono.empty();
+        })
+        .subscribe();
     }
 
     /**
@@ -237,6 +302,10 @@ public class DialogueService {
         // 设置为非监听状态，防止处理自己的声音
         sessionManager.setListeningState(sessionId, false);
 
+        // 确保为此会话创建TTS限制器
+        sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 最多2个并发TTS请求
+        sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
+
         // 发送识别结果
         messageService.sendMessage(session, "stt", "start", text).subscribe();
 
@@ -245,21 +314,20 @@ public class DialogueService {
             // 使用句子切分处理流式响应
             llmManager.chatStreamBySentence(device, text,
                     (sentence, isStart, isEnd) -> {
-                        // 使用非流式TTS处理
-                        Mono.fromCallable(
-                                () -> ttsService.getTtsService(ttsConfig, device.getVoiceName()).textToSpeech(
-                                        sentence))
-                                .subscribeOn(Schedulers.boundedElastic())
-                                .flatMap(audioPath -> audioService
-                                        .sendAudioMessage(session, audioPath, sentence, isStart,
-                                                isEnd)
-                                        .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(),
-                                                e)))
-                                .onErrorResume(e -> {
-                                    logger.error("处理句子失败: {}", e.getMessage(), e);
-                                    return Mono.empty();
-                                })
-                                .subscribe();
+                        // 获取句子序列号
+                        int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
+                        
+                        // 使用TTS限制器控制并发
+                        processSentenceWithRateLimit(
+                            session, 
+                            sessionId, 
+                            sentence, 
+                            isStart, 
+                            isEnd, 
+                            ttsConfig, 
+                            device.getVoiceName(),
+                            sentenceNumber
+                        );
                     });
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
@@ -281,5 +349,16 @@ public class DialogueService {
 
         // 终止语音发送
         return audioService.sendStop(session);
+    }
+    
+    /**
+     * 清理会话资源
+     * 
+     * @param sessionId 会话ID
+     */
+    public void cleanupSession(String sessionId) {
+        // 移除会话的TTS限制器和计数器
+        sessionTtsLimiters.remove(sessionId);
+        sessionSentenceCounters.remove(sessionId);
     }
 }

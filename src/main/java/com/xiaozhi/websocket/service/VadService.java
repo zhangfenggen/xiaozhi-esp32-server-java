@@ -454,7 +454,6 @@ public class VadService {
             }
 
             sessionLocks.remove(sessionId);
-            logger.info("VAD会话重置 - SessionId: {}", sessionId);
         }
     }
 

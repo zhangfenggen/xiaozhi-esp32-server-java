@@ -199,7 +199,6 @@ public class AudioService {
         sessionMessageCounters.putIfAbsent(sessionId, new AtomicInteger(0));
         sessionStreamingQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
         sessionStreamingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
-        logger.debug("音频会话初始化 - SessionId: {}", sessionId);
     }
 
     /**
@@ -259,7 +258,6 @@ public class AudioService {
         sessionStreamingQueues.remove(sessionId);
         sessionStreamingFlags.remove(sessionId);
 
-        logger.debug("音频处理会话已清理 - SessionId: {}", sessionId);
     }
 
     /**

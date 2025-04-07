@@ -1,6 +1,5 @@
 package com.xiaozhi.websocket.tts.providers;
 
-import com.alibaba.nls.client.AccessToken;
 import com.alibaba.nls.client.protocol.NlsClient;
 import com.alibaba.nls.client.protocol.OutputFormatEnum;
 import com.alibaba.nls.client.protocol.SampleRateEnum;
@@ -8,11 +7,11 @@ import com.alibaba.nls.client.protocol.tts.SpeechSynthesizer;
 import com.alibaba.nls.client.protocol.tts.SpeechSynthesizerListener;
 import com.alibaba.nls.client.protocol.tts.SpeechSynthesizerResponse;
 import com.xiaozhi.entity.SysConfig;
-import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.tts.TtsService;
-
+import com.xiaozhi.websocket.token.TokenManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -33,27 +32,26 @@ public class AliyunTtsService implements TtsService {
     private static final String NLS_URL = "wss://nls-gateway.aliyuncs.com/ws/v1";
 
     // 阿里云配置
-    private final String accessKeyId;
-    private final String accessKeySecret;
-    private final String appKey;
+    private final SysConfig config;
     private final String voiceName;
     private final String outputPath;
-
-    // 存储Token信息
-    private String token;
-    private long expireTime;
-
     // 全局共享的NLS客户端
     private NlsClient client;
 
+    // Token管理器
+    @Autowired
+    private TokenManager tokenManager;
+
     public AliyunTtsService(SysConfig config,
-            String voiceName, String outputPath) {
-        this.accessKeyId = config.getAppId();
-        this.accessKeySecret = config.getApiSecret();
-        this.appKey = config.getApiKey();
+                            String voiceName, String outputPath) {
+        this.config = config;
         this.voiceName = voiceName;
         this.outputPath = outputPath;
+    }
 
+    // 设置TokenManager的方法，由工厂类调用
+    public void setTokenManager(TokenManager tokenManager) {
+        this.tokenManager = tokenManager;
         // 初始化NLS客户端（如果尚未初始化）
         initClient();
     }
@@ -61,7 +59,7 @@ public class AliyunTtsService implements TtsService {
     private void initClient() {
         try {
             // 获取有效Token
-            String accessToken = getValidToken();
+            String accessToken = tokenManager.getValidToken(config);
             if (accessToken != null) {
                 // 创建NLS客户端实例
                 client = new NlsClient(NLS_URL, accessToken);
@@ -93,14 +91,11 @@ public class AliyunTtsService implements TtsService {
             SpeechSynthesizer synthesizer = new SpeechSynthesizer(client, new SpeechSynthesizerListener() {
                 @Override
                 public void onComplete(SpeechSynthesizerResponse response) {
-                    logger.info("语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
                     latch.countDown();
                 }
 
                 @Override
                 public void onFail(SpeechSynthesizerResponse response) {
-                    logger.error("语音合成失败 - TaskId: {}, Status: {}, StatusText: {}",
-                            response.getTaskId(), response.getStatus(), response.getStatusText());
                     latch.countDown();
                 }
 
@@ -117,7 +112,7 @@ public class AliyunTtsService implements TtsService {
             });
 
             // 设置appKey
-            synthesizer.setAppKey(appKey);
+            synthesizer.setAppKey(config.getApiKey());
             // 设置语音输出格式
             synthesizer.setFormat(OutputFormatEnum.MP3);
             // 设置采样率
@@ -174,21 +169,17 @@ public class AliyunTtsService implements TtsService {
 
                 @Override
                 public void onComplete(SpeechSynthesizerResponse response) {
-                    logger.info("流式语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
                     latch.countDown();
                 }
 
                 @Override
                 public void onFail(SpeechSynthesizerResponse response) {
-                    logger.error("流式语音合成失败 - TaskId: {}, Status: {}, StatusText: {}",
-                            response.getTaskId(), response.getStatus(), response.getStatusText());
                     latch.countDown();
                 }
 
                 @Override
                 public void onMessage(ByteBuffer message) {
                     if (firstPacket) {
-                        logger.info("收到首个音频数据包，延迟: {} ms", System.currentTimeMillis());
                         firstPacket = false;
                     }
 
@@ -202,7 +193,7 @@ public class AliyunTtsService implements TtsService {
             });
 
             // 设置appKey
-            synthesizer.setAppKey(appKey);
+            synthesizer.setAppKey(config.getApiKey());
             // 设置PCM格式输出，便于直接处理
             synthesizer.setFormat(OutputFormatEnum.PCM);
             // 设置采样率
@@ -247,7 +238,7 @@ public class AliyunTtsService implements TtsService {
             SpeechSynthesizer synthesizer = null;
             try {
                 // 确保有有效的客户端
-                if (client == null || token == null) {
+                if (client == null || tokenManager.getValidToken(config) == null) {
                     initClient();
                     if (client == null) {
                         throw new RuntimeException("无法初始化阿里云NLS客户端");
@@ -262,7 +253,6 @@ public class AliyunTtsService implements TtsService {
 
                     @Override
                     public void onComplete(SpeechSynthesizerResponse response) {
-                        logger.info("流式语音合成完成 - TaskId: {}, Status: {}", response.getTaskId(), response.getStatus());
 
                         // 发送最后剩余的数据
                         if (buffer.size() > 0) {
@@ -309,7 +299,7 @@ public class AliyunTtsService implements TtsService {
                 });
 
                 // 设置appKey
-                synthesizer.setAppKey(appKey);
+                synthesizer.setAppKey(config.getApiKey());
                 // 设置PCM格式输出，便于直接处理
                 synthesizer.setFormat(OutputFormatEnum.PCM);
                 // 设置采样率
@@ -347,31 +337,6 @@ public class AliyunTtsService implements TtsService {
         });
 
         return future;
-    }
-
-    /**
-     * 获取有效的阿里云NLS Token
-     */
-    private String getValidToken() {
-        try {
-            // 检查当前token是否存在且未过期
-            long currentTime = System.currentTimeMillis() / 1000; // 转换为秒
-            if (token != null && expireTime > currentTime) {
-                return token;
-            }
-
-            // 获取新token
-            AccessToken accessToken = new AccessToken(accessKeyId, accessKeySecret);
-            accessToken.apply();
-            token = accessToken.getToken();
-            expireTime = accessToken.getExpireTime();
-
-            logger.info("成功获取阿里云NLS Token，过期时间: {}", expireTime);
-            return token;
-        } catch (Exception e) {
-            logger.error("获取阿里云NLS Token时发生错误", e);
-            return null;
-        }
     }
 
     // 关闭资源

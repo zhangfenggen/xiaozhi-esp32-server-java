@@ -124,7 +124,6 @@ public class LlmManager {
 
                 @Override
                 public void onStart() {
-                    logger.info("开始流式响应");
                 }
 
                 @Override
@@ -138,7 +137,6 @@ public class LlmManager {
 
                 @Override
                 public void onComplete(String completeResponse) {
-                    logger.info("流式响应完成，完整响应: {}", completeResponse);
                 }
 
                 @Override
@@ -169,9 +167,6 @@ public class LlmManager {
             final AtomicInteger sentenceCount = new AtomicInteger(0);
             final StringBuilder fullResponse = new StringBuilder();
 
-            // 用于跟踪是否有待处理的句子
-            final AtomicReference<String> pendingSentence = new AtomicReference<>(null);
-
             // 创建流式响应监听器
             StreamResponseListener streamListener = new StreamResponseListener() {
                 @Override
@@ -180,36 +175,27 @@ public class LlmManager {
 
                 @Override
                 public void onToken(String token) {
-
                     // 将token添加到完整响应
                     fullResponse.append(token);
-
-                    // 检查是否有待处理的句子
-                    String pending = pendingSentence.get();
-                    if (pending != null) {
-
-                        // 有待处理的句子，发送它
-                        boolean isStart = sentenceCount.get() == 0;
-                        boolean isEnd = false; // 中间句子不是结束
-                        sentenceHandler.accept(pending, isStart, isEnd);
-                        sentenceCount.incrementAndGet();
-                        pendingSentence.set(null);
-                    }
 
                     // 将token添加到当前句子
                     currentSentence.append(token);
 
                     // 检查是否包含标点符号
                     if (PUNCTUATION_PATTERN.matcher(token).find()) {
-
+                        // 获取当前句子内容
+                        String sentence = currentSentence.toString().trim();
+                        
                         // 检查当前句子是否达到最小长度
-                        if (currentSentence.length() >= MIN_SENTENCE_LENGTH) {
-                            String sentence = currentSentence.toString().trim();
-
-                            // 不立即发送，而是将其设置为待处理
-                            pendingSentence.set(sentence);
-
-                            // 重置当前句子
+                        if (sentence.length() >= MIN_SENTENCE_LENGTH) {
+                            boolean isStart = sentenceCount.get() == 0;
+                            boolean isEnd = false; // 中间句子不是结束
+                            
+                            // 发送完整句子
+                            sentenceHandler.accept(sentence, isStart, isEnd);
+                            sentenceCount.incrementAndGet();
+                            
+                            // 重置当前句子缓冲区
                             currentSentence.setLength(0);
                         }
                     }
@@ -217,17 +203,6 @@ public class LlmManager {
 
                 @Override
                 public void onComplete(String completeResponse) {
-
-                    // 处理待发送的句子（如果有）
-                    String pending = pendingSentence.getAndSet(null);
-                    if (pending != null) {
-                        // 如果这是第一个句子，isStart=true，如果是最后一个，isEnd=true
-                        boolean isStart = sentenceCount.get() == 0;
-                        boolean isEnd = true; // 最后一个待处理句子是结束
-                        sentenceHandler.accept(pending, isStart, isEnd);
-                        sentenceCount.incrementAndGet();
-                    }
-
                     // 处理可能剩余的最后一个句子
                     if (currentSentence.length() > 0) {
                         String sentence = currentSentence.toString().trim();
