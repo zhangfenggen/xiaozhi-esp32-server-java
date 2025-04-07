@@ -82,17 +82,31 @@
             <artifactId>concentus</artifactId>
             <version>1.0.2</version>
         </dependency>
-        <!-- 音频操作 -->
+        <!--javacv 音频操作-->
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv</artifactId>
             <version>1.5.9</version>
+            <exclusions>
+                <!-- 只排除明确不需要的模块 -->
+                <exclusion>
+                    <groupId>org.bytedeco</groupId>
+                    <artifactId>opencv</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bytedeco</groupId>
+                    <artifactId>flycapture</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>ffmpeg</artifactId>
             <version>6.0-1.5.9</version>
+            <classifier>windows-x86_64</classifier>
+<!--            <classifier>linux-x86_64</classifier>-->
         </dependency>
+        <!---->
         <!-- Vosk -->
         <dependency>
             <groupId>com.alphacephei</groupId>
@@ -120,13 +134,24 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
-            <version>5.0.0-alpha.14</version>
+            <version>4.9.3</version>
         </dependency>
         <!-- Kotlin 运行时 -->
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib</artifactId>
-            <version>1.9.0</version> <!-- 使用与OkHttp 5.0.0-alpha.14兼容的版本 -->
+            <version>1.4.10</version>
+        </dependency>
+        <!-- hutool-all -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>5.8.20</version>
+        </dependency>
+        <!-- lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
         </dependency>
     </dependencies>
 

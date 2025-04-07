@@ -8,33 +8,23 @@ import com.xiaozhi.websocket.llm.api.StreamResponseListener;
 import com.xiaozhi.websocket.llm.factory.LlmServiceFactory;
 import com.xiaozhi.websocket.llm.memory.ChatMemory;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
-
-import org.apache.logging.log4j.util.TriConsumer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
 
 /**
  * LLM管理器
  * 负责管理和协调LLM相关功能
  */
+@Slf4j
 @Service
 public class LlmManager {
-    private static final Logger logger = LoggerFactory.getLogger(LlmManager.class);
-
-    // 标点符号模式（中英文标点）
-    private static final Pattern PUNCTUATION_PATTERN = Pattern.compile("[，。！？；,!?;]");
-
-    // 最小句子长度（字符数）
-    private static final int MIN_SENTENCE_LENGTH = 5;
 
     @Autowired
     private SysConfigService configService;
@@ -42,10 +32,15 @@ public class LlmManager {
     @Autowired
     private ChatMemory chatMemory;
 
+    @Autowired
+    @Qualifier("baseThreadPool")
+    private ExecutorService baseThreadPool;
+
     // 设备LLM服务缓存，每个设备只保留一个服务
-    private Map<String, LlmService> deviceLlmServices = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, LlmService> deviceLlmServices = new ConcurrentHashMap<>();
+
     // 设备当前使用的configId缓存
-    private Map<String, Integer> deviceConfigIds = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Integer> deviceConfigIds = new ConcurrentHashMap<>();
 
     /**
      * 处理用户查询（同步方式）
@@ -73,7 +68,7 @@ public class LlmManager {
             return llmService.chat(message, modelContext);
 
         } catch (Exception e) {
-            logger.error("处理查询时出错: {}", e.getMessage(), e);
+            log.error("处理查询时出错: {}", e.getMessage(), e);
             return "抱歉，我在处理您的请求时遇到了问题。请稍后再试。";
         }
     }
@@ -100,11 +95,18 @@ public class LlmManager {
                     device.getRoleId(),
                     chatMemory);
 
-            // 调用LLM流式接口
-            llmService.chatStream(message, modelContext, streamListener);
+            baseThreadPool.execute(()->{
+                // 调用LLM流式接口
+                try {
+                    llmService.chatStream(message, modelContext, streamListener);
+                } catch (IOException e) {
+                    log.error("处理流式查询时出错: {}", e.getMessage(), e);
+                    streamListener.onError(e);
+                }
+            });
 
         } catch (Exception e) {
-            logger.error("处理流式查询时出错: {}", e.getMessage(), e);
+            log.error("处理流式查询时出错: {}", e.getMessage(), e);
             streamListener.onError(e);
         }
     }
@@ -124,7 +126,7 @@ public class LlmManager {
 
                 @Override
                 public void onStart() {
-                    logger.info("开始流式响应");
+                    log.info("开始流式响应");
                 }
 
                 @Override
@@ -138,12 +140,12 @@ public class LlmManager {
 
                 @Override
                 public void onComplete(String completeResponse) {
-                    logger.info("流式响应完成，完整响应: {}", completeResponse);
+                    log.info("流式响应完成，完整响应: {}", completeResponse);
                 }
 
                 @Override
                 public void onError(Throwable e) {
-                    logger.error("流式响应出错: {}", e.getMessage(), e);
+                    log.error("流式响应出错: {}", e.getMessage(), e);
                 }
             };
 
@@ -151,12 +153,12 @@ public class LlmManager {
             chatStream(device, message, streamListener);
 
         } catch (Exception e) {
-            logger.error("处理流式查询时出错: {}", e.getMessage(), e);
+            log.error("处理流式查询时出错: {}", e.getMessage(), e);
         }
     }
 
     /**
-     * 处理用户查询（流式方式，使用句子切分，带有开始和结束标志）
+     * 处理用户聊天（流式方式，使用句子切分，带有开始和结束标志）
      * 
      * @param device          设备信息
      * @param message         用户消息
@@ -165,96 +167,33 @@ public class LlmManager {
     public void chatStreamBySentence(SysDevice device, String message,
             TriConsumer<String, Boolean, Boolean> sentenceHandler) {
         try {
-            final StringBuilder currentSentence = new StringBuilder();
-            final AtomicInteger sentenceCount = new AtomicInteger(0);
-            final StringBuilder fullResponse = new StringBuilder();
+            final SentenceProcessor processor = new SentenceProcessor(sentenceHandler);
 
-            // 用于跟踪是否有待处理的句子
-            final AtomicReference<String> pendingSentence = new AtomicReference<>(null);
-
-            // 创建流式响应监听器
-            StreamResponseListener streamListener = new StreamResponseListener() {
+            StreamResponseListener listener = new StreamResponseListener() {
                 @Override
                 public void onStart() {
                 }
 
                 @Override
                 public void onToken(String token) {
-                    // 将token添加到完整响应
-                    fullResponse.append(token);
-
-                    // 检查是否有待处理的句子
-                    String pending = pendingSentence.get();
-                    if (pending != null) {
-                        // 有待处理的句子，发送它
-                        boolean isStart = sentenceCount.get() == 0;
-                        boolean isEnd = false; // 中间句子不是结束
-                        sentenceHandler.accept(pending, isStart, isEnd);
-                        sentenceCount.incrementAndGet();
-                        pendingSentence.set(null);
-                    }
-
-                    // 将token添加到当前句子
-                    currentSentence.append(token);
-
-                    // 检查是否包含标点符号
-                    if (PUNCTUATION_PATTERN.matcher(token).matches()) {
-                        // 检查当前句子是否达到最小长度
-                        if (currentSentence.length() >= MIN_SENTENCE_LENGTH) {
-                            String sentence = currentSentence.toString().trim();
-
-                            // 不立即发送，而是将其设置为待处理
-                            pendingSentence.set(sentence);
-
-                            // 重置当前句子
-                            currentSentence.setLength(0);
-                        }
-                    }
+                    processor.processToken(token);
                 }
 
                 @Override
-                public void onComplete(String completeResponse) {
-                    // 处理待发送的句子（如果有）
-                    String pending = pendingSentence.getAndSet(null);
-                    if (pending != null) {
-                        // 如果这是第一个句子，isStart=true，如果是最后一个，isEnd=true
-                        boolean isStart = sentenceCount.get() == 0;
-                        boolean isEnd = true; // 最后一个待处理句子是结束
-                        sentenceHandler.accept(pending, isStart, isEnd);
-                        sentenceCount.incrementAndGet();
-                    }
-
-                    // 处理可能剩余的最后一个句子
-                    if (currentSentence.length() > 0) {
-                        String sentence = currentSentence.toString().trim();
-
-                        // 确定句子状态
-                        boolean isStart = sentenceCount.get() == 0;
-                        boolean isEnd = true; // 最后一个句子是结束
-
-                        sentenceHandler.accept(sentence, isStart, isEnd);
-                        sentenceCount.incrementAndGet();
-                    }
-
-                    // 如果没有任何句子被处理，发送一个空的结束标记
-                    if (sentenceCount.get() == 0) {
-                        sentenceHandler.accept("", true, true);
-                    }
+                public void onComplete(String response) {
+                    processor.finalizeProcessing();
                 }
 
                 @Override
                 public void onError(Throwable e) {
-                    logger.error("流式响应出错: {}", e.getMessage(), e);
-                    // 发送错误信号
-                    sentenceHandler.accept("抱歉，我在处理您的请求时遇到了问题。", true, true);
+                    processor.handleError(e);
                 }
             };
 
-            // 调用现有的流式方法
-            chatStream(device, message, streamListener);
+            chatStream(device, message, listener);
 
         } catch (Exception e) {
-            logger.error("处理流式查询时出错: {}", e.getMessage(), e);
+            log.error("处理流式查询时出错: {}", e.getMessage(), e);
             // 发送错误信号
             sentenceHandler.accept("抱歉，我在处理您的请求时遇到了问题。", true, true);
         }
@@ -268,15 +207,17 @@ public class LlmManager {
      * @return LLM服务
      */
     public LlmService getLlmService(String deviceId, Integer configId) {
-        // 检查设备是否已有服务且配置ID不同
-        Integer currentConfigId = deviceConfigIds.get(deviceId);
-        if (currentConfigId != null && !currentConfigId.equals(configId)) {
-            // 配置ID变更，移除旧服务
-            deviceLlmServices.remove(deviceId);
-        }
+        baseThreadPool.execute(()->{
+            // 检查设备是否已有服务且配置ID不同
+            Integer currentConfigId = deviceConfigIds.get(deviceId);
+            if (currentConfigId != null && !currentConfigId.equals(configId)) {
+                // 配置ID变更，移除旧服务
+                deviceLlmServices.remove(deviceId);
+            }
 
-        // 更新设备当前使用的configId
-        deviceConfigIds.put(deviceId, configId);
+            // 更新设备当前使用的configId
+            deviceConfigIds.put(deviceId, configId);
+        });
 
         // 获取或创建服务
         return deviceLlmServices.computeIfAbsent(deviceId, k -> createLlmService(configId));
@@ -316,10 +257,4 @@ public class LlmManager {
         chatMemory.clearMessages(deviceId);
     }
 
-    /**
-     * 三参数消费者接口
-     */
-    public interface TriConsumer<T, U, V> {
-        void accept(T t, U u, V v);
-    }
 }

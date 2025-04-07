@@ -18,7 +18,6 @@ import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -33,7 +32,7 @@ public class NettyWebSocketConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(NettyWebSocketConfig.class);
 
-    @Value("${netty.websocket.port:8091}")
+    @Value("${netty.websocket.port:8082}")
     private int port;
 
     @Value("${netty.websocket.path:/ws/xiaozhi/v1/}")
@@ -51,20 +50,8 @@ public class NettyWebSocketConfig {
     @Value("${netty.websocket.idleTimeout:300}")
     private int idleTimeout;
 
-    @Autowired
-    private TextWebSocketFrameHandler textWebSocketFrameHandler;
-
-    @Autowired
-    private BinaryWebSocketFrameHandler binaryWebSocketFrameHandler;
-
-    @Autowired
-    private WebSocketControlFrameHandler webSocketControlFrameHandler;
-
-    @Autowired
-    private WebSocketExceptionHandler webSocketExceptionHandler;
-
-    @Autowired
-    private WebSocketHeartbeatHandler webSocketHeartbeatHandler;
+    @Value("${netty.websocket.writeIdleTimeout:120}")
+    private int writeIdleTimeout;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -96,20 +83,26 @@ public class NettyWebSocketConfig {
                                     .addLast(new HttpObjectAggregator(maxFrameSize))
                                     // WebSocket握手处理
                                     .addLast(new WebSocketHandshakeHandler())
+                                    //处理 WebSocket 协议的升级和消息解析
+                                    .addLast(new WebSocketServerProtocolHandler(
+                                            websocketPath,
+                                            null,
+                                            true,
+                                            maxFrameSize,
+                                            false,  // 不检查起始帧
+                                            true    // 允许扩展
+                                    ))
                                     // WebSocket压缩支持
                                     .addLast(new WebSocketServerCompressionHandler())
                                     // 空闲连接检测
-                                    .addLast(new IdleStateHandler(idleTimeout, idleTimeout, idleTimeout,
-                                            TimeUnit.SECONDS))
+                                    .addLast(new IdleStateHandler(idleTimeout, idleTimeout,
+                                            idleTimeout, TimeUnit.SECONDS))
                                     // 心跳处理
                                     .addLast(new WebSocketHeartbeatHandler())
-                                    // WebSocket协议处理
-                                    .addLast(
-                                            new WebSocketServerProtocolHandler(websocketPath, null, true, maxFrameSize))
-                                    // WebSocket控制帧处理
-                                    .addLast(new WebSocketControlFrameHandler())
                                     // WebSocket文本帧处理
                                     .addLast(new TextWebSocketFrameHandler())
+                                    // WebSocket控制帧处理
+                                    .addLast(new WebSocketControlFrameHandler())
                                     // WebSocket二进制帧处理
                                     .addLast(new BinaryWebSocketFrameHandler())
                                     // 异常处理（放在最后捕获所有未处理的异常）
