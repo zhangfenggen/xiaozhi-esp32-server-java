@@ -43,8 +43,6 @@ public class VoskSttService implements SttService {
     } catch (Exception e) {
       logger.warn("Vosk 模型加载失败！将使用其他STT服务: {}", e.getMessage());
     }
-
-    logger.info("Vosk STT服务初始化完成");
   }
 
   @Override
