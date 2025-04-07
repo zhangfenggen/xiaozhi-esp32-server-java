@@ -1,6 +1,5 @@
 package com.xiaozhi.websocket.stt.providers;
 
-import com.alibaba.nls.client.AccessToken;
 import com.alibaba.nls.client.protocol.InputFormatEnum;
 import com.alibaba.nls.client.protocol.NlsClient;
 import com.alibaba.nls.client.protocol.SampleRateEnum;
@@ -9,9 +8,13 @@ import com.alibaba.nls.client.protocol.asr.SpeechTranscriberListener;
 import com.alibaba.nls.client.protocol.asr.SpeechTranscriberResponse;
 import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.websocket.stt.SttService;
+import com.xiaozhi.websocket.token.TokenManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.ObjectUtils;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -26,29 +29,28 @@ public class AliyunSttService implements SttService {
     // 阿里云NLS服务的默认URL
     private static final String NLS_URL = "wss://nls-gateway.aliyuncs.com/ws/v1";
 
-    private String appKey;
-    private String accessKeyId;
-    private String accessKeySecret;
-
-    // 存储Token信息
-    private String token;
-    private long expireTime;
+    // 阿里云配置
+    private final SysConfig config;
 
     // 全局共享的NLS客户端
     private NlsClient client;
+
+    // Token管理器
+    @Autowired
+    private TokenManager tokenManager;
 
     // 存储当前活跃的识别会话
     private final ConcurrentHashMap<String, SpeechTranscriber> activeTranscribers = new ConcurrentHashMap<>();
 
     public AliyunSttService(SysConfig config) {
-        if (config != null) {
-            this.appKey = config.getApiKey();
-            this.accessKeyId = config.getAppId();
-            this.accessKeySecret = config.getApiSecret();
+        this.config = config;
+    }
 
-            // 初始化NLS客户端
-            initClient();
-        }
+    // 设置TokenManager的方法，由工厂类调用
+    public void setTokenManager(TokenManager tokenManager) {
+        this.tokenManager = tokenManager;
+        // 初始化NLS客户端（如果尚未初始化）
+        initClient();
     }
 
     /**
@@ -57,7 +59,7 @@ public class AliyunSttService implements SttService {
     private void initClient() {
         try {
             // 获取有效Token
-            String accessToken = getValidToken();
+            String accessToken = tokenManager.getValidToken(config);
             if (accessToken != null) {
                 // 创建NLS客户端实例
                 client = new NlsClient(NLS_URL, accessToken);
@@ -87,7 +89,7 @@ public class AliyunSttService implements SttService {
     @Override
     public Flux<String> streamRecognition(Flux<byte[]> audioStream) {
         // 检查配置是否已设置
-        if (appKey == null || accessKeyId == null || accessKeySecret == null) {
+        if (ObjectUtils.isEmpty(config)) {
             logger.error("阿里云语音识别配置未设置，无法进行识别");
             return Flux.error(new IllegalStateException("阿里云语音识别配置未设置"));
         }
@@ -113,7 +115,7 @@ public class AliyunSttService implements SttService {
             SpeechTranscriber transcriber = new SpeechTranscriber(client, createStreamingListener(taskId, resultSink));
 
             // 设置参数
-            transcriber.setAppKey(appKey);
+            transcriber.setAppKey(config.getApiKey());
             transcriber.setFormat(InputFormatEnum.PCM);
             transcriber.setSampleRate(SampleRateEnum.SAMPLE_RATE_16K);
             transcriber.setEnablePunctuation(true); // 启用标点
@@ -204,9 +206,6 @@ public class AliyunSttService implements SttService {
 
             @Override
             public void onSentenceBegin(SpeechTranscriberResponse response) {
-                // 一句话开始
-                logger.debug("一句话开始 - task_id: {}, name: {}, status: {}",
-                        response.getTaskId(), response.getName(), response.getStatus());
             }
 
             @Override
@@ -234,42 +233,10 @@ public class AliyunSttService implements SttService {
 
             @Override
             public void onFail(SpeechTranscriberResponse response) {
-                // 任务失败
-                logger.error("识别任务失败 - task_id: {}, status: {}, status_text: {}",
-                        response.getTaskId(), response.getStatus(), response.getStatusText());
-
-                resultSink.tryEmitError(
-                        new RuntimeException("识别失败: " + response.getStatus() + " - " + response.getStatusText()));
-
                 // 从活跃转写器中移除
                 activeTranscribers.remove(taskId);
             }
         };
-    }
-
-    /**
-     * 获取有效的阿里云NLS Token
-     */
-    private String getValidToken() {
-        try {
-            // 检查当前token是否存在且未过期
-            long currentTime = System.currentTimeMillis() / 1000; // 转换为秒
-            if (token != null && expireTime > currentTime) {
-                return token;
-            }
-
-            // 获取新token
-            AccessToken accessToken = new AccessToken(accessKeyId, accessKeySecret);
-            accessToken.apply();
-            token = accessToken.getToken();
-            expireTime = accessToken.getExpireTime();
-
-            logger.info("成功获取阿里云NLS Token，过期时间: {}", expireTime);
-            return token;
-        } catch (Exception e) {
-            logger.error("获取阿里云NLS Token时发生错误", e);
-            return null;
-        }
     }
 
     // 在服务关闭时释放资源

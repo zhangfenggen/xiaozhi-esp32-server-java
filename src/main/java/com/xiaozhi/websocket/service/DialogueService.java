@@ -75,7 +75,7 @@ public class DialogueService {
     // 添加会话的完整回复内容
     private final Map<String, StringBuilder> sessionFullResponses = new ConcurrentHashMap<>();
 
-    private final Semaphore ttsRequestLimit = new Semaphore(1); // 限制同时进行的TTS请求数量，试用版通常限制为2个并发
+    private final Semaphore ttsRequestLimit = new Semaphore(1); // 限制同时进行的TTS请求数量，保证TTS请求有序执行
 
     /**
      * 处理音频数据
