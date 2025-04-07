@@ -26,7 +26,11 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.net.URI;
 import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class ReactiveWebSocketHandler implements WebSocketHandler {
@@ -64,12 +68,21 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         logger.info(session.getHandshakeInfo().getHeaders().toString());
 
         // 从请求头中获取设备ID
-        String deviceId = session.getHandshakeInfo().getHeaders().getFirst("device-Id");
-        if (deviceId == null) {
+        String deviceIdAuth = session.getHandshakeInfo().getHeaders().getFirst("device-Id");
+        if (deviceIdAuth == null) {
+            // 从握手 URI 中获取 device_id 参数
+            URI uri = session.getHandshakeInfo().getUri();
+            deviceIdAuth = Optional.ofNullable(uri.getQuery())
+                    .map(query -> query.split("device_id=|&"))
+                    .filter(arr -> arr.length > 1)
+                    .map(arr -> arr[1])
+                    .orElse(null);
+        }
+        if (deviceIdAuth == null) {
             logger.error("设备ID为空");
             return session.close();
         }
-
+        final String deviceId = deviceIdAuth;
         return Mono.fromCallable(() -> deviceService.query(new SysDevice().setDeviceId(deviceId)))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(devices -> {
@@ -212,13 +225,13 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleHelloMessage(WebSocketSession session, JsonNode jsonNode) {
-        logger.info("收到hello消息 - SessionId: {}", session.getId());
+        logger.info("收到hello消息 - SessionId: {},JsonNode: {}", session.getId(), jsonNode);
 
         // 验证客户端hello消息
-        if (!jsonNode.path("transport").asText().equals("websocket")) {
+        /*if (!jsonNode.path("transport").asText().equals("websocket")) {
             logger.warn("不支持的传输方式: {}", jsonNode.path("transport").asText());
             return session.close();
-        }
+        }*/
 
         // 解析音频参数
         JsonNode audioParams = jsonNode.path("audio_params");
@@ -234,6 +247,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("type", "hello");
         response.put("transport", "websocket");
+        response.put("session_id", session.getId());
 
         // 添加音频参数（可以根据服务器配置调整）
         ObjectNode responseAudioParams = response.putObject("audio_params");
