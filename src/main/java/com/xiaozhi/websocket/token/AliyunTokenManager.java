@@ -172,10 +172,6 @@ public class AliyunTokenManager implements TokenManager {
                 tokenCache.put(configId, token);
                 expirationCache.put(configId, expireTime);
                 
-                long endTime = System.currentTimeMillis();
-                logger.info("成功刷新配置ID: {} 的Token - 时间: {}, 耗时: {}ms, 过期时间: {}", 
-                        configId, endTime, (endTime - startTime), expireTime);
-                
                 return token;
             } catch (Exception e) {
                 logger.error("刷新配置ID: {} 的Token时发生错误: {}", configId, e.getMessage(), e);

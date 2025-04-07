@@ -183,6 +183,7 @@ public class DialogueService {
                         messageService.sendMessage(session, "stt", "interim", text).subscribe();
                     }
                 })
+                .defaultIfEmpty("")
                 .last() // 获取最终结果
                 .flatMap(finalText -> {
                     if (!StringUtils.hasText(finalText)) {
