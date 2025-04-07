@@ -1,5 +1,7 @@
 package com.xiaozhi.controller;
 
+import java.util.Map;
+
 import javax.annotation.Resource;
 
 import com.xiaozhi.common.exception.UserPasswordNotMatchException;
@@ -17,6 +19,7 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
@@ -40,7 +43,7 @@ public class UserController {
 
     @Resource
     private AuthenticationService authenticationService;
-    
+
     @Resource
     private SessionProvider sessionProvider;
 
@@ -52,21 +55,22 @@ public class UserController {
      * @throws UserPasswordNotMatchException
      */
     @PostMapping("/login")
-    public Mono<AjaxResult> login(String username, String password, ServerWebExchange exchange) {
+    public Mono<AjaxResult> login(@RequestBody Map<String, Object> loginRequest, ServerWebExchange exchange) {
         try {
+            String username = (String) loginRequest.get("username");
+            String password = (String) loginRequest.get("password");
+
             userService.login(username, password);
             SysUser user = userService.query(username);
 
             // 保存用户
             CmsUtils.setUser(exchange, user);
-            
+
             return sessionProvider.setAttribute(exchange, SysUserService.USER_SESSIONKEY, user)
                     .thenReturn(AjaxResult.success(user));
         } catch (UsernameNotFoundException e) {
-            log.info("用户:{} 不存在.", username);
             return Mono.just(AjaxResult.error("用户不存在"));
         } catch (UserPasswordNotMatchException e) {
-            log.info("{} 密码错误.", username);
             return Mono.just(AjaxResult.error("密码错误"));
         } catch (Exception e) {
             log.info(e.getMessage(), e);
@@ -110,7 +114,7 @@ public class UserController {
                 String newPassword = authenticationService.encryptPassword(user.getPassword());
                 user.setPassword(newPassword);
             }
-            
+
             if (0 < userService.update(user)) {
                 return Mono.just(AjaxResult.success(user));
             }
