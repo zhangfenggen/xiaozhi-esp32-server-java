@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.text.DecimalFormat;
 
 /**
  * 对话处理服务
@@ -30,6 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class DialogueService {
     private static final Logger logger = LoggerFactory.getLogger(DialogueService.class);
+    
+    // 用于格式化浮点数，保留2位小数
+    private static final DecimalFormat df = new DecimalFormat("0.00");
 
     @Autowired
     private LlmManager llmManager;
@@ -57,8 +62,20 @@ public class DialogueService {
     
     // 添加一个每个会话的句子序列号计数器
     private final Map<String, AtomicInteger> sessionSentenceCounters = new ConcurrentHashMap<>();
+    
+    // 添加会话的语音识别开始时间记录
+    private final Map<String, Long> sessionSttStartTimes = new ConcurrentHashMap<>();
+    
+    // 添加会话的模型回复开始时间记录
+    private final Map<String, Long> sessionLlmStartTimes = new ConcurrentHashMap<>();
+    
+    // 添加会话的TTS开始时间记录
+    private final Map<String, Map<Integer, Long>> sessionTtsStartTimes = new ConcurrentHashMap<>();
+    
+    // 添加会话的完整回复内容
+    private final Map<String, StringBuilder> sessionFullResponses = new ConcurrentHashMap<>();
 
-    private final Semaphore ttsRequestLimit = new Semaphore(2); // 限制同时进行的TTS请求数量，试用版通常限制为2个并发
+    private final Semaphore ttsRequestLimit = new Semaphore(1); // 限制同时进行的TTS请求数量，试用版通常限制为2个并发
 
     /**
      * 处理音频数据
@@ -105,7 +122,11 @@ public class DialogueService {
                     // 根据VAD状态处理
                     switch (vadResult.getStatus()) {
                         case SPEECH_START:
-                            // 检测到语音开始，初始化流式识别
+                            // 检测到语音开始，记录开始时间
+                            sessionSttStartTimes.put(sessionId, System.currentTimeMillis());
+                            logger.info("语音识别开始 - SessionId: {}", sessionId);
+                            
+                            // 初始化流式识别
                             return initializeStreamingRecognition(session, sessionId, finalSttConfig, finalTtsConfig,
                                     device,
                                     vadResult.getProcessedData());
@@ -190,11 +211,29 @@ public class DialogueService {
                         return Mono.empty();
                     }
 
+                    // 记录语音识别完成时间并计算用时
+                    long sttEndTime = System.currentTimeMillis();
+                    Long sttStartTime = sessionSttStartTimes.get(sessionId);
+                    if (sttStartTime != null) {
+                        double sttDuration = (sttEndTime - sttStartTime) / 1000.0;
+                        logger.info("语音识别完成 - SessionId: {}, 用时: {}秒, 识别结果: \"{}\"", 
+                                sessionId, df.format(sttDuration), finalText);
+                    }
+                    
+                    // 记录模型回复开始时间
+                    sessionLlmStartTimes.put(sessionId, System.currentTimeMillis());
+                    
+                    // 初始化TTS时间记录Map
+                    sessionTtsStartTimes.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+                    
+                    // 初始化完整回复内容
+                    sessionFullResponses.put(sessionId, new StringBuilder());
+
                     // 设置会话为非监听状态，防止处理自己的声音
                     sessionManager.setListeningState(sessionId, false);
 
                     // 确保为此会话创建TTS限制器
-                    sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 最多2个并发TTS请求
+                    sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 限制为1个并发，确保顺序处理
                     sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
 
                     // 发送最终识别结果
@@ -205,6 +244,22 @@ public class DialogueService {
                                         (sentence, isStart, isEnd) -> {
                                             // 获取句子序列号
                                             int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
+                                            
+                                            // 累加完整回复内容
+                                            sessionFullResponses.get(sessionId).append(sentence);
+                                            
+                                            // 如果是第一个句子，记录模型回复完成时间
+                                            if (isStart) {
+                                                Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+                                                if (llmStartTime != null) {
+                                                    double llmDuration = (System.currentTimeMillis() - llmStartTime) / 1000.0;
+                                                    logger.info("模型回复完成 - SessionId: {}, 用时: {}秒, 首句内容: \"{}\"", 
+                                                            sessionId, df.format(llmDuration), sentence);
+                                                }
+                                            }
+                                            
+                                            // 记录TTS开始时间
+                                            sessionTtsStartTimes.get(sessionId).put(sentenceNumber, System.currentTimeMillis());
                                             
                                             // 使用TTS限制器控制并发
                                             processSentenceWithRateLimit(
@@ -246,12 +301,8 @@ public class DialogueService {
         
         // 尝试获取许可
         Mono.fromCallable(() -> {
-            // 尝试获取许可，如果无法获取，等待一段时间
-            boolean acquired = limiter.tryAcquire();
-            if (!acquired) {
-                // 阻塞获取许可
-                limiter.acquire();
-            }
+            // 阻塞获取许可，确保按顺序处理
+            limiter.acquire();
             return true;
         })
         .subscribeOn(Schedulers.boundedElastic())
@@ -261,10 +312,26 @@ public class DialogueService {
                 ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence)
             )
             .subscribeOn(Schedulers.boundedElastic())
-            .flatMap(audioPath -> 
-                audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd)
-                .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e))
-            )
+            .flatMap(audioPath -> {
+                // 记录TTS完成时间并计算用时
+                Long ttsStartTime = sessionTtsStartTimes.getOrDefault(sessionId, new ConcurrentHashMap<>()).get(sentenceNumber);
+                if (ttsStartTime != null) {
+                    double ttsDuration = (System.currentTimeMillis() - ttsStartTime) / 1000.0;
+                    logger.info("语音生成完成 - SessionId: {}, 句子序号: {}, 用时: {}秒, 内容: \"{}\"", 
+                            sessionId, sentenceNumber, df.format(ttsDuration), sentence);
+                }
+                
+                // 如果是最后一个句子，记录完整回复
+                if (isEnd) {
+                    StringBuilder fullResponse = sessionFullResponses.get(sessionId);
+                    if (fullResponse != null) {
+                        logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId, fullResponse.toString());
+                    }
+                }
+                
+                return audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd)
+                    .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e));
+            })
         )
         .doFinally(signalType -> {
             // 释放许可
@@ -298,13 +365,22 @@ public class DialogueService {
         final SysConfig ttsConfig = device.getTtsId() != null ? sessionManager.getCachedConfig(device.getTtsId())
                 : null;
 
-        logger.info("检测到唤醒词: {}", text);
+        logger.info("检测到唤醒词: \"{}\"", text);
+        
+        // 记录模型回复开始时间
+        sessionLlmStartTimes.put(sessionId, System.currentTimeMillis());
+        
+        // 初始化TTS时间记录Map
+        sessionTtsStartTimes.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+        
+        // 初始化完整回复内容
+        sessionFullResponses.put(sessionId, new StringBuilder());
 
         // 设置为非监听状态，防止处理自己的声音
         sessionManager.setListeningState(sessionId, false);
 
         // 确保为此会话创建TTS限制器
-        sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 最多2个并发TTS请求
+        sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 限制为1个并发，确保顺序处理
         sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
 
         // 发送识别结果
@@ -317,6 +393,22 @@ public class DialogueService {
                     (sentence, isStart, isEnd) -> {
                         // 获取句子序列号
                         int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
+                        
+                        // 累加完整回复内容
+                        sessionFullResponses.get(sessionId).append(sentence);
+                        
+                        // 如果是第一个句子，记录模型回复完成时间
+                        if (isStart) {
+                            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+                            if (llmStartTime != null) {
+                                double llmDuration = (System.currentTimeMillis() - llmStartTime) / 1000.0;
+                                logger.info("模型回复完成 - SessionId: {}, 用时: {}秒, 首句内容: \"{}\"", 
+                                        sessionId, df.format(llmDuration), sentence);
+                            }
+                        }
+                        
+                        // 记录TTS开始时间
+                        sessionTtsStartTimes.get(sessionId).put(sentenceNumber, System.currentTimeMillis());
                         
                         // 使用TTS限制器控制并发
                         processSentenceWithRateLimit(
@@ -361,5 +453,11 @@ public class DialogueService {
         // 移除会话的TTS限制器和计数器
         sessionTtsLimiters.remove(sessionId);
         sessionSentenceCounters.remove(sessionId);
+        
+        // 移除时间记录
+        sessionSttStartTimes.remove(sessionId);
+        sessionLlmStartTimes.remove(sessionId);
+        sessionTtsStartTimes.remove(sessionId);
+        sessionFullResponses.remove(sessionId);
     }
 }

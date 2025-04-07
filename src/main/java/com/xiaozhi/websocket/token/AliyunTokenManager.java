@@ -156,8 +156,6 @@ public class AliyunTokenManager implements TokenManager {
                     return tokenCache.get(configId);
                 }
                 
-                long startTime = System.currentTimeMillis();
-                
                 // 获取新Token
                 Map<String, String> tokenInfo = AliyunAccessToken.createToken(config.getAppId(), config.getApiSecret());
                 if (tokenInfo == null || !tokenInfo.containsKey("token")) {
