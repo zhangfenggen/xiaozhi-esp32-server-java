@@ -119,16 +119,19 @@ public class VoskSttService implements SttService {
                                 }
                             })
                             .filter(text -> !text.isEmpty())
-                            .doOnComplete(() -> {
+                            .concatWith(Mono.fromSupplier(() -> {
                                 try {
                                     // 流结束时获取最终结果
                                     String finalResult = recognizer.getFinalResult().replaceAll("\\s+", "");
                                     JSONObject jsonFinal = new JSONObject(finalResult);
+
                                     recognizer.close();
+                                    return jsonFinal.getString("text").replaceAll("\\s+", "");
                                 } catch (Exception e) {
                                     logger.error("获取最终识别结果时发生错误", e);
+                                    return "";
                                 }
-                            })
+                            }))
                             .doOnError(e -> {
                                 logger.error("流式识别过程中发生错误", e);
                                 try {
