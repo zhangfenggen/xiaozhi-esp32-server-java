@@ -101,6 +101,21 @@ public class SessionManager {
     }
 
     /**
+     * 获取会话
+     * 
+     * @param deviceId 设备ID
+     * @return 会话ID
+     */
+    public String getSessionByDeviceId(String deviceId) {
+        for (String key : deviceConfigs.keySet()) {
+            if (deviceConfigs.get(key).getDeviceId().equals(deviceId)) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    /**
      * 获取设备配置
      * 
      * @param sessionId 会话ID
