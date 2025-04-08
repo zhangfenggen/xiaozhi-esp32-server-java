@@ -81,6 +81,14 @@
                   <span>登录</span>
                   <a-icon type="arrow-right" />
                 </a-button>
+                
+                <!-- 添加注册按钮 -->
+                <div class="register-container">
+                  <span class="register-text">还没有账户?</span>
+                  <router-link to="register" class="register-link">
+                    立即注册
+                  </router-link>
+                </div>
               </a-form-model>
               
               <a-divider style="margin-top: 25px; margin-bottom: 15px;" />
@@ -538,6 +546,30 @@ $gradient-end: #722ed1;
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(24, 144, 255, 0.3);
     background: linear-gradient(90deg, lighten($primary-color, 5%), lighten($accent-color, 5%));
+  }
+}
+
+// 注册链接容器
+.register-container {
+  text-align: center;
+  margin-top: 20px;
+  @extend %z-layer;
+}
+
+.register-text {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.register-link {
+  color: $accent-color;
+  font-size: 14px;
+  font-weight: 500;
+  
+  &:hover {
+    text-decoration: underline;
+    color: lighten($accent-color, 10%);
   }
 }
 

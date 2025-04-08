@@ -1,9 +1,13 @@
 export default {
   user: {
+    add: "/api/user/add",
     login: "/api/user/login",
     query: "/api/user/query",
     queryUsers: "/api/user/queryUsers",
-    update: "/api/user/update"
+    update: "/api/user/update",
+    sendEmailCaptcha: "/api/user/sendEmailCaptcha",
+    checkCaptcha: "/api/user/checkCaptcha",
+    checkUser: "/api/user/checkUser",
   },
   device: {
     add: "/api/device/add",

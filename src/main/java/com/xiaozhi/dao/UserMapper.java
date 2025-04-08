@@ -16,11 +16,20 @@ public interface UserMapper {
 
     SysUser selectUserByUsername(@Param("username") String username);
 
+    SysUser selectUserByEmail(@Param("email") String email);
+
     SysUser query(@Param("username") String username, @Param("startTime") String startTime,
             @Param("endTime") String endTime);
 
-    int update(SysUser sysUser);
+    int add(SysUser user);
+
+    int update(SysUser user);
 
     List<SysUser> queryUsers(@Param("user") SysUser user, @Param("startTime") String startTime,
             @Param("endTime") String endTime);
+
+    int generateCode(SysUser user);
+
+    int queryCaptcha(@Param("code") String code, @Param("email") String email);
+
 }

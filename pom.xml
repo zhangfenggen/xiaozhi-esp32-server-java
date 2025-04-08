@@ -127,6 +127,12 @@
             <artifactId>kotlin-stdlib</artifactId>
             <version>1.9.0</version> <!-- 使用与OkHttp 5.0.0-alpha.14兼容的版本 -->
         </dependency>
+        <!-- Email -->
+        <dependency>
+            <groupId>io.github.biezhi</groupId>
+            <artifactId>oh-my-email</artifactId>
+            <version>0.0.4</version>
+        </dependency>
         <!-- 腾讯云STT -->
         <dependency>
             <groupId>com.tencentcloudapi</groupId>

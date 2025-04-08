@@ -63,7 +63,7 @@ public class SysUser extends Base implements Serializable {
     /**
      * 用户类型 0、普通管理（拥有标准权限），1、超级管理（拥有所有权限）
      */
-    private Integer isAdmin;
+    private String isAdmin;
 
     /**
      * 手机号
@@ -81,6 +81,11 @@ public class SysUser extends Base implements Serializable {
     private String loginIp;
 
     /**
+     * 验证码
+     */
+    private String code;
+
+    /**
      * 上次登录时间
      */
     @JsonFormat(timezone = "GMT+8", pattern = "yyyy-MM-dd HH:mm:ss")
@@ -90,104 +95,126 @@ public class SysUser extends Base implements Serializable {
         return username;
     }
 
-    public void setUsername(String username) {
+    public SysUser setUsername(String username) {
         this.username = username;
+        return this;
     }
 
     public String getPassword() {
         return password;
     }
 
-    public void setPassword(String password) {
+    public SysUser setPassword(String password) {
         this.password = password;
+        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public SysUser setName(String name) {
         this.name = name;
+        return this;
     }
 
     public String getAvatar() {
         return avatar;
     }
 
-    public void setAvatar(String avatar) {
+    public SysUser setAvatar(String avatar) {
         this.avatar = avatar;
+        return this;
     }
 
     public String getState() {
         return state;
     }
 
-    public void setState(String state) {
+    public SysUser setState(String state) {
         this.state = state;
+        return this;
     }
 
-    public Integer getIsAdmin() {
+    public String getIsAdmin() {
         return isAdmin;
     }
 
-    public void setIsAdmin(Integer isAdmin) {
+    public SysUser setIsAdmin(String isAdmin) {
         this.isAdmin = isAdmin;
+        return this;
     }
 
     public Integer getMessageNumber() {
         return messageNumber;
     }
 
-    public void setMessageNumber(Integer messageNumber) {
+    public SysUser setMessageNumber(Integer messageNumber) {
         this.messageNumber = messageNumber;
+        return this;
     }
 
     public Integer getAliveNumber() {
         return aliveNumber;
     }
 
-    public void setAliveNumber(Integer aliveNumber) {
+    public SysUser setAliveNumber(Integer aliveNumber) {
         this.aliveNumber = aliveNumber;
+        return this;
     }
 
     public Integer getTotalDevice() {
         return totalDevice;
     }
 
-    public void setTotalDevice(Integer totalDevice) {
+    public SysUser setTotalDevice(Integer totalDevice) {
         this.totalDevice = totalDevice;
+        return this;
     }
 
     public String getTel() {
         return tel;
     }
 
-    public void setTel(String tel) {
+    public SysUser setTel(String tel) {
         this.tel = tel;
+        return this;
     }
 
     public String getEmail() {
         return email;
     }
 
-    public void setEmail(String email) {
+    public SysUser setEmail(String email) {
         this.email = email;
+        return this;
     }
 
     public String getLoginIp() {
         return loginIp;
     }
 
-    public void setLoginIp(String loginIp) {
+    public SysUser setLoginIp(String loginIp) {
         this.loginIp = loginIp;
+        return this;
     }
 
     public Date getLoginTime() {
         return loginTime;
     }
 
-    public void setLoginTime(Date loginTime) {
+    public SysUser setLoginTime(Date loginTime) {
         this.loginTime = loginTime;
+        return this;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public SysUser setCode(String code) {
+        this.code = code;
+        return this;
     }
 
 }

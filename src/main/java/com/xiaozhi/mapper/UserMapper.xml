@@ -15,6 +15,15 @@
             username = #{username}
     </select>
 
+    <select id="selectUserByEmail" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            email = #{email}
+    </select>
+
     <select id="query" resultType="com.xiaozhi.entity.SysUser">
         SELECT
         <include refid="userSql"></include>,
@@ -51,6 +60,12 @@
             userId = #{userId}
     </select>
 
+    <insert id="add" parameterType="com.xiaozhi.entity.SysUser">
+        INSERT INTO sys_user ( username, `name`, tel, email, password, state, isAdmin )
+        VALUES
+            (#{username}, #{name}, #{tel}, #{email}, #{password}, '1', '0')
+    </insert>
+
     <update id="update" parameterType="com.xiaozhi.entity.SysUser">
         UPDATE
             sys_user
@@ -63,7 +78,30 @@
             <if test="state != null and state != ''">state = ${state},</if>
         </set>
         WHERE
-            username = #{username}
+            `username` = #{username}
+            <if test="email != null and email != ''">AND email = #{email}</if>
     </update>
+
+    <insert id="generateCode" parameterType="com.xiaozhi.entity.SysUser">
+        <selectKey keyProperty="code" order="BEFORE" resultType="java.lang.String">
+            SELECT LPAD(FLOOR(RAND() * 1000000), 6, '0') as code
+        </selectKey>
+        INSERT INTO sys_code (email, code, createTime)
+        VALUES (#{email}, #{code}, NOW())
+    </insert>
+
+    <select id="queryCaptcha" resultType="java.lang.Integer">
+        SELECT
+            count(*)
+        FROM
+            sys_code
+        WHERE
+            code = #{code}
+            AND email = #{email}
+            AND createTime &gt;= DATE_SUB(NOW(),INTERVAL 10 MINUTE)
+            ORDER BY createTime
+            DESC
+            LIMIT 1
+    </select>
 
 </mapper>

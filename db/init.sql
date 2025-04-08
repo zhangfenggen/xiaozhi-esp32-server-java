@@ -104,8 +104,9 @@ DROP TABLE IF EXISTS `xiaozhi`.`sys_code`;
 CREATE TABLE `xiaozhi`.`sys_code` (
   `codeId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code` varchar(100) NOT NULL COMMENT '验证码',
-  `deviceId` varchar(30) NOT NULL COMMENT '设备ID',
-  `sessionId` varchar(100) NOT NULL COMMENT 'sessionID',
+  `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
+  `deviceId` varchar(30) DEFAULT NULL COMMENT '设备ID',
+  `sessionId` varchar(100) DEFAULT NULL COMMENT 'sessionID',
   `audioPath` text COMMENT '语音文件路径',
   `createTime` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`codeId`)

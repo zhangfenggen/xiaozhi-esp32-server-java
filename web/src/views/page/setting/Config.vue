@@ -217,7 +217,7 @@ export default {
       this.infoForm.validateFields((err, values) => {
         if (!err && this.infoForm.isFieldsTouched()) {
           axios
-            .post({
+            .jsonPost({
               url: api.user.update,
               data: {
                 username: this.user.username,
