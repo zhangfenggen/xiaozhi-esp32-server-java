@@ -6,7 +6,7 @@ out/
 gen/
 build/
 dist/
-
+avatar/
 # 忽略特定格式的文件
 audio/*.mp3
 audio/*.vtt

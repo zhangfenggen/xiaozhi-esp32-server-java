@@ -7,8 +7,8 @@ import java.util.Random;
 public class CommonUtils {
 
     public static final String BASE_PATH = System.getProperty("os.name").equals("Mac OS X")
-            ? "/Users/upload/"
-            : System.getProperty("os.name").contains("Windows") ? "c:/upload/" : "/home/upload/";
+            ? "avatar/"
+            : System.getProperty("os.name").contains("Windows") ? "avatar/" : "avatar/";
 
     public static Integer CaptchaCode() {
         StringBuilder str = new StringBuilder();

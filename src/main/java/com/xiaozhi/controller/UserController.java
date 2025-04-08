@@ -13,6 +13,7 @@ import com.xiaozhi.security.AuthenticationService;
 import com.xiaozhi.service.SysDeviceService;
 import com.xiaozhi.service.SysUserService;
 import com.xiaozhi.utils.CmsUtils;
+import com.xiaozhi.utils.ImageUtils;
 
 import io.github.biezhi.ome.OhMyEmail;
 import static io.github.biezhi.ome.OhMyEmail.SMTP_QQ;
@@ -160,6 +161,9 @@ public class UserController {
             if (StringUtils.hasText(password)) {
                 String newPassword = authenticationService.encryptPassword(password);
                 userQuery.setPassword(newPassword);
+            }
+            if (!StringUtils.hasText(userQuery.getAvatar())) {
+                userQuery.setAvatar(ImageUtils.GenerateImg(userQuery.getName()));
             }
 
             if (0 < userService.update(userQuery)) {

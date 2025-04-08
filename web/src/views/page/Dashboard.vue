@@ -8,7 +8,8 @@
           <a-page-header
             :avatar="{
               props: {
-                src: userInfo.avatar,
+                src: userInfo.avatar ? '/' + userInfo.avatar : '',
+
                 class: 'page-header-content-avatar',
               },
               style:
@@ -289,6 +290,7 @@ export default {
     userInfo() {
       return this.$store.getters.USER_INFO;
     },
+    
   },
   methods: {
     updateInformation() {

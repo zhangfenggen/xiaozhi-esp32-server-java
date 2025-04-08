@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.UserMapper">
 
     <sql id="userSql">
-        sys_user.userId, sys_user.username, sys_user.`name`, sys_user.tel, sys_user.email, sys_user.password, sys_user.state, sys_user.isAdmin, sys_user.loginIp, sys_user.loginTime, sys_user.createTime
+        sys_user.userId, sys_user.username, sys_user.`name`, sys_user.tel, sys_user.email, sys_user.avatar, sys_user.password, sys_user.state, sys_user.isAdmin, sys_user.loginIp, sys_user.loginTime, sys_user.createTime
     </sql>
 
     <select id="selectUserByUsername" resultType="com.xiaozhi.entity.SysUser">

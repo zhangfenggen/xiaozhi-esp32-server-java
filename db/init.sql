@@ -28,6 +28,7 @@ CREATE TABLE `xiaozhi`.`sys_user` (
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `tel` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `avatar` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '头像',
   `state` enum('1','0') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '1' COMMENT '1-正常 0-禁用',
   `loginIp` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isAdmin` enum('1','0') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
