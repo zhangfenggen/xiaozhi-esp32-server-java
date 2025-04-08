@@ -87,12 +87,17 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 ## 贡献指南
 
 欢迎任何形式的贡献！如果你有好的想法或发现问题，请联系反馈
-可以加我微信备注 Server 我拉你进微信群
+
+可以加我微信备注 小智 Server 我拉你进微信群
+
+接各种定制化开发项目，如果你有定制化需求也可以加我微信沟通
 
 <img src="./web/static/img/wechat.jpg" alt="微信" width="200" />
 
 也欢迎加入我们的QQ一起来讨论，QQ群号：790820705
 
 <img src="./web/static/img/qq.jpg" alt="qq" width="200" />
+
+
 
 ---
