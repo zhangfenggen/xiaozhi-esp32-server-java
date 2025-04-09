@@ -26,7 +26,7 @@ public class TtsServiceFactory {
 
     // 默认 EDGE TTS 服务默认语音名称
     private static final String DEFAULT_VOICE = "zh-CN-XiaoyiNeural";
-    
+
     // 注入TokenManager
     @Autowired
     private TokenManager tokenManager;
@@ -49,6 +49,7 @@ public class TtsServiceFactory {
      * 根据配置获取TTS服务
      */
     public TtsService getTtsService(SysConfig config, String voiceName) {
+
         String provider;
         // 如果提供商为空，则使用默认提供商
         if (ObjectUtils.isEmpty(config)) {
@@ -67,7 +68,6 @@ public class TtsServiceFactory {
             TtsService service;
             // 创建其他API服务
             service = createApiService(config, voiceName, outputPath);
-
             return service;
         } catch (Exception e) {
             logger.error("创建{}服务失败", provider, e);

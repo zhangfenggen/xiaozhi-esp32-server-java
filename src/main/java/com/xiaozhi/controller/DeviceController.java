@@ -10,13 +10,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
+import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.entity.SysRole;
 import com.xiaozhi.entity.SysUser;
+import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysDeviceService;
+import com.xiaozhi.service.SysRoleService;
 import com.xiaozhi.utils.CmsUtils;
+import com.xiaozhi.websocket.service.SessionManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,7 +47,16 @@ public class DeviceController {
 
     @Resource
     private SysDeviceService deviceService;
-    
+
+    @Autowired
+    private SysConfigService configService;
+
+    @Autowired
+    private SysRoleService roleService;
+
+    @Resource
+    private SessionManager sessionManager;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -59,7 +74,7 @@ public class DeviceController {
                 if (user != null) {
                     device.setUserId(user.getUserId());
                 }
-                
+
                 List<SysDevice> deviceList = deviceService.query(device);
                 AjaxResult result = AjaxResult.success();
                 result.put("data", new PageInfo<>(deviceList));
@@ -81,13 +96,45 @@ public class DeviceController {
     public Mono<AjaxResult> update(SysDevice device, ServerWebExchange exchange) {
         return Mono.fromCallable(() -> {
             try {
-                deviceService.update(device);
-                return AjaxResult.success();
+                int rows = deviceService.update(device);
+                if (rows > 0) {
+                    refreshSessionConfig(device);
+                    return AjaxResult.success();
+                } else {
+                    return AjaxResult.error();
+                }
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
+    }
+
+    private boolean refreshSessionConfig(SysDevice device) {
+        try {
+            String deviceId = device.getDeviceId();
+            String sessionId = sessionManager.getSessionByDeviceId(deviceId);
+
+            if (sessionId != null) {
+                // 通过roleId获取ttsId
+                SysRole roleConfig = roleService.selectRoleById(device.getRoleId());
+                SysConfig tssConfig = configService.selectConfigById(roleConfig.getTtsId());
+                SysConfig sttConfig = configService.selectConfigById(device.getSttId());
+                if (device.getSttId() != null) {
+                    sessionManager.cacheConfig(sttConfig.getConfigId(), sttConfig);
+                }
+                if (roleConfig.getTtsId() != null) {
+                    sessionManager.cacheConfig(tssConfig.getConfigId(), tssConfig);
+                }
+                SysDevice updateDevice = device;
+                updateDevice.setSessionId(sessionId);
+                updateDevice.setTtsId(roleConfig.getTtsId());
+                sessionManager.registerDevice(sessionId, updateDevice);
+            }
+        } catch (Exception e) {
+            log.error("刷新设备会话配置时发生错误", e);
+        }
+        return false;
     }
 
     /**
@@ -105,13 +152,13 @@ public class DeviceController {
                 if (query == null) {
                     return AjaxResult.error("无效验证码");
                 }
-                
+
                 // 从请求属性中获取用户信息
                 SysUser user = exchange.getAttribute(CmsUtils.USER_ATTRIBUTE_KEY);
                 if (user != null) {
                     device.setUserId(user.getUserId());
                 }
-                
+
                 device.setDeviceId(query.getDeviceId());
                 device.setDeviceName("小智");
                 deviceService.add(device);
@@ -131,7 +178,7 @@ public class DeviceController {
         if (deviceId != null) {
             device.setDeviceId(deviceId);
         }
-        
+
         // 读取请求体内容
         return DataBufferUtils.join(exchange.getRequest().getBody())
                 .flatMap(dataBuffer -> {
@@ -139,15 +186,17 @@ public class DeviceController {
                         byte[] bytes = new byte[dataBuffer.readableByteCount()];
                         dataBuffer.read(bytes);
                         DataBufferUtils.release(dataBuffer);
-                        
+
                         String requestBody = new String(bytes);
-                        
+
                         // 解析JSON请求体
-                        if (exchange.getRequest().getHeaders().getContentType() != null && 
-                            exchange.getRequest().getHeaders().getContentType().toString().contains("application/json")) {
-                            
-                            Map<String, Object> jsonData = objectMapper.readValue(requestBody, 
-                                                        new TypeReference<Map<String, Object>>() {});
+                        if (exchange.getRequest().getHeaders().getContentType() != null &&
+                                exchange.getRequest().getHeaders().getContentType().toString()
+                                        .contains("application/json")) {
+
+                            Map<String, Object> jsonData = objectMapper.readValue(requestBody,
+                                    new TypeReference<Map<String, Object>>() {
+                                    });
 
                             // 提取chip_model_name
                             if (jsonData.containsKey("chip_model_name")) {
@@ -177,7 +226,7 @@ public class DeviceController {
                         device.setState("1");
                         device.setLastLogin(new Date().toString());
                         deviceService.update(device);
-                        
+
                         return Mono.empty();
                     } catch (Exception e) {
                         log.error(e.getMessage(), e);
