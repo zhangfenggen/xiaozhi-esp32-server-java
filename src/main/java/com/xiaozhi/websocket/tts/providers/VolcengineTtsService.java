@@ -116,6 +116,7 @@ public class VolcengineTtsService implements TtsService {
             audio.addProperty("speed_ratio", 1.0);
             audio.addProperty("volume_ratio", 1.0);
             audio.addProperty("pitch_ratio", 1.0);
+            audio.addProperty("rate", 16000);
             requestJson.add("audio", audio);
 
             // request部分

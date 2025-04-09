@@ -53,6 +53,15 @@ public class SessionManager {
      * @param sessionId 会话ID
      */
     public void closeSession(String sessionId) {
+        // 关闭会话
+        WebSocketSession session = sessions.get(sessionId);
+        if (session != null) {
+            try {
+                session.close();
+            } catch (Exception e) {
+                logger.error("关闭WebSocket会话时发生错误 - SessionId: {}", sessionId, e);
+            }
+        }
         sessions.remove(sessionId);
         SysDevice device = deviceConfigs.remove(sessionId);
         listeningState.remove(sessionId);
@@ -74,6 +83,11 @@ public class SessionManager {
      * @param device    设备信息
      */
     public void registerDevice(String sessionId, SysDevice device) {
+        // 先检查是否已存在该sessionId的配置
+        SysDevice existingDevice = deviceConfigs.get(sessionId);
+        if (existingDevice != null) {
+            deviceConfigs.remove(sessionId);
+        }
         deviceConfigs.put(sessionId, device);
         logger.debug("设备配置已注册 - SessionId: {}, DeviceId: {}", sessionId, device.getDeviceId());
     }

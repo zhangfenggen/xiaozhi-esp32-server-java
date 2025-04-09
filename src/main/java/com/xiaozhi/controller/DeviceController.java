@@ -12,6 +12,7 @@ import com.github.pagehelper.PageInfo;
 import com.xiaozhi.common.web.AjaxResult;
 import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.entity.SysRole;
 import com.xiaozhi.entity.SysUser;
 import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysDeviceService;
@@ -19,9 +20,9 @@ import com.xiaozhi.service.SysRoleService;
 import com.xiaozhi.utils.CmsUtils;
 import com.xiaozhi.websocket.service.SessionManager;
 
-import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,11 +48,11 @@ public class DeviceController {
     @Resource
     private SysDeviceService deviceService;
 
-    @Resource
-    private SysRoleService roleService;
-
-    @Resource
+    @Autowired
     private SysConfigService configService;
+
+    @Autowired
+    private SysRoleService roleService;
 
     @Resource
     private SessionManager sessionManager;
@@ -113,16 +114,22 @@ public class DeviceController {
         try {
             String deviceId = device.getDeviceId();
             String sessionId = sessionManager.getSessionByDeviceId(deviceId);
+
             if (sessionId != null) {
-                sessionManager.registerDevice(sessionId, device.setSessionId(sessionId));
-                SysConfig tssConfig = configService.selectConfigById(device.getTtsId());
+                // 通过roleId获取ttsId
+                SysRole roleConfig = roleService.selectRoleById(device.getRoleId());
+                SysConfig tssConfig = configService.selectConfigById(roleConfig.getTtsId());
                 SysConfig sttConfig = configService.selectConfigById(device.getSttId());
-                if (!ObjectUtils.isEmpty(sttConfig)) {
+                if (device.getSttId() != null) {
                     sessionManager.cacheConfig(sttConfig.getConfigId(), sttConfig);
                 }
-                if (!ObjectUtils.isEmpty(tssConfig)) {
+                if (roleConfig.getTtsId() != null) {
                     sessionManager.cacheConfig(tssConfig.getConfigId(), tssConfig);
                 }
+                SysDevice updateDevice = device;
+                updateDevice.setSessionId(sessionId);
+                updateDevice.setTtsId(roleConfig.getTtsId());
+                sessionManager.registerDevice(sessionId, updateDevice);
             }
         } catch (Exception e) {
             log.error("刷新设备会话配置时发生错误", e);
