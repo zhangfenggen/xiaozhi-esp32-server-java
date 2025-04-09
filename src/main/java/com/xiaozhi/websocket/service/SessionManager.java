@@ -34,6 +34,9 @@ public class SessionManager {
     // 用于跟踪会话是否正在进行流式识别
     private final ConcurrentHashMap<String, Boolean> streamingState = new ConcurrentHashMap<>();
 
+    // 存储验证码生成状态
+    private final ConcurrentHashMap<String, Boolean> captchaState = new ConcurrentHashMap<>();
+
     /**
      * 注册新的WebSocket会话
      * 
@@ -192,5 +195,24 @@ public class SessionManager {
         if (sink != null) {
             sink.tryEmitComplete();
         }
+    }
+
+    /**
+     * 标记设备正在生成验证码
+     * 
+     * @param deviceId 设备ID
+     * @return 如果设备之前没有在生成验证码，返回true；否则返回false
+     */
+    public boolean markCaptchaGeneration(String deviceId) {
+        return captchaState.putIfAbsent(deviceId, Boolean.TRUE) == null;
+    }
+
+    /**
+     * 取消设备验证码生成标记
+     * 
+     * @param deviceId 设备ID
+     */
+    public void unmarkCaptchaGeneration(String deviceId) {
+        captchaState.remove(deviceId);
     }
 }

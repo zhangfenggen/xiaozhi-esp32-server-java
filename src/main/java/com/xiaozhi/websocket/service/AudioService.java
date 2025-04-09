@@ -646,6 +646,8 @@ public class AudioService {
             return false;
         }
 
+        return true;
+        /* 
         try {
             boolean success = true;
 
@@ -671,7 +673,7 @@ public class AudioService {
         } catch (Exception e) {
             logger.error("删除音频文件时发生错误: {}", audioPath, e);
             return false;
-        }
+        } */
     }
 
     /**

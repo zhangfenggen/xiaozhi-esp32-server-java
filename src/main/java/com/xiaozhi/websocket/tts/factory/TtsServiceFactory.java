@@ -58,7 +58,7 @@ public class TtsServiceFactory {
         }
         // 如果是默认提供商且尚未初始化，则初始化
         if (DEFAULT_PROVIDER.equals(provider)) {
-            TtsService edgeService = new EdgeTtsService(voiceName, outputPath);
+            TtsService edgeService = new EdgeTtsService(DEFAULT_VOICE, outputPath);
             return edgeService;
         }
 

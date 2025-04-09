@@ -11,6 +11,7 @@ import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.DialogueService;
 import com.xiaozhi.websocket.service.SessionManager;
 import com.xiaozhi.websocket.service.VadService;
+import com.xiaozhi.websocket.token.AliyunTokenManager;
 import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,12 +29,12 @@ import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class ReactiveWebSocketHandler implements WebSocketHandler {
+
+    private final AliyunTokenManager aliyunTokenManager;
 
     @Autowired
     private SysDeviceService deviceService;
@@ -59,6 +60,10 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     private static final Logger logger = LoggerFactory.getLogger(ReactiveWebSocketHandler.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    ReactiveWebSocketHandler(AliyunTokenManager aliyunTokenManager) {
+        this.aliyunTokenManager = aliyunTokenManager;
+    }
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
@@ -170,7 +175,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                             .query(new SysDevice().setDeviceId(device.getDeviceId()).setSessionId(sessionId)))
                     .subscribeOn(Schedulers.boundedElastic())
                     .flatMap(deviceResult -> {
-                        if (deviceResult.isEmpty()) {
+                        if (deviceResult.isEmpty() || device.getModelId() == null) {
                             // 设备未绑定，处理未绑定设备的消息
                             return handleUnboundDevice(session, device);
                         } else {
@@ -195,43 +200,86 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleBinaryMessage(WebSocketSession session, WebSocketMessage message) {
+        SysDevice device = sessionManager.getDeviceConfig(session.getId());
+        if (device.getModelId() == null) {
+            return handleUnboundDevice(session, device);
+        }
         // 获取二进制数据
         DataBuffer dataBuffer = message.getPayload();
         DataBuffer retainedBuffer = DataBufferUtils.retain(dataBuffer);
         byte[] opusData = new byte[retainedBuffer.readableByteCount()];
         retainedBuffer.read(opusData);
         DataBufferUtils.release(retainedBuffer);
-
+        
         // 委托给DialogueService处理音频数据
         return dialogueService.processAudioData(session, opusData);
     }
 
     private Mono<Void> handleUnboundDevice(WebSocketSession session, SysDevice device) {
+        String deviceId = device.getDeviceId();
+        String sessionId = session.getId();
+
+        if (!sessionManager.markCaptchaGeneration(device.getDeviceId())) {
+            return Mono.empty();
+        }
+        String message;
+        if (device.getDeviceName() != null && device.getModelId() == null) {
+            message = "设备未配置对话模型，请到配置完成后进行对话";
+            return Mono.fromCallable(() -> {
+                return ttsService.getTtsService().textToSpeech(message);
+            }).subscribeOn(Schedulers.boundedElastic())
+                    .flatMap(audioFilePath -> audioService
+                            .sendAudioMessage(session, audioFilePath, message, true, true)
+                            .doFinally(signal -> {
+                                sessionManager.unmarkCaptchaGeneration(deviceId);
+                            }))
+                    .doOnError(e -> {
+                        logger.error("发送音频消息失败 - DeviceId: " + deviceId, e);
+                        // 确保在错误时也移除处理标记
+                        sessionManager.unmarkCaptchaGeneration(deviceId);
+                    });
+        }
+
+        // 设备未在处理中，开始生成验证码
         return Mono.fromCallable(() -> {
+            // 生成新验证码
             SysDevice codeResult = deviceService.generateCode(device);
             String audioFilePath;
             if (!StringUtils.hasText(codeResult.getAudioPath())) {
                 audioFilePath = ttsService.getTtsService().textToSpeech("请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
-                codeResult.setDeviceId(device.getDeviceId());
-                codeResult.setSessionId(session.getId());
+                codeResult.setDeviceId(deviceId);
+                codeResult.setSessionId(sessionId);
                 codeResult.setAudioPath(audioFilePath);
                 deviceService.updateCode(codeResult);
             } else {
                 audioFilePath = codeResult.getAudioPath();
             }
-            logger.info("设备未绑定，返回验证码");
-            return audioService.sendAudioMessage(session, audioFilePath, codeResult.getCode(), true, true);
-        }).subscribeOn(Schedulers.boundedElastic()).then();
+            return codeResult;
+
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(codeResult -> audioService
+                        .sendAudioMessage(session, codeResult.getAudioPath(), codeResult.getCode(), true, true)
+                        .doFinally(signal -> {
+                            sessionManager.unmarkCaptchaGeneration(deviceId);
+                        }))
+                .doOnError(e -> {
+                    logger.error("发送音频消息失败 - DeviceId: " + deviceId, e);
+                    // 确保在错误时也移除处理标记
+                    sessionManager.unmarkCaptchaGeneration(deviceId);
+                });
     }
 
     private Mono<Void> handleHelloMessage(WebSocketSession session, JsonNode jsonNode) {
         logger.info("收到hello消息 - SessionId: {},JsonNode: {}", session.getId(), jsonNode);
 
         // 验证客户端hello消息
-        /*if (!jsonNode.path("transport").asText().equals("websocket")) {
-            logger.warn("不支持的传输方式: {}", jsonNode.path("transport").asText());
-            return session.close();
-        }*/
+        /*
+         * if (!jsonNode.path("transport").asText().equals("websocket")) {
+         * logger.warn("不支持的传输方式: {}", jsonNode.path("transport").asText());
+         * return session.close();
+         * }
+         */
 
         // 解析音频参数
         JsonNode audioParams = jsonNode.path("audio_params");

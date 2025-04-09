@@ -41,7 +41,8 @@ public class LlmServiceFactory {
             // 可以添加更多提供商的支持
             default:
                 logger.info("未找到匹配的模型提供商 '{}', 默认使用Ollama", provider);
-                return new OllamaService(endpoint, appId, apiKey, apiSecret, model);
+                // return new OllamaService(endpoint, appId, apiKey, apiSecret, model);
+                throw new IllegalArgumentException("未找到匹配的模型提供商 '" + provider + "'");
         }
     }
 }
