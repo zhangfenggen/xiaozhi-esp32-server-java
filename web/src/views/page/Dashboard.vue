@@ -8,8 +8,7 @@
           <a-page-header
             :avatar="{
               props: {
-                src: userInfo.avatar ? '/' + userInfo.avatar : '',
-
+                src: userInfo.avatar ? getAvatarUrl(userInfo.avatar) : '',
                 class: 'page-header-content-avatar',
               },
               style:
@@ -76,7 +75,7 @@
                     >
                       <a-list-item key="messageId" slot-scope="{ item }">
                         <a-list-item-meta>
-                          <a-avatar slot="avatar" :src="item.avatar" />
+                          <a-avatar slot="avatar" :src="getAvatarUrl(item.avatar)" />
                           <span slot="title">{{ item.deviceName || name }}</span>
                           <template slot="description">
                             <p>{{ item.description }}</p>
@@ -195,6 +194,7 @@
 <script>
 import api from "@/services/api";
 import axios from "@/services/axios";
+import { getResourceUrl } from "@/services/axios";
 import mixin from "@/mixins/index";
 import Cookies from "js-cookie";
 import { jsonp } from 'vue-jsonp';
@@ -293,6 +293,9 @@ export default {
     
   },
   methods: {
+    getAvatarUrl(avatar) {
+      return getResourceUrl(avatar);
+    },
     updateInformation() {
       this.form.validateFields((err, values) => {
         if (!err) {

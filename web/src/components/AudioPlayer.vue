@@ -18,6 +18,7 @@
 <script>
 import WaveSurfer from "wavesurfer.js";
 import EventBus from "@/utils/eventBus";
+import { getResourceUrl } from "@/services/axios";
 
 export default {
   name: "AudioPlayer",
@@ -142,31 +143,9 @@ export default {
     },
     loadAudio(url) {
       if (!url) return;
-
-      // 判断当前环境
-      const isDev = process.env.NODE_ENV === 'development';
       
-      let audioUrl = url;
-      
-      // 确保URL以/开头
-      if (!audioUrl.startsWith('/')) {
-        audioUrl = '/' + audioUrl;
-      }
-      
-      // 开发环境下，直接使用后端地址
-      if (isDev) {
-        // 获取后端API地址，这里假设您的API地址和音频服务在同一个后端
-        const backendUrl = process.env.BASE_API || 'http://localhost:8091';
-        
-        // 移除开头的斜杠，因为我们要将完整的URL传给wavesurfer
-        if (audioUrl.startsWith('/')) {
-          audioUrl = audioUrl.substring(1);
-        }
-        
-        // 构建完整的URL
-        audioUrl = `${backendUrl}/${audioUrl}`;
-        
-      }
+      // 使用统一的资源URL处理函数
+      const audioUrl = getResourceUrl(url);
       
       this.wavesurfer.load(audioUrl);
     },

@@ -5,7 +5,7 @@
       <a-dropdown class="header-index-account">
         <div>
           <a-avatar
-            :src="user.avatar"
+            :src="getAvatarUrl(user.avatar)"
             size="small"
             style="margin-right: 8px"
             icon="user"
@@ -40,6 +40,8 @@
 
 <script>
 import Cookies from 'js-cookie'
+import { getResourceUrl } from '@/services/axios'
+
 export default {
   data () {
     return {
@@ -58,6 +60,9 @@ export default {
     logout () {
       Cookies.remove('userInfo')
       this.$router.push('/login')
+    },
+    getAvatarUrl(avatar) {
+      return getResourceUrl(avatar);
     }
   }
 }
