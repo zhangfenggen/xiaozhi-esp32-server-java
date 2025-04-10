@@ -17,13 +17,6 @@ module.exports = {
           "^/api": "/api"
         }
       },
-      "/system": {
-        target: "http://localhost:8091",
-        changeOrigin: true,
-        pathRewrite: {
-          "^/system": "/system"
-        }
-      },
     },
 
     // Various Dev Server settings

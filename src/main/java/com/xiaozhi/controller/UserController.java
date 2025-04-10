@@ -106,14 +106,17 @@ public class UserController {
             String email = (String) loginRequest.get("email");
             String password = (String) loginRequest.get("password");
             String code = (String) loginRequest.get("code");
+            String name = (String) loginRequest.get("name");
+            String tel = (String) loginRequest.get("tel");
             int row = userService.queryCaptcha(code, email);
             if (1 > row)
                 return Mono.just(AjaxResult.error("无效验证码"));
             SysUser user = new SysUser();
             user.setUsername(username);
             user.setEmail(email);
-            user.setPassword(password);
-            String newPassword = authenticationService.encryptPassword(user.getPassword());
+            user.setName(name);
+            user.setTel(tel);
+            String newPassword = authenticationService.encryptPassword(password);
             user.setPassword(newPassword);
             if (0 < userService.add(user)) {
                 return Mono.just(AjaxResult.success(user));
@@ -156,6 +159,8 @@ public class UserController {
             String username = (String) loginRequest.get("username");
             String email = (String) loginRequest.get("email");
             String password = (String) loginRequest.get("password");
+            String name = (String) loginRequest.get("name");
+            String avatar = (String) loginRequest.get("avatar");
             SysUser userQuery = new SysUser();
             if (StringUtils.hasText(username)) {
                 userQuery = userService.selectUserByUsername(username);
@@ -169,8 +174,8 @@ public class UserController {
                 String newPassword = authenticationService.encryptPassword(password);
                 userQuery.setPassword(newPassword);
             }
-            if (!StringUtils.hasText(userQuery.getAvatar())) {
-                userQuery.setAvatar(ImageUtils.GenerateImg(userQuery.getName()));
+            if (!StringUtils.hasText(avatar) && StringUtils.hasText(name)) {
+                userQuery.setAvatar(ImageUtils.GenerateImg(name));
             }
 
             if (0 < userService.update(userQuery)) {
@@ -227,7 +232,6 @@ public class UserController {
 
                 return AjaxResult.success();
             } catch (Exception e) {
-                logger.error("发送邮件失败: " + e.getMessage(), e);
 
                 // 根据异常类型返回不同的错误信息
                 String errorMsg = "发送失败";

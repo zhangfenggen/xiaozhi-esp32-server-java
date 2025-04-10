@@ -67,7 +67,7 @@ public class ImageUtils {
             avatarDir.mkdirs();
         }
 
-        String filename = "avatar" + File.separator + name.hashCode();
+        String filename = "avatar" + File.separator + name.hashCode() + ".png";
         File file = new File(filename);
         // Font font = new Font("微软雅黑", Font.PLAIN, 30);
 

@@ -39,6 +39,7 @@ public class AuthenticationInterceptor implements WebFilter {
             "/api/user/",
             "/api/device/ota",
             "/audio/",
+            "/avatar/",
             "/ws/");
 
     @Override
