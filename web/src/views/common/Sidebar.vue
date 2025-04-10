@@ -3,7 +3,6 @@
     <div class="header-logo">
       <a href="/dashboard" id="logo">
         <img src="/static/img/logo.png" alt="" style="height: 32px" />
-        <img src="/static/img/logo-text.png" alt="" style="height: 20px" />
       </a>
     </div>
     <a-menu

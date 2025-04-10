@@ -1,6 +1,12 @@
 import axios from "axios";
 const qs = window.Qs;
 import { message } from "ant-design-vue";
+
+// 设置axios的基础URL，根据环境变量
+axios.defaults.baseURL = process.env.BASE_API;
+// 设置携带凭证
+axios.defaults.withCredentials = true;
+
 function Rest() {}
 Rest.prototype = {
   jsonPost(opts) {
@@ -21,7 +27,7 @@ Rest.prototype = {
           commonResponse(res.data, resolve);
         })
         .catch(e => {
-          reject(e);
+          rejectResponse(e);
         });
     });
   },
@@ -43,7 +49,7 @@ Rest.prototype = {
           commonResponse(res.data, resolve);
         })
         .catch(e => {
-          reject(e);
+          rejectResponse(e);
         });
     });
   },
@@ -56,7 +62,7 @@ Rest.prototype = {
           commonResponse(res.data, resolve);
         })
         .catch(e => {
-          reject(e);
+          rejectResponse(e);
         });
     });
   }
@@ -69,7 +75,25 @@ function commonResponse(data, resolve) {
       type: "error",
       key,
       onClose: () => {
-        window.location.href = "http://localhost:8084";
+        // 使用环境变量中的BASE_URL，而不是硬编码的URL
+        window.location.href = process.env.BASE_URL;
+      }
+    });
+  } else {
+    resolve(data);
+  }
+}
+
+function rejectResponse(e) {
+  if (e.response.status === 401 || e.response.status === 403) {
+    const key = "error";
+    message.error({
+      content: "登录过期，请重新登录！",
+      type: "error",
+      key,
+      onClose: () => {
+        // 使用环境变量中的BASE_URL，而不是硬编码的URL
+        window.location.href = process.env.BASE_URL;
       }
     });
   } else {

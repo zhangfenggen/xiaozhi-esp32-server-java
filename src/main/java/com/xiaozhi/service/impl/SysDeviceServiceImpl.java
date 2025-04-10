@@ -33,12 +33,9 @@ public class SysDeviceServiceImpl implements SysDeviceService {
      */
     @Override
     @Transactional
-    public void add(SysDevice device) {
+    public int add(SysDevice device) {
         // 添加设备
-        int adddevice = deviceMapper.add(device);
-        if (0 == adddevice) {
-            throw new RuntimeException();
-        }
+        return deviceMapper.add(device);
     }
 
     /**

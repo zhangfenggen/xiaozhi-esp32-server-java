@@ -35,7 +35,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/role")
 public class RoleController {
 
-    private static final Logger log = LoggerFactory.getLogger(RoleController.class);
+    private static final Logger logger = LoggerFactory.getLogger(RoleController.class);
 
     @Resource
     private SysRoleService roleService;
@@ -67,7 +67,7 @@ public class RoleController {
                 result.put("data", new PageInfo<>(roleList));
                 return result;
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -86,7 +86,7 @@ public class RoleController {
                 roleService.update(role);
                 return AjaxResult.success();
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -110,7 +110,7 @@ public class RoleController {
                 roleService.add(role);
                 return AjaxResult.success();
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -133,7 +133,7 @@ public class RoleController {
             } catch (IndexOutOfBoundsException e) {
                 return AjaxResult.error("请先到语音合成配置页面配置对应Key");
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });

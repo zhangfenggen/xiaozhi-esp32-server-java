@@ -18,7 +18,7 @@ public interface SysDeviceService {
    * @param device
    * @return
    */
-  public void add(SysDevice device);
+  public int add(SysDevice device);
 
   /**
    * 查询设备信息

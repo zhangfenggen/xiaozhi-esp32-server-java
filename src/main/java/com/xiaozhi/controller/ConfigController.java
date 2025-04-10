@@ -32,7 +32,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/config")
 public class ConfigController {
 
-    private static final Logger log = LoggerFactory.getLogger(ConfigController.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConfigController.class);
 
     @Resource
     private SysConfigService configService;
@@ -58,7 +58,7 @@ public class ConfigController {
                 result.put("data", new PageInfo<>(configList));
                 return result;
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -77,7 +77,7 @@ public class ConfigController {
                 configService.update(config);
                 return AjaxResult.success();
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -101,7 +101,7 @@ public class ConfigController {
                 configService.add(config);
                 return AjaxResult.success();
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });

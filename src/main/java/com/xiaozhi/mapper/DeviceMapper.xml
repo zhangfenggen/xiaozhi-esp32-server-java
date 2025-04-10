@@ -53,6 +53,7 @@
             <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
             <if test="sessionId != null and sessionId != ''">AND sessionId = #{sessionId}</if>
             <if test="code != null and code != ''">AND code = #{code}</if>
+            AND createTime &gt;= DATE_SUB(NOW(),INTERVAL 10 MINUTE)
             ORDER BY createTime DESC
         LIMIT 1
     </select>

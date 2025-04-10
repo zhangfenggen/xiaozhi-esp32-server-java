@@ -19,7 +19,7 @@ import reactor.core.publisher.Mono;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * 用户名不存在异常
@@ -27,7 +27,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UsernameNotFoundException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Mono<AjaxResult> handleUsernameNotFoundException(UsernameNotFoundException e, ServerWebExchange exchange) {
-        log.error(e.getMessage(), e);
+        logger.error(e.getMessage(), e);
         return Mono.just(AjaxResult.error("用户名不存在"));
     }
 
@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserPasswordNotMatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Mono<AjaxResult> handleUserPasswordNotMatchException(UserPasswordNotMatchException e, ServerWebExchange exchange) {
-        log.error(e.getMessage(), e);
+        logger.error(e.getMessage(), e);
         return Mono.just(AjaxResult.error("用户密码不正确"));
     }
 
@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Mono<AjaxResult> handleException(Exception e, ServerWebExchange exchange) {
-        log.error(e.getMessage(), e);
+        logger.error(e.getMessage(), e);
         return Mono.just(AjaxResult.error("服务器错误，请联系管理员"));
     }
 }

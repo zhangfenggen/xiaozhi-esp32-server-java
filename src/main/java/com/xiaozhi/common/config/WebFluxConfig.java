@@ -23,10 +23,13 @@ public class WebFluxConfig implements WebFluxConfigurer {
     @Bean
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration corsConfig = new CorsConfiguration();
-        corsConfig.addAllowedOrigin("*");
+        corsConfig.addAllowedOriginPattern("*");
         corsConfig.addAllowedMethod("*");
         corsConfig.addAllowedHeader("*");
+        corsConfig.setAllowCredentials(true);
         corsConfig.setMaxAge(3600L);
+        corsConfig.addExposedHeader("Access-Control-Allow-Origin");
+        corsConfig.addExposedHeader("Access-Control-Allow-Credentials");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfig);

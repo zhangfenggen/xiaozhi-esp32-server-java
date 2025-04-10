@@ -88,8 +88,14 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             return session.close();
         }
         final String deviceId = deviceIdAuth;
-        return Mono.fromCallable(() -> deviceService.query(new SysDevice().setDeviceId(deviceId)))
+        return Mono.fromCallable(() -> {
+            logger.info("开始查询设备信息 - DeviceId: {}", deviceId);
+            return deviceService.query(new SysDevice().setDeviceId(deviceId));
+        })
                 .subscribeOn(Schedulers.boundedElastic())
+                .doOnError(e -> {
+                    logger.error("查询设备信息失败 - DeviceId: " + deviceId, e);
+                })
                 .flatMap(devices -> {
                     SysDevice device;
                     if (devices.isEmpty()) {
@@ -210,7 +216,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         byte[] opusData = new byte[retainedBuffer.readableByteCount()];
         retainedBuffer.read(opusData);
         DataBufferUtils.release(retainedBuffer);
-        
+
         // 委托给DialogueService处理音频数据
         return dialogueService.processAudioData(session, opusData);
     }
@@ -224,7 +230,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         }
         String message;
         if (device.getDeviceName() != null && device.getModelId() == null) {
-            message = "设备未配置对话模型，请到配置完成后进行对话";
+            message = "设备未配置对话模型，请到配置页面完成配置后开始对话";
             return Mono.fromCallable(() -> {
                 return ttsService.getTtsService().textToSpeech(message);
             }).subscribeOn(Schedulers.boundedElastic())

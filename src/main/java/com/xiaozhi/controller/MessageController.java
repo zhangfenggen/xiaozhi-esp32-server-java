@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/api/message")
 public class MessageController {
-    private static final Logger log = LoggerFactory.getLogger(MessageController.class);
+    private static final Logger logger = LoggerFactory.getLogger(MessageController.class);
 
     @Resource
     private SysMessageService messageService;
@@ -52,7 +52,7 @@ public class MessageController {
                 result.put("data", new PageInfo<>(messageList));
                 return result;
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });

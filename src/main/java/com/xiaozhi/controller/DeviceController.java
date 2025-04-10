@@ -43,7 +43,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/device")
 public class DeviceController {
 
-    private static final Logger log = LoggerFactory.getLogger(DeviceController.class);
+    private static final Logger logger = LoggerFactory.getLogger(DeviceController.class);
 
     @Resource
     private SysDeviceService deviceService;
@@ -80,7 +80,7 @@ public class DeviceController {
                 result.put("data", new PageInfo<>(deviceList));
                 return result;
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -104,7 +104,7 @@ public class DeviceController {
                     return AjaxResult.error();
                 }
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
                 return AjaxResult.error();
             }
         });
@@ -116,23 +116,35 @@ public class DeviceController {
             String sessionId = sessionManager.getSessionByDeviceId(deviceId);
 
             if (sessionId != null) {
-                // 通过roleId获取ttsId
-                SysRole roleConfig = roleService.selectRoleById(device.getRoleId());
-                SysConfig tssConfig = configService.selectConfigById(roleConfig.getTtsId());
-                SysConfig sttConfig = configService.selectConfigById(device.getSttId());
-                if (device.getSttId() != null) {
-                    sessionManager.cacheConfig(sttConfig.getConfigId(), sttConfig);
-                }
-                if (roleConfig.getTtsId() != null) {
-                    sessionManager.cacheConfig(tssConfig.getConfigId(), tssConfig);
-                }
                 SysDevice updateDevice = device;
                 updateDevice.setSessionId(sessionId);
-                updateDevice.setTtsId(roleConfig.getTtsId());
+                SysRole roleConfig = new SysRole();
+                // 通过roleId获取ttsId
+                if (device.getRoleId() != null) {
+                    roleConfig = roleService.selectRoleById(device.getRoleId());
+                }
+                if (device.getModelId() != null) {
+                    updateDevice.setModelId(device.getModelId());
+                }
+                if (device.getSttId() != null) {
+                    updateDevice.setSttId(device.getSttId());
+                    if (device.getSttId() != -1) {
+                        SysConfig sttConfig = configService.selectConfigById(device.getSttId());
+                        sessionManager.cacheConfig(sttConfig.getConfigId(), sttConfig);
+                    }
+                }
+                if (roleConfig.getTtsId() != null) {
+                    updateDevice.setTtsId(roleConfig.getTtsId());
+                    if (device.getTtsId() != -1) {
+                        SysConfig tssConfig = configService.selectConfigById(roleConfig.getTtsId());
+                        sessionManager.cacheConfig(tssConfig.getConfigId(), tssConfig);
+                        updateDevice.setVoiceName(roleConfig.getVoiceName());
+                    }
+                }
                 sessionManager.registerDevice(sessionId, updateDevice);
             }
         } catch (Exception e) {
-            log.error("刷新设备会话配置时发生错误", e);
+            logger.error("刷新设备会话配置时发生错误", e);
         }
         return false;
     }
@@ -143,31 +155,40 @@ public class DeviceController {
      * @param code
      */
     @PostMapping("/add")
-    public Mono<AjaxResult> add(String code, ServerWebExchange exchange) {
-        return Mono.fromCallable(() -> {
-            try {
-                SysDevice device = new SysDevice();
-                device.setCode(code);
-                SysDevice query = deviceService.queryVerifyCode(device);
-                if (query == null) {
-                    return AjaxResult.error("无效验证码");
-                }
+    public Mono<AjaxResult> add(ServerWebExchange exchange) {
+        return exchange.getFormData()
+                .flatMap(formData -> {
+                    String code = formData.getFirst("code");
+                    return Mono.fromCallable(() -> {
+                        try {
+                            SysDevice device = new SysDevice();
+                            device.setCode(code);
+                            SysDevice query = deviceService.queryVerifyCode(device);
+                            if (query == null) {
+                                return AjaxResult.error("无效验证码");
+                            }
 
-                // 从请求属性中获取用户信息
-                SysUser user = exchange.getAttribute(CmsUtils.USER_ATTRIBUTE_KEY);
-                if (user != null) {
-                    device.setUserId(user.getUserId());
-                }
+                            // 从请求属性中获取用户信息
+                            SysUser user = exchange.getAttribute(CmsUtils.USER_ATTRIBUTE_KEY);
+                            if (user != null) {
+                                device.setUserId(user.getUserId());
+                            }
 
-                device.setDeviceId(query.getDeviceId());
-                device.setDeviceName("小智");
-                deviceService.add(device);
-                return AjaxResult.success();
-            } catch (Exception e) {
-                log.error(e.getMessage(), e);
-                return AjaxResult.error();
-            }
-        });
+                            device.setDeviceId(query.getDeviceId());
+                            device.setDeviceName("小智");
+                            int row = deviceService.add(device);
+                            if (row > 0) {
+                                refreshSessionConfig(device);
+                                return AjaxResult.success();
+                            } else {
+                                return AjaxResult.error();
+                            }
+                        } catch (Exception e) {
+                            logger.error(e.getMessage(), e);
+                            return AjaxResult.error();
+                        }
+                    });
+                });
     }
 
     @PostMapping("/ota")
@@ -229,7 +250,7 @@ public class DeviceController {
 
                         return Mono.empty();
                     } catch (Exception e) {
-                        log.error(e.getMessage(), e);
+                        logger.error(e.getMessage(), e);
                         return Mono.error(e);
                     }
                 });

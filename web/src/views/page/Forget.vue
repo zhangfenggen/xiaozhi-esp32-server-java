@@ -5,7 +5,7 @@
       <div class="circuit-board"></div>
       <div class="gradient-overlay"></div>
     </div>
-    
+
     <!-- 主要内容区 -->
     <a-row type="flex" justify="center" align="middle" class="full-height">
       <a-col :xs="22" :sm="20" :md="18" :lg="16" :xl="14">
@@ -16,34 +16,55 @@
               <div class="system-logo">
                 <a-icon type="api" class="logo-icon" />
               </div>
-              <a-typography-title level={1} class="system-title">小智 ESP32</a-typography-title>
-              <a-typography-paragraph class="system-subtitle">智能物联网管理平台</a-typography-paragraph>
+              <a-typography-title level="{1}" class="system-title"
+                >小智 ESP32</a-typography-title
+              >
+              <a-typography-paragraph class="system-subtitle"
+                >智能物联网管理平台</a-typography-paragraph
+              >
             </a-col>
-            
+
             <!-- 忘记密码表单区 -->
             <a-col :xs="24" :md="12" class="login-form-container">
               <div class="form-header">
-                <a-typography-title level={3} class="form-title">找回密码</a-typography-title>
+                <a-typography-title level="{3}" class="form-title"
+                  >找回密码</a-typography-title
+                >
                 <a-typography-paragraph class="form-subtitle">
-                  {{ currentStep === 1 ? '请输入您的注册邮箱' : 
-                     currentStep === 2 ? '请查看邮箱获取验证码' : '请设置新密码' }}
+                  {{
+                    currentStep === 1
+                      ? "请输入您的注册邮箱"
+                      : currentStep === 2
+                      ? "请查看邮箱获取验证码"
+                      : "请设置新密码"
+                  }}
                 </a-typography-paragraph>
               </div>
-              
+
               <!-- 步骤条 - 改用简化版本 -->
               <div class="custom-steps">
-                <div 
-                  v-for="step in 3" 
+                <div
+                  v-for="step in 3"
                   :key="step"
-                  :class="['step-item', currentStep >= step ? 'active' : '', currentStep === step ? 'current' : '']"
+                  :class="[
+                    'step-item',
+                    currentStep >= step ? 'active' : '',
+                    currentStep === step ? 'current' : '',
+                  ]"
                 >
                   <div class="step-number">{{ step }}</div>
                   <div class="step-title">
-                    {{ step === 1 ? '验证邮箱' : step === 2 ? '验证码' : '重置密码' }}
+                    {{
+                      step === 1
+                        ? "验证邮箱"
+                        : step === 2
+                        ? "验证码"
+                        : "重置密码"
+                    }}
                   </div>
                 </div>
               </div>
-              
+
               <!-- 步骤1：输入邮箱 -->
               <a-form-model
                 v-if="currentStep === 1"
@@ -62,9 +83,9 @@
                     <a-icon slot="prefix" type="mail" />
                   </a-input>
                 </a-form-model-item>
-                
-                <a-button 
-                  type="primary" 
+
+                <a-button
+                  type="primary"
                   :loading="loading"
                   class="login-button"
                   block
@@ -75,7 +96,7 @@
                   <a-icon type="arrow-right" />
                 </a-button>
               </a-form-model>
-              
+
               <!-- 步骤2：输入验证码 -->
               <a-form-model
                 v-if="currentStep === 2"
@@ -91,7 +112,7 @@
                   :message="`验证码已发送至 ${formData.email}`"
                   banner
                 />
-                
+
                 <a-form-model-item prop="verifyCode">
                   <a-input
                     v-model="formData.verifyCode"
@@ -102,17 +123,29 @@
                     <a-icon slot="prefix" type="safety-certificate" />
                   </a-input>
                 </a-form-model-item>
-                
-                <a-row type="flex" justify="space-between" align="middle" class="form-options">
+
+                <a-row
+                  type="flex"
+                  justify="space-between"
+                  align="middle"
+                  class="form-options"
+                >
                   <a-col>
-                    <a-button type="link" class="resend-btn" @click="resendEmail" :disabled="countdown > 0">
-                      {{ countdown > 0 ? `重新发送(${countdown}s)` : '重新发送' }}
+                    <a-button
+                      type="link"
+                      class="resend-btn"
+                      @click="resendEmail"
+                      :disabled="countdown > 0"
+                    >
+                      {{
+                        countdown > 0 ? `重新发送(${countdown}s)` : "重新发送"
+                      }}
                     </a-button>
                   </a-col>
                 </a-row>
-                
-                <a-button 
-                  type="primary" 
+
+                <a-button
+                  type="primary"
                   :loading="loading"
                   class="login-button"
                   block
@@ -123,7 +156,7 @@
                   <a-icon type="arrow-right" />
                 </a-button>
               </a-form-model>
-              
+
               <!-- 步骤3：重置密码 -->
               <a-form-model
                 v-if="currentStep === 3"
@@ -142,7 +175,7 @@
                     <a-icon slot="prefix" type="lock" />
                   </a-input-password>
                 </a-form-model-item>
-                
+
                 <a-form-model-item prop="confirmPassword">
                   <a-input-password
                     v-model="formData.confirmPassword"
@@ -153,9 +186,9 @@
                     <a-icon slot="prefix" type="lock" />
                   </a-input-password>
                 </a-form-model-item>
-                
-                <a-button 
-                  type="primary" 
+
+                <a-button
+                  type="primary"
                   :loading="loading"
                   class="login-button"
                   block
@@ -166,9 +199,9 @@
                   <a-icon type="arrow-right" />
                 </a-button>
               </a-form-model>
-              
-              <a-divider style="margin-top: 25px; margin-bottom: 15px;" />
-              
+
+              <a-divider style="margin-top: 25px; margin-bottom: 15px" />
+
               <div class="form-footer">
                 <router-link to="/login" class="back-link">
                   <a-icon type="arrow-left" /> 返回登录
@@ -183,202 +216,216 @@
 </template>
 
 <script>
-import axios from '@/services/axios'
-import api from '@/services/api'
+import axios from "@/services/axios";
+import api from "@/services/api";
 
 export default {
   data() {
     // 确认密码验证
     const validateConfirmPassword = (rule, value, callback) => {
       if (value !== this.formData.password) {
-        callback(new Error('两次输入的密码不一致'))
+        callback(new Error("两次输入的密码不一致"));
       } else {
-        callback()
+        callback();
       }
-    }
-    
+    };
+
     return {
       currentStep: 1, // 当前步骤
       loading: false,
       formData: {
-        email: '',
-        verifyCode: '',
-        password: '',
-        confirmPassword: ''
+        email: "",
+        verifyCode: "",
+        password: "",
+        confirmPassword: "",
       },
       formRules: {
         email: [
-          { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-          { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+          { required: true, message: "请输入邮箱地址", trigger: "blur" },
+          { type: "email", message: "请输入有效的邮箱地址", trigger: "blur" },
         ],
         verifyCode: [
-          { required: true, message: '请输入验证码', trigger: 'blur' },
-          { len: 6, message: '验证码长度为6位', trigger: 'blur' }
+          { required: true, message: "请输入验证码", trigger: "blur" },
+          { len: 6, message: "验证码长度为6位", trigger: "blur" },
         ],
         password: [
-          { required: true, message: '请输入新密码', trigger: 'blur' },
-          { min: 6, message: '密码长度不能少于6个字符', trigger: 'blur' }
+          { required: true, message: "请输入新密码", trigger: "blur" },
+          { min: 6, message: "密码长度不能少于6个字符", trigger: "blur" },
         ],
         confirmPassword: [
-          { required: true, message: '请确认新密码', trigger: 'blur' },
-          { validator: validateConfirmPassword, trigger: 'blur' }
-        ]
+          { required: true, message: "请确认新密码", trigger: "blur" },
+          { validator: validateConfirmPassword, trigger: "blur" },
+        ],
       },
       countdown: 0,
-      countdownTimer: null
-    }
+      countdownTimer: null,
+    };
   },
-  
+
   beforeDestroy() {
     if (this.countdownTimer) {
-      clearInterval(this.countdownTimer)
+      clearInterval(this.countdownTimer);
     }
   },
-  
+
   methods: {
     // 发送重置邮件
     sendResetEmail() {
-      this.$refs.emailForm.validate(valid => {
+      this.$refs.emailForm.validate((valid) => {
         if (valid) {
-          this.loading = true
-          
+          this.loading = true;
+
           // 调用后端API发送重置邮件
-          axios.jsonPost({
-            url: api.user.sendEmailCaptcha,
-            data: {
-              email: this.formData.email
-            }
-          }).then(res => {
-            this.loading = false
-            
-            if (res.code === 200) {
-              this.$message.success('验证码已发送到您的邮箱')
-              this.currentStep = 2
-              this.startCountdown()
-            } else {
-              this.$message.error(res.message)
-            }
-          }).catch(err => {
-            this.loading = false
-            this.$message.error('服务器错误，请稍后重试')
-            console.error(err)
-          })
+          axios
+            .jsonPost({
+              url: api.user.sendEmailCaptcha,
+              data: {
+                email: this.formData.email,
+                type: "forget",
+              },
+            })
+            .then((res) => {
+              this.loading = false;
+
+              if (res.code === 200) {
+                this.$message.success("验证码已发送到您的邮箱");
+                this.currentStep = 2;
+                this.startCountdown();
+              } else {
+                this.$message.error(res.message);
+              }
+            })
+            .catch((err) => {
+              this.loading = false;
+              this.$message.error("服务器错误，请稍后重试");
+              console.error(err);
+            });
         }
-      })
+      });
     },
-    
+
     // 重新发送邮件
     resendEmail() {
-      if (this.countdown > 0) return
-      
-      this.loading = true
-      
+      if (this.countdown > 0) return;
+
+      this.loading = true;
+
       // 调用后端API重新发送重置邮件
-      axios.jsonPost({
-        url: api.user.sendEmailCaptcha,
-        data: {
-          email: this.formData.email
-        }
-      }).then(res => {
-        this.loading = false
-        
-        if (res.code === 200) {
-          this.$message.success('验证码已重新发送到您的邮箱')
-          this.startCountdown()
-        } else {
-          this.$message.error(res.message)
-        }
-      }).catch(err => {
-        this.loading = false
-        this.$message.error('服务器错误，请稍后重试')
-        console.error(err)
-      })
+      axios
+        .jsonPost({
+          url: api.user.sendEmailCaptcha,
+          data: {
+            email: this.formData.email,
+            type: "forget",
+          },
+        })
+        .then((res) => {
+          this.loading = false;
+
+          if (res.code === 200) {
+            this.$message.success("验证码已重新发送到您的邮箱");
+            this.startCountdown();
+          } else {
+            this.$message.error(res.message);
+          }
+        })
+        .catch((err) => {
+          this.loading = false;
+          this.$message.error("服务器错误，请稍后重试");
+          console.error(err);
+        });
     },
-    
+
     // 验证验证码
     verifyCode() {
-      this.$refs.codeForm.validate(valid => {
+      this.$refs.codeForm.validate((valid) => {
         if (valid) {
-          this.loading = true
-          
+          this.loading = true;
+
           // 调用后端API验证验证码
-          axios.get({
-            url: api.user.checkCaptcha,
-            data: {
-              code: this.formData.verifyCode,
-              email: this.formData.email,
-              type: "forget"
-            }
-          }).then(res => {
-            this.loading = false
-            
-            if (res.code === 200) {
-              this.$message.success('验证成功')
-              this.currentStep = 3
-            } else {
-              this.$message.error(res.message)
-            }
-          }).catch(err => {
-            this.loading = false
-            this.$message.error('服务器错误，请稍后重试')
-            console.error(err)
-          })
+          axios
+            .get({
+              url: api.user.checkCaptcha,
+              data: {
+                code: this.formData.verifyCode,
+                email: this.formData.email,
+                type: "forget",
+              },
+            })
+            .then((res) => {
+              this.loading = false;
+
+              if (res.code === 200) {
+                this.$message.success("验证成功");
+                this.currentStep = 3;
+              } else {
+                this.$message.error(res.message);
+              }
+            })
+            .catch((err) => {
+              this.loading = false;
+              this.$message.error("服务器错误，请稍后重试");
+              console.error(err);
+            });
         }
-      })
+      });
     },
-    
+
     // 重置密码
     resetPassword() {
-      this.$refs.passwordForm.validate(valid => {
+      this.$refs.passwordForm.validate((valid) => {
         if (valid) {
-          this.loading = true
+          this.loading = true;
 
           // 调用后端API重置密码
-          axios.jsonPost({
-            url: api.user.update,
-            data: {
-              email: this.formData.email,
-              code: this.formData.verifyCode,
-              password: this.formData.password
-            }
-          }).then(res => {
-            this.loading = false
-            
-            if (res.code === 200) {
-              this.$message.success('密码重置成功')
-              setTimeout(() => {
-                this.$router.push('/login')
-              }, 1500)
-            } else {
-              this.$message.error(res.message)
-            }
-          }).catch(err => {
-            this.loading = false
-            this.$message.error('服务器错误，请稍后重试')
-            console.error(err)
-          })
+          axios
+            .jsonPost({
+              url: api.user.update,
+              data: {
+                email: this.formData.email,
+                code: this.formData.verifyCode,
+                password: this.formData.password,
+              },
+            })
+            .then((res) => {
+              this.loading = false;
+
+              if (res.code === 200) {
+                this.$message.success("密码重置成功");
+                setTimeout(() => {
+                  this.$router.push("/login");
+                }, 1500);
+              } else {
+                this.$message.error(res.message);
+              }
+            })
+            .catch((err) => {
+              this.loading = false;
+              this.$message.error("服务器错误，请稍后重试");
+              console.error(err);
+            });
         }
-      })
+      });
     },
-    
+
     // 开始倒计时
     startCountdown() {
-      this.countdown = 60
-      
+      this.countdown = 60;
+
       if (this.countdownTimer) {
-        clearInterval(this.countdownTimer)
+        clearInterval(this.countdownTimer);
       }
-      
+
       this.countdownTimer = setInterval(() => {
         if (this.countdown > 0) {
-          this.countdown--
+          this.countdown--;
         } else {
-          clearInterval(this.countdownTimer)
+          clearInterval(this.countdownTimer);
         }
-      }, 1000)
-    }
-  }
-}
+      }, 1000);
+    },
+  },
+};
 </script>
 
 <style lang="scss" scoped>
@@ -388,7 +435,7 @@ export default {
   width: 100%;
   height: 100vh;
   background-color: #001529;
-  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: hidden;
 }
 
@@ -414,9 +461,12 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: 
-    linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.07) 1px,
+      transparent 1px
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
   background-size: 20px 20px;
   background-position: center center;
 }
@@ -428,7 +478,7 @@ export default {
   width: 100%;
   height: 100%;
   background: radial-gradient(circle at 30% 30%, #1d39c4 0%, transparent 70%),
-              radial-gradient(circle at 70% 70%, #722ed1 0%, transparent 70%);
+    radial-gradient(circle at 70% 70%, #722ed1 0%, transparent 70%);
   opacity: 0.6;
 }
 
@@ -441,7 +491,7 @@ export default {
   z-index: 10;
   position: relative;
   box-shadow: none;
-  
+
   ::v-deep .ant-card-body {
     padding: 0;
   }
@@ -454,15 +504,19 @@ export default {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, rgba(29, 57, 196, 0.9) 0%, rgba(114, 46, 209, 0.9) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(29, 57, 196, 0.9) 0%,
+    rgba(114, 46, 209, 0.9) 100%
+  );
   color: #ffffff;
   position: relative;
   overflow: hidden;
   min-height: 360px;
   border-radius: 16px 0 0 16px;
-  
+
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     top: -50%;
     left: -50%;
@@ -480,8 +534,12 @@ export default {
 }
 
 @keyframes move-bg {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(50px, 50px); }
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(50px, 50px);
+  }
 }
 
 .system-logo {
@@ -499,7 +557,8 @@ export default {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
-.system-title, .system-subtitle {
+.system-title,
+.system-subtitle {
   color: #ffffff !important;
   text-align: center;
   position: relative;
@@ -551,9 +610,9 @@ export default {
   justify-content: space-between;
   margin-bottom: 30px;
   position: relative;
-  
+
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 16px;
     left: 30px;
@@ -562,7 +621,7 @@ export default {
     background-color: rgba(255, 255, 255, 0.2);
     z-index: 1;
   }
-  
+
   .step-item {
     display: flex;
     flex-direction: column;
@@ -570,13 +629,13 @@ export default {
     position: relative;
     z-index: 2;
     flex: 1;
-    
+
     .step-number {
       width: 32px;
       height: 32px;
       border-radius: 50%;
       background-color: rgb(255, 255, 255);
-      color: rgb(0,0,0);
+      color: rgb(0, 0, 0);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -585,7 +644,7 @@ export default {
       border: 2px solid transparent;
       transition: all 0.3s;
     }
-    
+
     .step-title {
       color: rgba(255, 255, 255, 0.5);
       font-size: 12px;
@@ -593,25 +652,25 @@ export default {
       transition: all 0.3s;
       white-space: nowrap;
     }
-    
+
     &.active {
       .step-number {
         background-color: rgb(255, 255, 255);
         color: #1890ff;
         border-color: #1890ff;
       }
-      
+
       .step-title {
         color: rgba(255, 255, 255, 0.8);
       }
     }
-    
+
     &.current {
       .step-number {
         background-color: #1890ff;
         color: #ffffff;
       }
-      
+
       .step-title {
         color: #ffffff;
         font-weight: 500;
@@ -631,35 +690,44 @@ export default {
   border-radius: 8px !important;
   height: 46px;
   overflow: hidden;
-  background: linear-gradient(to right, rgba(40, 48, 65, 0.6), rgba(40, 48, 65, 0.8)) !important;
+  background: linear-gradient(
+    to right,
+    rgba(40, 48, 65, 0.6),
+    rgba(40, 48, 65, 0.8)
+  ) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  
+
   ::v-deep input {
     background: transparent !important;
     color: #ffffff !important;
     height: 44px;
     padding-left: 15px !important;
-    
+
     &::placeholder {
       color: rgba(255, 255, 255, 0.5) !important;
       font-weight: 300;
     }
   }
-  
+
   ::v-deep .ant-input-prefix {
     color: #13c2c2 !important;
     margin-right: 12px !important;
     font-size: 18px !important;
     opacity: 0.9;
   }
-  
+
   &:hover {
     border-color: rgba(24, 144, 255, 0.7) !important;
-    background: linear-gradient(to right, rgba(40, 48, 65, 0.7), rgba(40, 48, 65, 0.9)) !important;
+    background: linear-gradient(
+      to right,
+      rgba(40, 48, 65, 0.7),
+      rgba(40, 48, 65, 0.9)
+    ) !important;
   }
-  
-  &:focus, &:focus-within {
+
+  &:focus,
+  &:focus-within {
     border-color: #1890ff !important;
     box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
     background: rgba(40, 48, 65, 0.9) !important;
@@ -686,23 +754,27 @@ export default {
   transition: all 0.3s ease;
   position: relative;
   z-index: 2;
-  
+
   span {
     margin-right: 8px;
     font-weight: 500;
   }
-  
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(24, 144, 255, 0.3);
-    background: linear-gradient(90deg, lighten(#1890ff, 5%), lighten(#13c2c2, 5%));
+    background: linear-gradient(
+      90deg,
+      lighten(#1890ff, 5%),
+      lighten(#13c2c2, 5%)
+    );
   }
 }
 
 // 邮件提示
 .email-alert {
   margin-bottom: 24px;
-  
+
   ::v-deep .ant-alert-message {
     color: #1890ff;
   }
@@ -713,11 +785,11 @@ export default {
   color: #1890ff;
   padding: 0;
   height: auto;
-  
+
   &:hover:not([disabled]) {
     color: lighten(#1890ff, 10%);
   }
-  
+
   &[disabled] {
     color: rgba(255, 255, 255, 0.3);
   }
@@ -734,7 +806,7 @@ export default {
 .back-link {
   color: rgba(255, 255, 255, 0.7);
   transition: all 0.3s ease;
-  
+
   &:hover {
     color: #1890ff;
   }
@@ -742,14 +814,19 @@ export default {
 
 // 响应式调整
 @media (max-width: 768px) {
-  .system-info, .login-form-container {
+  .system-info,
+  .login-form-container {
     padding: 30px 20px;
     min-height: auto;
   }
-  
-  .system-info { border-radius: 16px 16px 0 0; }
-  .login-form-container { border-radius: 0 0 16px 16px; }
-  
+
+  .system-info {
+    border-radius: 16px 16px 0 0;
+  }
+  .login-form-container {
+    border-radius: 0 0 16px 16px;
+  }
+
   .custom-steps {
     .step-title {
       font-size: 10px;
@@ -763,14 +840,14 @@ export default {
       left: 16px;
       right: 16px;
     }
-    
+
     .step-item {
       .step-number {
         width: 28px;
         height: 28px;
         font-size: 12px;
       }
-      
+
       .step-title {
         font-size: 10px;
       }

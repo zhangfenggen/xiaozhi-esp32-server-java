@@ -500,16 +500,12 @@ export default {
             this.$message.success("验证码已发送到您的邮箱");
             this.currentStep = 2;
             this.startCountdown();
-            return Promise.resolve();
           } else {
             this.$message.error(res.message || "验证码发送失败");
-            return Promise.reject();
           }
         })
         .catch((err) => {
-          console.error("发送验证码时出错:", err);
           this.$message.error("服务器错误，请稍后重试");
-          return Promise.reject(err);
         })
         .finally(() => {
           this.loading = false;

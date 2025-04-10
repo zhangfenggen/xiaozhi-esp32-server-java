@@ -20,6 +20,7 @@ import static io.github.biezhi.ome.OhMyEmail.SMTP_QQ;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,7 +42,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/user")
 public class UserController {
 
-    private static final Logger log = LoggerFactory.getLogger(UserController.class);
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     @Resource
     private SysUserService userService;
@@ -54,6 +55,12 @@ public class UserController {
 
     @Resource
     private SessionProvider sessionProvider;
+
+    @Value("${email.smtp.username}")
+    private String emailUsername;
+
+    @Value("${email.smtp.password}")
+    private String emailPassword;
 
     /**
      * @param username
@@ -81,7 +88,7 @@ public class UserController {
         } catch (UserPasswordNotMatchException e) {
             return Mono.just(AjaxResult.error("密码错误"));
         } catch (Exception e) {
-            log.info(e.getMessage(), e);
+            logger.info(e.getMessage(), e);
             return Mono.just(AjaxResult.error("操作失败"));
         }
     }
@@ -113,7 +120,7 @@ public class UserController {
             }
             return Mono.just(AjaxResult.error());
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return Mono.just(AjaxResult.error());
         }
     }
@@ -132,7 +139,7 @@ public class UserController {
             result.put("data", user);
             return Mono.just(result);
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return Mono.just(AjaxResult.error());
         }
     }
@@ -171,7 +178,7 @@ public class UserController {
             }
             return Mono.just(AjaxResult.error());
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return Mono.just(AjaxResult.error());
         }
     }
@@ -186,28 +193,73 @@ public class UserController {
     public Mono<AjaxResult> sendEmailCaptcha(@RequestBody(required = false) Map<String, Object> requestBody,
             ServerWebExchange exchange) {
         return Mono.fromCallable(() -> {
-            String email = (String) requestBody.get("email");
-            String type = (String) requestBody.get("type");
-            SysUser user = userService.selectUserByEmail(email);
-            if (type.equals("forget") && ObjectUtils.isEmpty(user)) {
-                return AjaxResult.error("该邮箱未注册");
-            }
-            SysUser code = userService.generateCode(new SysUser().setEmail(email));
-            String emailContent = "尊敬的用户您好!您的验证码为:<h3>" + code.getCode() + "</h3>如不是您操作,请忽略此邮件.(有效期10分钟)";
-            // 需要配置自己的第三方邮箱认证信息，这里用的QQ邮箱认证信息，需自己申请
-            String username = "";
-            String password = "";
-            if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-                Mono.just(AjaxResult.error("未配置第三方邮箱认证信息,请联系管理员"));
-            }
-            OhMyEmail.config(SMTP_QQ(false), username, password);
-            OhMyEmail.subject("小智ESP32-智能物联网管理平台").from("小智物联网管理平台").to(email).html(emailContent).send();
+            try {
+                String email = (String) requestBody.get("email");
+                String type = (String) requestBody.get("type");
 
-            return AjaxResult.success();
-        }).onErrorResume(e -> {
-            log.error(e.getMessage(), e);
-            return Mono.just(AjaxResult.error("发送失败,请联系管理员"));
+                // 验证邮箱格式
+                if (!isValidEmail(email)) {
+                    return AjaxResult.error("邮箱格式不正确");
+                }
+
+                SysUser user = userService.selectUserByEmail(email);
+                if ("forget".equals(type) && ObjectUtils.isEmpty(user)) {
+                    return AjaxResult.error("该邮箱未注册");
+                }
+
+                SysUser code = userService.generateCode(new SysUser().setEmail(email));
+                String emailContent = "尊敬的用户您好!您的验证码为:<h3>" + code.getCode() + "</h3>如不是您操作,请忽略此邮件.(有效期10分钟)";
+
+                // 需要配置自己的第三方邮箱认证信息，这里用的QQ邮箱认证信息，需自己申请
+                if (!StringUtils.hasText(emailUsername) || !StringUtils.hasText(emailPassword)) {
+                    return AjaxResult.error("未配置第三方邮箱认证信息,请联系管理员");
+                }
+
+                // 配置邮件发送
+                OhMyEmail.config(SMTP_QQ(false), emailUsername, emailPassword);
+
+                // 发送邮件
+                OhMyEmail.subject("小智ESP32-智能物联网管理平台")
+                        .from("小智物联网管理平台")
+                        .to(email)
+                        .html(emailContent)
+                        .send();
+
+                return AjaxResult.success();
+            } catch (Exception e) {
+                logger.error("发送邮件失败: " + e.getMessage(), e);
+
+                // 根据异常类型返回不同的错误信息
+                String errorMsg = "发送失败";
+                if (e.getMessage() != null) {
+                    if (e.getMessage().contains("non-existent account") ||
+                            e.getMessage().contains("550") ||
+                            e.getMessage().contains("recipient")) {
+                        errorMsg = "邮箱地址不存在或无效";
+                    } else if (e.getMessage().contains("Authentication failed")) {
+                        errorMsg = "邮箱服务认证失败，请联系管理员";
+                    } else if (e.getMessage().contains("timed out")) {
+                        errorMsg = "邮件发送超时，请稍后重试";
+                    }
+                }
+
+                return AjaxResult.error(errorMsg);
+            }
         });
+    }
+
+    /**
+     * 简单验证邮箱格式
+     * 
+     * @param email 邮箱地址
+     * @return 是否有效
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return false;
+        }
+        // 简单的邮箱格式验证，包含@符号且@后面有.
+        return email.matches("^[^@]+@[^@]+\\.[^@]+$");
     }
 
     /**
@@ -225,7 +277,7 @@ public class UserController {
                 return AjaxResult.error("无效验证码");
             return AjaxResult.success();
         }).onErrorResume(e -> {
-            log.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return Mono.just(AjaxResult.error("操作失败,请联系管理员"));
         });
     }
@@ -242,7 +294,7 @@ public class UserController {
             }
             return AjaxResult.success();
         }).onErrorResume(e -> {
-            log.error(e.getMessage(), e);
+            logger.error(e.getMessage(), e);
             return Mono.just(AjaxResult.error("操作失败,请联系管理员"));
         });
     }

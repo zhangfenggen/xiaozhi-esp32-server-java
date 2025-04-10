@@ -18,10 +18,10 @@
             sys_role
             LEFT JOIN sys_config ON sys_role.ttsId = sys_config.configId
         WHERE
-            sys_role.userId = #{userId}
-            AND sys_role.state = 1
-        <if test="roleId != null and roleId != ''">AND roleId = #{roleId}</if>
-        <if test="roleName != null and roleName != ''">AND roleName LIKE CONCAT('%', #{roleName}, '%')</if>
+            sys_role.state = 1
+            <if test="userId != null and userId != ''">AND sys_role.userId = #{userId}</if>
+            <if test="roleId != null and roleId != ''">AND roleId = #{roleId}</if>
+            <if test="roleName != null and roleName != ''">AND roleName LIKE CONCAT('%', #{roleName}, '%')</if>
     </select>
 
     <update id="update" parameterType="com.xiaozhi.entity.SysRole">

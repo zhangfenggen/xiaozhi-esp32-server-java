@@ -1,10 +1,10 @@
 <template>
   <div class="audio-player-container">
     <div class="player-controls">
-      <a-button 
-        type="primary" 
-        shape="circle" 
-        size="small" 
+      <a-button
+        type="primary"
+        shape="circle"
+        size="small"
         @click="togglePlay"
         :loading="loading"
       >
@@ -16,37 +16,39 @@
 </template>
 
 <script>
-import WaveSurfer from 'wavesurfer.js';
-import EventBus from '@/utils/eventBus';
+import WaveSurfer from "wavesurfer.js";
+import EventBus from "@/utils/eventBus";
 
 export default {
-  name: 'AudioPlayer',
+  name: "AudioPlayer",
   props: {
     audioUrl: {
       type: String,
-      required: true
+      required: true,
     },
     autoPlay: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   data() {
     return {
       wavesurfer: null,
       isPlaying: false,
       loading: true,
-      playerId: null // 添加一个唯一标识符
+      playerId: null, // 添加一个唯一标识符
     };
   },
   mounted() {
     this.$nextTick(() => {
       // 生成唯一ID
-      this.playerId = `player_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      this.playerId = `player_${Date.now()}_${Math.floor(
+        Math.random() * 1000
+      )}`;
       this.initWaveSurfer();
-      
+
       // 监听其他播放器的播放事件
-      EventBus.$on('audio-play', (playerId) => {
+      EventBus.$on("audio-play", (playerId) => {
         // 如果不是当前播放器触发的事件，则暂停当前播放
         if (playerId !== this.playerId && this.isPlaying) {
           this.wavesurfer.pause();
@@ -54,11 +56,11 @@ export default {
       });
 
       // 监听全局停止事件
-      EventBus.$on('stop-all-audio', () => {
+      EventBus.$on("stop-all-audio", () => {
         if (this.wavesurfer && this.isPlaying) {
           this.wavesurfer.pause();
         }
-    });
+      });
     });
   },
   beforeDestroy() {
@@ -66,12 +68,12 @@ export default {
       // 在销毁前确保先暂停音频播放
       if (this.isPlaying) {
         this.wavesurfer.pause();
-    }
+      }
       this.wavesurfer.destroy();
     }
     // 移除事件监听
-    EventBus.$off('audio-play');
-    EventBus.$off('stop-all-audio');
+    EventBus.$off("audio-play");
+    EventBus.$off("stop-all-audio");
   },
   watch: {
     audioUrl: {
@@ -81,54 +83,55 @@ export default {
           this.loadAudio(newUrl);
         }
       },
-      immediate: false
-    }
+      immediate: false,
+    },
   },
   methods: {
     initWaveSurfer() {
       // 创建wavesurfer实例，使用WebAudio后端
       this.wavesurfer = WaveSurfer.create({
         container: this.$refs.waveform,
-        waveColor: '#ddd',
-        progressColor: '#1890ff',
-        cursorColor: 'transparent',
+        waveColor: "#ddd",
+        progressColor: "#1890ff",
+        cursorColor: "transparent",
         barWidth: 2,
         barRadius: 2,
         barGap: 1,
         height: 40,
         responsive: true,
         normalize: true,
-        backend: 'WebAudio' // 使用WebAudio后端而不是MediaElement
+        backend: "WebAudio", // 使用WebAudio后端而不是MediaElement
       });
 
       // 事件监听
-      this.wavesurfer.on('ready', () => {
+      this.wavesurfer.on("ready", () => {
         this.loading = false;
-        
+
         // 如果设置了自动播放，则在音频加载完成后自动播放
         if (this.autoPlay) {
           this.wavesurfer.play();
         }
       });
 
-      this.wavesurfer.on('play', () => {
+      this.wavesurfer.on("play", () => {
         this.isPlaying = true;
         // 通知其他播放器，当前播放器正在播放
-        EventBus.$emit('audio-play', this.playerId);
+        EventBus.$emit("audio-play", this.playerId);
       });
 
-      this.wavesurfer.on('pause', () => {
+      this.wavesurfer.on("pause", () => {
         this.isPlaying = false;
       });
 
-      this.wavesurfer.on('finish', () => {
+      this.wavesurfer.on("finish", () => {
         this.isPlaying = false;
         // 播放结束后将游标重置到开始位置
         this.wavesurfer.seekTo(0);
       });
 
-      this.wavesurfer.on('error', (err) => {
-        this.$message.error({ content: '音频加载失败', key: 'audioError' });
+      this.wavesurfer.on("error", (err) => {
+        console.error("音频加载失败:", err);
+        this.$message.error({ content: "音频加载失败", key: "audioError" });
         this.loading = false;
       });
 
@@ -139,17 +142,42 @@ export default {
     },
     loadAudio(url) {
       if (!url) return;
+
+      // 判断当前环境
+      const isDev = process.env.NODE_ENV === 'development';
       
-      this.wavesurfer.load(`http://localhost:8091/${url}`);
+      let audioUrl = url;
+      
+      // 确保URL以/开头
+      if (!audioUrl.startsWith('/')) {
+        audioUrl = '/' + audioUrl;
+      }
+      
+      // 开发环境下，直接使用后端地址
+      if (isDev) {
+        // 获取后端API地址，这里假设您的API地址和音频服务在同一个后端
+        const backendUrl = process.env.BASE_API || 'http://localhost:8091';
+        
+        // 移除开头的斜杠，因为我们要将完整的URL传给wavesurfer
+        if (audioUrl.startsWith('/')) {
+          audioUrl = audioUrl.substring(1);
+        }
+        
+        // 构建完整的URL
+        audioUrl = `${backendUrl}/${audioUrl}`;
+        
+      }
+      
+      this.wavesurfer.load(audioUrl);
     },
     togglePlay() {
       if (this.loading) return;
-      
+
       if (this.wavesurfer) {
         this.wavesurfer.playPause();
       }
-    }
-  }
+    },
+  },
 };
 </script>
 

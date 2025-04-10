@@ -31,14 +31,13 @@ public class AuthenticationInterceptor implements WebFilter {
     @Resource
     private SysUserService userService;
 
-    private static final Logger log = LoggerFactory.getLogger(AuthenticationInterceptor.class);
+    private static final Logger logger = LoggerFactory.getLogger(AuthenticationInterceptor.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     // 不需要认证的路径
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
-            "/api/user/login", 
-            "/api/user/update", 
-            "/api/device/ota", 
+            "/api/user/",
+            "/api/device/ota",
             "/audio/",
             "/ws/");
 
@@ -46,12 +45,12 @@ public class AuthenticationInterceptor implements WebFilter {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
-        
+
         // 检查是否是公共路径
         if (isPublicPath(path)) {
             return chain.filter(exchange);
         }
-        
+
         // 获取会话
         return exchange.getSession()
                 .flatMap(session -> {
@@ -63,7 +62,7 @@ public class AuthenticationInterceptor implements WebFilter {
                         exchange.getAttributes().put(CmsUtils.USER_ATTRIBUTE_KEY, user);
                         return chain.filter(exchange);
                     }
-                    
+
                     // 尝试从Cookie中获取用户名
                     return tryAuthenticateWithCookies(exchange, session)
                             .flatMap(authenticated -> {
@@ -74,13 +73,13 @@ public class AuthenticationInterceptor implements WebFilter {
                             });
                 });
     }
-    
+
     /**
      * 尝试使用Cookie进行认证
      */
     private Mono<Boolean> tryAuthenticateWithCookies(ServerWebExchange exchange, WebSession session) {
         ServerHttpRequest request = exchange.getRequest();
-        
+
         // 检查是否有username cookie
         HttpCookie usernameCookie = request.getCookies().getFirst("username");
         if (usernameCookie != null) {
@@ -95,22 +94,22 @@ public class AuthenticationInterceptor implements WebFilter {
                 }
             }
         }
-        
+
         return Mono.just(false);
     }
-    
+
     /**
      * 处理未授权的请求
      */
     private Mono<Void> handleUnauthorized(ServerWebExchange exchange) {
         ServerHttpRequest request = exchange.getRequest();
         ServerHttpResponse response = exchange.getResponse();
-        
+
         // 检查是否是AJAX请求
         String ajaxTag = request.getHeaders().getFirst("Request-By");
         String head = request.getHeaders().getFirst("X-Requested-With");
-        
-        if ((ajaxTag != null && ajaxTag.trim().equalsIgnoreCase("Ext")) 
+
+        if ((ajaxTag != null && ajaxTag.trim().equalsIgnoreCase("Ext"))
                 || (head != null && !head.equalsIgnoreCase("XMLHttpRequest"))) {
             response.getHeaders().add("_timeout", "true");
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
@@ -119,18 +118,18 @@ public class AuthenticationInterceptor implements WebFilter {
             // 返回JSON格式的错误信息
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             response.getHeaders().add("Content-Type", "application/json;charset=UTF-8");
-            
+
             AjaxResult result = AjaxResult.error(com.xiaozhi.common.web.HttpStatus.FORBIDDEN, "用户未登录");
             try {
                 byte[] bytes = objectMapper.writeValueAsBytes(result);
                 return response.writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
             } catch (Exception e) {
-                log.error("写入响应失败", e);
+                logger.error("写入响应失败", e);
                 return Mono.error(e);
             }
         }
     }
-    
+
     /**
      * 检查是否是公共路径
      */
