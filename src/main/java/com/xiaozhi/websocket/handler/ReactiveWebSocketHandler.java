@@ -20,6 +20,7 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
@@ -207,6 +208,10 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
     private Mono<Void> handleBinaryMessage(WebSocketSession session, WebSocketMessage message) {
         SysDevice device = sessionManager.getDeviceConfig(session.getId());
+        if (device == null) {
+            sessionManager.closeSession(session.getId());
+            return Mono.empty();
+        }
         if (device.getModelId() == null) {
             return handleUnboundDevice(session, device);
         }

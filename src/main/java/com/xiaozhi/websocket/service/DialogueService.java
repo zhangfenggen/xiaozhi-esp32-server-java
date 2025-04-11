@@ -116,7 +116,8 @@ public class DialogueService {
                     if (vadResult.getStatus() == VadStatus.ERROR || vadResult.getProcessedData() == null) {
                         return Mono.empty();
                     }
-
+                    // 检测到语音
+                    sessionManager.updateLastActivity(sessionId);
                     // 根据VAD状态处理
                     switch (vadResult.getStatus()) {
                         case SPEECH_START:
@@ -298,6 +299,7 @@ public class DialogueService {
             int sentenceNumber) {
 
         Semaphore limiter = sessionTtsLimiters.get(sessionId);
+        sessionManager.updateLastActivity(sessionId);
 
         // 尝试获取许可
         Mono.fromCallable(() -> {
@@ -363,7 +365,7 @@ public class DialogueService {
         // 获取配置并创建final变量以在lambda中使用
         final SysConfig ttsConfig = device.getTtsId() != null ? sessionManager.getCachedConfig(device.getTtsId())
                 : null;
-
+        sessionManager.updateLastActivity(sessionId);
         logger.info("检测到唤醒词: \"{}\"", text);
 
         // 记录模型回复开始时间

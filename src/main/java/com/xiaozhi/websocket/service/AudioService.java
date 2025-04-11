@@ -647,33 +647,34 @@ public class AudioService {
         }
 
         return true;
-        /* 
-        try {
-            boolean success = true;
-
-            // 删除原始音频文件
-            File audioFile = new File(audioPath);
-            if (audioFile.exists()) {
-                if (!audioFile.delete()) {
-                    logger.warn("无法删除音频文件: {}", audioPath);
-                    success = false;
-                }
-            }
-
-            // 删除可能存在的VTT文件
-            File vttFile = new File(audioPath + ".vtt");
-            if (vttFile.exists()) {
-                if (!vttFile.delete()) {
-                    logger.warn("无法删除VTT文件: {}", vttFile.getPath());
-                    success = false;
-                }
-            }
-
-            return success;
-        } catch (Exception e) {
-            logger.error("删除音频文件时发生错误: {}", audioPath, e);
-            return false;
-        } */
+        /*
+         * try {
+         * boolean success = true;
+         * 
+         * // 删除原始音频文件
+         * File audioFile = new File(audioPath);
+         * if (audioFile.exists()) {
+         * if (!audioFile.delete()) {
+         * logger.warn("无法删除音频文件: {}", audioPath);
+         * success = false;
+         * }
+         * }
+         * 
+         * // 删除可能存在的VTT文件
+         * File vttFile = new File(audioPath + ".vtt");
+         * if (vttFile.exists()) {
+         * if (!vttFile.delete()) {
+         * logger.warn("无法删除VTT文件: {}", vttFile.getPath());
+         * success = false;
+         * }
+         * }
+         * 
+         * return success;
+         * } catch (Exception e) {
+         * logger.error("删除音频文件时发生错误: {}", audioPath, e);
+         * return false;
+         * }
+         */
     }
 
     /**
