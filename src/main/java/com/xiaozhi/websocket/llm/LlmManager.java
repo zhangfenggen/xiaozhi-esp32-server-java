@@ -323,7 +323,7 @@ public class LlmManager {
                             // 如果当前句子已经足够长，可以考虑在逗号处分割
                             String sentence = currentSentence.toString().trim();
                             if (sentence.length() >= MIN_SENTENCE_LENGTH &&
-                                    (pendingSentence.get() == null || charsSinceLastEnd.get() >= COMMA_THRESHOLD)) {
+                                    (pendingSentence.get() == null || charsSinceLastEnd.get() >= MIN_SENTENCE_LENGTH)) {
 
                                 // 如果有暂存的句子，先发送它
                                 if (pendingSentence.get() != null) {
