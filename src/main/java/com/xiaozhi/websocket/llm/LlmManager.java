@@ -198,7 +198,6 @@ public class LlmManager {
 
                 @Override
                 public void onToken(String token) {
-                    logger.debug("token: {}", token);
                     // 将token添加到完整响应
                     fullResponse.append(token);
 
