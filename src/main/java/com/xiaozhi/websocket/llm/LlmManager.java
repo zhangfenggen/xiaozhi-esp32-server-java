@@ -33,18 +33,24 @@ public class LlmManager {
 
     // 句子结束标点符号模式（中英文句号、感叹号、问号）
     private static final Pattern SENTENCE_END_PATTERN = Pattern.compile("[。！？!?]");
-    
+
     // 逗号、分号等停顿标点
     private static final Pattern PAUSE_PATTERN = Pattern.compile("[，、；,;]");
-    
+
+    // 冒号和引号等特殊标点
+    private static final Pattern SPECIAL_PATTERN = Pattern.compile("[：:\"'']");
+
+    // 换行符
+    private static final Pattern NEWLINE_PATTERN = Pattern.compile("[\n\r]");
+
     // 数字模式（用于检测小数点是否在数字中）
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+\\.\\d+");
 
     // 最小句子长度（字符数）
     private static final int MIN_SENTENCE_LENGTH = 5;
-    
-    // 新句子判断的token阈值
-    private static final int NEW_SENTENCE_TOKEN_THRESHOLD = 15;
+
+    // 新句子判断的字符阈值
+    private static final int NEW_SENTENCE_TOKEN_THRESHOLD = 8;
 
     @Autowired
     private SysConfigService configService;
@@ -178,8 +184,11 @@ public class LlmManager {
             final AtomicInteger sentenceCount = new AtomicInteger(0); // 已发送句子的计数
             final StringBuilder fullResponse = new StringBuilder(); // 完整响应的缓冲区
             final AtomicReference<String> pendingSentence = new AtomicReference<>(null); // 暂存的句子
-            final AtomicInteger tokensSinceLastEnd = new AtomicInteger(0); // 自上一个句子结束标点符号以来的token数
-            final AtomicBoolean lastTokenWasEndMark = new AtomicBoolean(false); // 上一个token是否为句子结束标记
+            final AtomicInteger charsSinceLastEnd = new AtomicInteger(0); // 自上一个句子结束标点符号以来的字符数
+            final AtomicBoolean lastCharWasEndMark = new AtomicBoolean(false); // 上一个字符是否为句子结束标记
+            final AtomicBoolean lastCharWasPauseMark = new AtomicBoolean(false); // 上一个字符是否为停顿标记
+            final AtomicBoolean lastCharWasSpecialMark = new AtomicBoolean(false); // 上一个字符是否为特殊标记
+            final AtomicBoolean lastCharWasNewline = new AtomicBoolean(false); // 上一个字符是否为换行符
 
             // 创建流式响应监听器
             StreamResponseListener streamListener = new StreamResponseListener() {
@@ -189,76 +198,166 @@ public class LlmManager {
 
                 @Override
                 public void onToken(String token) {
+                    logger.debug("token: {}", token);
                     // 将token添加到完整响应
                     fullResponse.append(token);
-                    
-                    // 将token添加到上下文缓冲区（保留最近的字符以检测数字模式）
-                    contextBuffer.append(token);
-                    if (contextBuffer.length() > 20) { // 保留足够的上下文
-                        contextBuffer.delete(0, contextBuffer.length() - 20);
-                    }
 
-                    // 将token添加到当前句子缓冲区
-                    currentSentence.append(token);
-                    
-                    // 检查是否是句子结束标点符号
-                    boolean isEndMark = SENTENCE_END_PATTERN.matcher(token).find();
-                    
-                    // 如果当前token是句子结束标点，需要检查它是否是数字中的小数点
-                    if (isEndMark && token.equals(".")) {
-                        // 检查小数点是否在数字中
-                        String context = contextBuffer.toString();
-                        Matcher numberMatcher = NUMBER_PATTERN.matcher(context);
-                        
-                        // 如果找到数字模式（如"0.271"），则不视为句子结束标点
-                        if (numberMatcher.find() && numberMatcher.end() >= context.length() - 3) {
-                            isEndMark = false;
+                    // 逐字符处理token
+                    for (int i = 0; i < token.length(); i++) {
+                        char c = token.charAt(i);
+                        String charStr = String.valueOf(c);
+
+                        // 将字符添加到上下文缓冲区（保留最近的字符以检测数字模式）
+                        contextBuffer.append(charStr);
+                        if (contextBuffer.length() > 20) { // 保留足够的上下文
+                            contextBuffer.delete(0, contextBuffer.length() - 20);
                         }
-                    }
-                    
-                    // 如果当前token是句子结束标点，或者上一个token是句子结束标点且当前是空白字符
-                    if (isEndMark || (lastTokenWasEndMark.get() && token.trim().isEmpty())) {
-                        // 重置计数器
-                        tokensSinceLastEnd.set(0);
-                        lastTokenWasEndMark.set(isEndMark);
-                        
-                        // 当前句子包含句子结束标点，检查是否达到最小长度
-                        String sentence = currentSentence.toString().trim();
-                        if (sentence.length() >= MIN_SENTENCE_LENGTH) {
-                            // 如果有暂存的句子，先发送它（isEnd = false）
-                            if (pendingSentence.get() != null) {
+
+                        // 将字符添加到当前句子缓冲区
+                        currentSentence.append(charStr);
+
+                        // 检查各种标点符号
+                        boolean isEndMark = SENTENCE_END_PATTERN.matcher(charStr).find();
+                        boolean isPauseMark = PAUSE_PATTERN.matcher(charStr).find();
+                        boolean isSpecialMark = SPECIAL_PATTERN.matcher(charStr).find();
+                        boolean isNewline = NEWLINE_PATTERN.matcher(charStr).find();
+
+                        // 如果当前字符是句子结束标点，需要检查它是否是数字中的小数点
+                        if (isEndMark && charStr.equals(".")) {
+                            // 检查小数点是否在数字中
+                            String context = contextBuffer.toString();
+                            Matcher numberMatcher = NUMBER_PATTERN.matcher(context);
+
+                            // 如果找到数字模式（如"0.271"），则不视为句子结束标点
+                            if (numberMatcher.find() && numberMatcher.end() >= context.length() - 3) {
+                                isEndMark = false;
+                            }
+                        }
+
+                        // 如果当前字符是句子结束标点，或者上一个字符是句子结束标点且当前是空白字符
+                        if (isEndMark || (lastCharWasEndMark.get() && Character.isWhitespace(c))) {
+                            // 重置计数器
+                            charsSinceLastEnd.set(0);
+                            lastCharWasEndMark.set(isEndMark);
+                            lastCharWasPauseMark.set(false);
+                            lastCharWasSpecialMark.set(false);
+                            lastCharWasNewline.set(false);
+
+                            // 当前句子包含句子结束标点，检查是否达到最小长度
+                            String sentence = currentSentence.toString().trim();
+                            if (sentence.length() >= MIN_SENTENCE_LENGTH) {
+                                // 如果有暂存的句子，先发送它（isEnd = false）
+                                if (pendingSentence.get() != null) {
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
+                                    sentenceCount.incrementAndGet();
+                                }
+
+                                // 将当前句子标记为暂存句子
+                                pendingSentence.set(sentence);
+
+                                // 清空当前句子缓冲区
+                                currentSentence.setLength(0);
+                            }
+                        }
+                        // 处理换行符 - 强制分割句子
+                        else if (isNewline) {
+                            lastCharWasEndMark.set(false);
+                            lastCharWasPauseMark.set(false);
+                            lastCharWasSpecialMark.set(false);
+                            lastCharWasNewline.set(true);
+
+                            // 如果当前句子不为空，则作为一个完整句子处理
+                            String sentence = currentSentence.toString().trim();
+                            if (sentence.length() >= MIN_SENTENCE_LENGTH) {
+                                // 如果有暂存的句子，先发送它
+                                if (pendingSentence.get() != null) {
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
+                                    sentenceCount.incrementAndGet();
+                                }
+
+                                // 将当前句子标记为暂存句子
+                                pendingSentence.set(sentence);
+
+                                // 清空当前句子缓冲区
+                                currentSentence.setLength(0);
+
+                                // 重置字符计数
+                                charsSinceLastEnd.set(0);
+                            }
+                        }
+                        // 处理冒号等特殊标点 - 可能需要分割句子
+                        else if (isSpecialMark) {
+                            lastCharWasEndMark.set(false);
+                            lastCharWasPauseMark.set(false);
+                            lastCharWasSpecialMark.set(true);
+                            lastCharWasNewline.set(false);
+
+                            // 如果当前句子已经足够长，可以考虑在冒号处分割
+                            String sentence = currentSentence.toString().trim();
+                            if (sentence.length() >= MIN_SENTENCE_LENGTH &&
+                                    (pendingSentence.get() == null || charsSinceLastEnd.get() >= MIN_SENTENCE_LENGTH)) {
+
+                                // 如果有暂存的句子，先发送它
+                                if (pendingSentence.get() != null) {
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
+                                    sentenceCount.incrementAndGet();
+                                }
+
+                                // 将当前句子标记为暂存句子
+                                pendingSentence.set(sentence);
+
+                                // 清空当前句子缓冲区
+                                currentSentence.setLength(0);
+
+                                // 重置字符计数
+                                charsSinceLastEnd.set(0);
+                            }
+                        }
+                        // 处理逗号等停顿标点
+                        else if (isPauseMark) {
+                            lastCharWasEndMark.set(false);
+                            lastCharWasPauseMark.set(true);
+                            lastCharWasSpecialMark.set(false);
+                            lastCharWasNewline.set(false);
+
+                            // 如果当前句子已经足够长，可以考虑在逗号处分割
+                            String sentence = currentSentence.toString().trim();
+                            if (sentence.length() >= MIN_SENTENCE_LENGTH &&
+                                    (pendingSentence.get() == null || charsSinceLastEnd.get() >= COMMA_THRESHOLD)) {
+
+                                // 如果有暂存的句子，先发送它
+                                if (pendingSentence.get() != null) {
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
+                                    sentenceCount.incrementAndGet();
+                                }
+
+                                // 将当前句子标记为暂存句子
+                                pendingSentence.set(sentence);
+
+                                // 清空当前句子缓冲区
+                                currentSentence.setLength(0);
+
+                                // 重置字符计数
+                                charsSinceLastEnd.set(0);
+                            }
+                        } else {
+                            // 更新上一个字符的状态
+                            lastCharWasEndMark.set(false);
+                            lastCharWasPauseMark.set(false);
+                            lastCharWasSpecialMark.set(false);
+                            lastCharWasNewline.set(false);
+
+                            // 增加自上一个句子结束标点以来的字符计数
+                            charsSinceLastEnd.incrementAndGet();
+
+                            // 如果自上一个句子结束标点后已经累积了非常多的字符（表示新句子已经开始）
+                            // 且有暂存的句子，则发送暂存的句子
+                            if (charsSinceLastEnd.get() >= NEW_SENTENCE_TOKEN_THRESHOLD
+                                    && pendingSentence.get() != null) {
                                 sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                 sentenceCount.incrementAndGet();
+                                pendingSentence.set(null);
                             }
-
-                            // 将当前句子标记为暂存句子
-                            pendingSentence.set(sentence);
-
-                            // 清空当前句子缓冲区
-                            currentSentence.setLength(0);
-                        }
-                    } else {
-                        // 更新上一个token的状态
-                        lastTokenWasEndMark.set(false);
-                        
-                        // 增加自上一个句子结束标点以来的token计数
-                        tokensSinceLastEnd.incrementAndGet();
-                        
-                        // 检查是否有停顿标点（如逗号）且已经累积了足够多的内容
-                        if (PAUSE_PATTERN.matcher(token).find() && pendingSentence.get() != null && 
-                            tokensSinceLastEnd.get() >= NEW_SENTENCE_TOKEN_THRESHOLD) {
-                            // 如果有暂存的句子且已经累积了足够多的token，发送暂存的句子
-                            sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
-                            sentenceCount.incrementAndGet();
-                            pendingSentence.set(null);
-                        }
-                        
-                        // 如果自上一个句子结束标点后已经累积了非常多的token（表示新句子已经开始）
-                        // 且有暂存的句子，则发送暂存的句子
-                        if (tokensSinceLastEnd.get() >= NEW_SENTENCE_TOKEN_THRESHOLD && pendingSentence.get() != null) {
-                            sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
-                            sentenceCount.incrementAndGet();
-                            pendingSentence.set(null);
                         }
                     }
                 }
@@ -268,9 +367,9 @@ public class LlmManager {
                     // 如果有暂存的句子，发送它
                     if (pendingSentence.get() != null) {
                         boolean isFirst = sentenceCount.get() == 0;
-                        boolean isLast = currentSentence.length() == 0 || 
-                                         !containsSubstantialContent(currentSentence.toString());
-                        
+                        boolean isLast = currentSentence.length() == 0 ||
+                                !containsSubstantialContent(currentSentence.toString());
+
                         sentenceHandler.accept(pendingSentence.get(), isFirst, isLast);
                         sentenceCount.incrementAndGet();
                         pendingSentence.set(null);
@@ -282,6 +381,9 @@ public class LlmManager {
                         sentenceHandler.accept(sentence, sentenceCount.get() == 0, true);
                         sentenceCount.incrementAndGet();
                     }
+
+                    // 记录处理的句子数量
+                    logger.debug("总共处理了 {} 个句子", sentenceCount.get());
                 }
 
                 @Override
@@ -301,7 +403,7 @@ public class LlmManager {
             sentenceHandler.accept("抱歉，我在处理您的请求时遇到了问题。", true, true);
         }
     }
-    
+
     /**
      * 判断文本是否包含实质性内容（不仅仅是空白字符或标点符号）
      * 
@@ -312,7 +414,7 @@ public class LlmManager {
         if (text == null || text.trim().length() < MIN_SENTENCE_LENGTH) {
             return false;
         }
-        
+
         // 移除所有标点符号和空白字符后，检查是否还有内容
         String stripped = text.replaceAll("[\\p{P}\\s]", "");
         return stripped.length() >= 2; // 至少有两个非标点非空白字符
@@ -326,7 +428,7 @@ public class LlmManager {
      * @return LLM服务
      */
     public LlmService getLlmService(String deviceId, Integer configId) {
-        
+
         // 检查设备是否已有服务且配置ID不同
         Integer currentConfigId = deviceConfigIds.get(deviceId);
         if (currentConfigId != null && !currentConfigId.equals(configId)) {
