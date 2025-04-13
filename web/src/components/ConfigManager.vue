@@ -67,10 +67,22 @@
                   </a-col>
                   <a-col :xl="16" :lg="12" :xs="24">
                     <a-form-item :label="`${configTypeInfo.label}名称`">
-                      <a-input v-decorator="[
-                        'configName',
-                        { rules: [{ required: true, message: `请输入${configTypeInfo.label}名称` }] }
-                      ]" autocomplete="off" :placeholder="`请输入${configTypeInfo.label}名称`" />
+                      <!-- 修改这里，添加模型名称提示 -->
+                      <a-tooltip 
+                        v-if="configType === 'llm' && currentType && getModelNameTip(currentType)"
+                        :title="getModelNameTip(currentType)"
+                        placement="top">
+                        <a-input v-decorator="[
+                          'configName',
+                          { rules: [{ required: true, message: `请输入${configTypeInfo.label}名称` }] }
+                        ]" autocomplete="off" :placeholder="`请输入${configTypeInfo.label}名称`" />
+                      </a-tooltip>
+                      <a-input 
+                        v-else
+                        v-decorator="[
+                          'configName',
+                          { rules: [{ required: true, message: `请输入${configTypeInfo.label}名称` }] }
+                        ]" autocomplete="off" :placeholder="`请输入${configTypeInfo.label}名称`" />
                     </a-form-item>
                   </a-col>
                 </a-row>
@@ -157,6 +169,13 @@ export default {
       editingConfigId: null,
       currentType: '',
       loading: false,
+
+      // 模型名称提示信息
+      modelNameTips: {
+        openai: "请输入要调用的模型名称，如：gpt-3.5-turbo, gpt-4, qwen-max, deepseek-chat等",
+        ollama: "请输入要调用的Ollama模型名称，如：deepseek-r1, qwen2.5:7b, gemma3:12b等",
+        spark: "请输入星火大模型官方模型名称，如：Lite, Pro, Max等"
+      },
 
       // 配置类型信息
       configTypeMap: {
@@ -303,6 +322,11 @@ export default {
     this.getData()
   },
   methods: {
+    // 获取模型名称提示
+    getModelNameTip(providerType) {
+      return this.configType === 'llm' ? this.modelNameTips[providerType] : null;
+    },
+    
     // 处理标签页切换
     handleTabChange(key) {
       this.activeTabKey = key;
