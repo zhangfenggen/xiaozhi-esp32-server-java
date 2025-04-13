@@ -3,7 +3,6 @@ package com.xiaozhi.websocket.llm.factory;
 import com.xiaozhi.websocket.llm.api.LlmService;
 import com.xiaozhi.websocket.llm.providers.OllamaService;
 import com.xiaozhi.websocket.llm.providers.OpenAiService;
-import com.xiaozhi.websocket.llm.providers.QwenService;
 import com.xiaozhi.websocket.llm.providers.SparkService;
 
 import org.slf4j.Logger;
@@ -34,8 +33,6 @@ public class LlmServiceFactory {
                 return new OpenAiService(endpoint, appId, apiKey, apiSecret, model);
             case "ollama":
                 return new OllamaService(endpoint, appId, apiKey, apiSecret, model);
-            case "qwen":
-                return new QwenService(endpoint, appId, apiKey, apiSecret, model);
             case "spark":
                 return new SparkService(endpoint, appId, apiKey, apiSecret, model);
             // 可以添加更多提供商的支持

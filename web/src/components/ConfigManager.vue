@@ -166,8 +166,7 @@ export default {
           typeOptions: [
             { label: 'OpenAI', value: 'openai', key: '0' },
             { label: 'Ollama', value: 'ollama', key: '1' },
-            { label: 'Qwen', value: 'qwen', key: '2' },
-            { label: 'Spark', value: 'spark', key: '3' }
+            { label: 'Spark', value: 'spark', key: '2' }
           ],
           // 各类别对应的参数字段定义
           typeFields: {
@@ -177,10 +176,6 @@ export default {
             ],
             ollama: [
               { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/api/chat' }
-            ],
-            qwen: [
-              { name: 'apiKey', label: 'API Key', required: true, span: 12 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' }
             ],
             spark: [
               { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
