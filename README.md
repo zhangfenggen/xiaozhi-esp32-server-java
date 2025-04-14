@@ -73,9 +73,9 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 ## 使用方式
 
 ### 1. 本地源码运行
-点击此处查看Windows[部署文档](./docs/WINDOWS_DEVELOPMENT.md)
+[点击此处查看Windows部署文档](./docs/WINDOWS_DEVELOPMENT.md)
 
-点击此处查看Centos[部署文档](./docs/CENTOS_DEVELOPMENT.md)
+[点击此处查看Centos部署文档](./docs/CENTOS_DEVELOPMENT.md)
 
 成功运行后，控制台会输出 WebSocket 连接地址，根据下方固件编译文档使设备接入服务使用。
 
