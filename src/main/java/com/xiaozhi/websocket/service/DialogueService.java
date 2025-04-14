@@ -18,8 +18,10 @@ import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.text.DecimalFormat;
 
@@ -55,9 +57,6 @@ public class DialogueService {
     @Autowired
     private SessionManager sessionManager;
 
-    // 添加一个每个会话的TTS请求限制器
-    private final Map<String, Semaphore> sessionTtsLimiters = new ConcurrentHashMap<>();
-
     // 添加一个每个会话的句子序列号计数器
     private final Map<String, AtomicInteger> sessionSentenceCounters = new ConcurrentHashMap<>();
 
@@ -73,7 +72,33 @@ public class DialogueService {
     // 添加会话的完整回复内容
     private final Map<String, StringBuilder> sessionFullResponses = new ConcurrentHashMap<>();
 
-    private final Semaphore ttsRequestLimit = new Semaphore(2); // 限制同时进行的TTS请求数量，保证TTS请求有序执行
+    // 添加会话的句子处理队列，确保按顺序处理
+    private final Map<String, Queue<SentenceTask>> sessionSentenceQueues = new ConcurrentHashMap<>();
+
+    // 添加会话的处理状态标志
+    private final Map<String, AtomicBoolean> sessionProcessingFlags = new ConcurrentHashMap<>();
+
+    /**
+     * 句子任务类，用于按顺序处理句子
+     */
+    private static class SentenceTask {
+        private final String sentence;
+        private final boolean isStart;
+        private final boolean isEnd;
+        private final SysConfig ttsConfig;
+        private final String voiceName;
+        private final int sentenceNumber;
+
+        public SentenceTask(String sentence, boolean isStart, boolean isEnd,
+                SysConfig ttsConfig, String voiceName, int sentenceNumber) {
+            this.sentence = sentence;
+            this.isStart = isStart;
+            this.isEnd = isEnd;
+            this.ttsConfig = ttsConfig;
+            this.voiceName = voiceName;
+            this.sentenceNumber = sentenceNumber;
+        }
+    }
 
     /**
      * 处理音频数据
@@ -231,9 +256,12 @@ public class DialogueService {
                     // 设置会话为非监听状态，防止处理自己的声音
                     sessionManager.setListeningState(sessionId, false);
 
-                    // 确保为此会话创建TTS限制器
-                    sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 限制为1个并发，确保顺序处理
+                    // 初始化句子计数器
                     sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
+
+                    // 初始化句子队列和处理标志
+                    sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
+                    sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
 
                     // 发送最终识别结果
                     return messageService.sendMessage(session, "stt", "final", finalText)
@@ -263,8 +291,8 @@ public class DialogueService {
                                             sessionTtsStartTimes.get(sessionId).put(sentenceNumber,
                                                     System.currentTimeMillis());
 
-                                            // 使用TTS限制器控制并发
-                                            processSentenceWithRateLimit(
+                                            // 将句子添加到处理队列，确保按顺序处理
+                                            addSentenceToQueue(
                                                     session,
                                                     sessionId,
                                                     sentence,
@@ -286,9 +314,9 @@ public class DialogueService {
     }
 
     /**
-     * 使用限流器处理句子的TTS转换
+     * 将句子添加到处理队列并启动处理
      */
-    private void processSentenceWithRateLimit(
+    private void addSentenceToQueue(
             WebSocketSession session,
             String sessionId,
             String sentence,
@@ -298,50 +326,87 @@ public class DialogueService {
             String voiceName,
             int sentenceNumber) {
 
-        Semaphore limiter = sessionTtsLimiters.get(sessionId);
-        sessionManager.updateLastActivity(sessionId);
+        // 创建句子任务
+        SentenceTask task = new SentenceTask(sentence, isStart, isEnd, ttsConfig, voiceName, sentenceNumber);
 
-        // 尝试获取许可
-        Mono.fromCallable(() -> {
-            // 阻塞获取许可，确保按顺序处理
-            limiter.acquire();
-            return true;
-        })
+        // 获取会话的句子队列
+        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
+        if (queue == null) {
+            queue = new ConcurrentLinkedQueue<>();
+            sessionSentenceQueues.put(sessionId, queue);
+        }
+
+        // 将任务添加到队列
+        queue.add(task);
+
+        // 如果当前没有正在处理的任务，开始处理队列
+        AtomicBoolean isProcessing = sessionProcessingFlags.get(sessionId);
+        if (isProcessing != null && isProcessing.compareAndSet(false, true)) {
+            processSentenceQueue(session, sessionId);
+        }
+    }
+
+    /**
+     * 处理句子队列
+     */
+    private void processSentenceQueue(WebSocketSession session, String sessionId) {
+        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
+        AtomicBoolean isProcessing = sessionProcessingFlags.get(sessionId);
+
+        // 如果队列为空或会话已关闭，结束处理
+        if (queue == null || queue.isEmpty() || !session.isOpen()) {
+            if (isProcessing != null) {
+                isProcessing.set(false);
+            }
+            return;
+        }
+
+        // 获取下一个任务
+        SentenceTask task = queue.poll();
+
+        // 处理句子
+        Mono.fromCallable(() -> ttsService.getTtsService(task.ttsConfig, task.voiceName).textToSpeech(task.sentence))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(acquired ->
-                // 使用非流式TTS处理
-                Mono.fromCallable(() -> ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence))
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .flatMap(audioPath -> {
-                            // 记录TTS完成时间并计算用时
-                            Long ttsStartTime = sessionTtsStartTimes.getOrDefault(sessionId, new ConcurrentHashMap<>())
-                                    .get(sentenceNumber);
-                            if (ttsStartTime != null) {
-                                double ttsDuration = (System.currentTimeMillis() - ttsStartTime) / 1000.0;
-                                logger.info("语音生成完成 - SessionId: {}, 句子序号: {}, 用时: {}秒, 内容: \"{}\"",
-                                        sessionId, sentenceNumber, df.format(ttsDuration), sentence);
-                            }
+                .flatMap(audioPath -> {
+                    // 记录TTS完成时间并计算用时
+                    Long ttsStartTime = sessionTtsStartTimes.getOrDefault(sessionId, new ConcurrentHashMap<>())
+                            .get(task.sentenceNumber);
+                    if (ttsStartTime != null) {
+                        double ttsDuration = (System.currentTimeMillis() - ttsStartTime) / 1000.0;
+                        logger.info("语音生成完成 - SessionId: {}, 句子序号: {}, 用时: {}秒, 内容: \"{}\"",
+                                sessionId, task.sentenceNumber, df.format(ttsDuration), task.sentence);
+                    }
 
-                            // 如果是最后一个句子，记录完整回复
-                            if (isEnd) {
-                                StringBuilder fullResponse = sessionFullResponses.get(sessionId);
-                                if (fullResponse != null) {
-                                    logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId,
-                                            fullResponse.toString());
-                                }
-                            }
+                    // 如果是最后一个句子，记录完整回复
+                    if (task.isEnd) {
+                        StringBuilder fullResponse = sessionFullResponses.get(sessionId);
+                        if (fullResponse != null) {
+                            logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId,
+                                    fullResponse.toString());
+                        }
+                    }
 
-                            return audioService.sendAudioMessage(session, audioPath, sentence, isStart, isEnd)
-                                    .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e));
-                        }))
+                    return audioService.sendAudioMessage(session, audioPath, task.sentence, task.isStart, task.isEnd)
+                            .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e));
+                })
                 .doFinally(signalType -> {
-                    // 释放许可
-                    limiter.release();
+                    // 继续处理队列中的下一个任务
+                    if (!queue.isEmpty() && session.isOpen()) {
+                        processSentenceQueue(session, sessionId);
+                    } else {
+                        // 队列为空，重置处理状态
+                        isProcessing.set(false);
+                    }
                 })
                 .onErrorResume(e -> {
-                    logger.error("处理句子 #{} 失败: {}", sentenceNumber, e.getMessage(), e);
-                    // 确保释放许可
-                    limiter.release();
+                    logger.error("处理句子 #{} 失败: {}", task.sentenceNumber, e.getMessage(), e);
+
+                    // 继续处理队列中的下一个任务，即使当前任务失败
+                    if (!queue.isEmpty() && session.isOpen()) {
+                        processSentenceQueue(session, sessionId);
+                    } else {
+                        isProcessing.set(false);
+                    }
                     return Mono.empty();
                 })
                 .subscribe();
@@ -380,9 +445,12 @@ public class DialogueService {
         // 设置为非监听状态，防止处理自己的声音
         sessionManager.setListeningState(sessionId, false);
 
-        // 确保为此会话创建TTS限制器
-        sessionTtsLimiters.putIfAbsent(sessionId, ttsRequestLimit); // 限制为1个并发，确保顺序处理
+        // 初始化句子计数器
         sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
+
+        // 初始化句子队列和处理标志
+        sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
+        sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
 
         // 发送识别结果
         messageService.sendMessage(session, "stt", "start", text).subscribe();
@@ -411,8 +479,8 @@ public class DialogueService {
                         // 记录TTS开始时间
                         sessionTtsStartTimes.get(sessionId).put(sentenceNumber, System.currentTimeMillis());
 
-                        // 使用TTS限制器控制并发
-                        processSentenceWithRateLimit(
+                        // 将句子添加到处理队列，确保按顺序处理
+                        addSentenceToQueue(
                                 session,
                                 sessionId,
                                 sentence,
@@ -440,6 +508,12 @@ public class DialogueService {
         sessionManager.closeAudioSink(sessionId);
         sessionManager.setStreamingState(sessionId, false);
 
+        // 清空句子队列
+        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
+        if (queue != null) {
+            queue.clear();
+        }
+
         // 终止语音发送
         return audioService.sendStop(session);
     }
@@ -450,9 +524,11 @@ public class DialogueService {
      * @param sessionId 会话ID
      */
     public void cleanupSession(String sessionId) {
-        // 移除会话的TTS限制器和计数器
-        sessionTtsLimiters.remove(sessionId);
         sessionSentenceCounters.remove(sessionId);
+
+        // 移除句子队列和处理标志
+        sessionSentenceQueues.remove(sessionId);
+        sessionProcessingFlags.remove(sessionId);
 
         // 移除时间记录
         sessionSttStartTimes.remove(sessionId);
