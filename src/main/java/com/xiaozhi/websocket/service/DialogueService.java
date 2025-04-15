@@ -24,6 +24,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.text.DecimalFormat;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * 对话处理服务
@@ -77,6 +79,12 @@ public class DialogueService {
 
     // 添加会话的处理状态标志
     private final Map<String, AtomicBoolean> sessionProcessingFlags = new ConcurrentHashMap<>();
+
+    // 添加会话的音频准备映射，用于存储已准备好的音频路径
+    private final Map<String, ConcurrentSkipListMap<Integer, String>> sessionPreparedAudio = new ConcurrentHashMap<>();
+
+    // 添加会话的音频准备状态映射
+    private final Map<String, Map<Integer, CompletableFuture<String>>> sessionAudioFutures = new ConcurrentHashMap<>();
 
     /**
      * 句子任务类，用于按顺序处理句子
@@ -263,6 +271,10 @@ public class DialogueService {
                     sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
                     sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
 
+                    // 初始化音频准备映射
+                    sessionPreparedAudio.putIfAbsent(sessionId, new ConcurrentSkipListMap<>());
+                    sessionAudioFutures.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+
                     // 发送最终识别结果
                     return messageService.sendMessage(session, "stt", "final", finalText)
                             .then(Mono.fromRunnable(() -> {
@@ -276,20 +288,26 @@ public class DialogueService {
                                             // 累加完整回复内容
                                             sessionFullResponses.get(sessionId).append(sentence);
 
-                                            // 如果是第一个句子，记录模型回复完成时间
-                                            if (isStart) {
-                                                Long llmStartTime = sessionLlmStartTimes.get(sessionId);
-                                                if (llmStartTime != null) {
-                                                    double llmDuration = (System.currentTimeMillis() - llmStartTime)
-                                                            / 1000.0;
-                                                    logger.info("模型回复完成 - SessionId: {}, 用时: {}秒, 首句内容: \"{}\"",
-                                                            sessionId, df.format(llmDuration), sentence);
-                                                }
+                                            // 计算模型响应时间
+                                            double modelResponseTime = 0.00;
+                                            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+                                            if (llmStartTime != null) {
+                                                modelResponseTime = (System.currentTimeMillis() - llmStartTime)
+                                                        / 1000.0;
                                             }
 
                                             // 记录TTS开始时间
                                             sessionTtsStartTimes.get(sessionId).put(sentenceNumber,
                                                     System.currentTimeMillis());
+
+                                            // 立即开始准备音频，但不立即播放
+                                            prepareAudioForSentence(
+                                                    sessionId,
+                                                    sentence,
+                                                    finalTtsConfig,
+                                                    device.getVoiceName(),
+                                                    sentenceNumber,
+                                                    modelResponseTime);
 
                                             // 将句子添加到处理队列，确保按顺序处理
                                             addSentenceToQueue(
@@ -311,6 +329,51 @@ public class DialogueService {
                 .subscribe();
 
         return Mono.empty();
+    }
+
+    /**
+     * 准备句子的音频，但不立即播放
+     */
+    private void prepareAudioForSentence(
+            String sessionId,
+            String sentence,
+            SysConfig ttsConfig,
+            String voiceName,
+            int sentenceNumber,
+            double modelResponseTime) {
+
+        // 创建一个CompletableFuture来跟踪TTS处理
+        CompletableFuture<String> audioFuture = new CompletableFuture<>();
+
+        // 将Future添加到会话的映射中
+        sessionAudioFutures.get(sessionId).put(sentenceNumber, audioFuture);
+
+        // 记录TTS开始时间
+        long ttsStartTime = System.currentTimeMillis();
+
+        // 异步生成音频
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 调用TTS服务生成音频
+                String audioPath = ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence);
+
+                // 计算TTS处理用时（仅当前句子）
+                long ttsDuration = System.currentTimeMillis() - ttsStartTime;
+
+                // 使用统一格式记录日志：序号、模型响应时间、语音生成时间、内容
+                logger.info("序号: {}, 模型回复: {}秒, 语音生成: {}秒, 内容: \"{}\"",
+                        sentenceNumber, df.format(modelResponseTime), df.format(ttsDuration / 1000.0), sentence);
+
+                // 将生成的音频路径存储到已准备好的映射中
+                sessionPreparedAudio.get(sessionId).put(sentenceNumber, audioPath);
+
+                // 完成Future
+                audioFuture.complete(audioPath);
+            } catch (Exception e) {
+                logger.error("准备音频失败 - 句子序号: {}, 错误: {}", sentenceNumber, e.getMessage(), e);
+                audioFuture.completeExceptionally(e);
+            }
+        });
     }
 
     /**
@@ -364,60 +427,71 @@ public class DialogueService {
         // 获取下一个任务
         SentenceTask task = queue.poll();
 
-        // 处理句子
-        Mono.fromCallable(() -> ttsService.getTtsService(task.ttsConfig, task.voiceName).textToSpeech(task.sentence))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(audioPath -> {
-                    // 记录TTS完成时间并计算用时
-                    Long ttsStartTime = sessionTtsStartTimes.getOrDefault(sessionId, new ConcurrentHashMap<>())
-                            .get(task.sentenceNumber);
-                    if (ttsStartTime != null) {
-                        double ttsDuration = (System.currentTimeMillis() - ttsStartTime) / 1000.0;
-                        logger.info("语音生成完成 - SessionId: {}, 句子序号: {}, 用时: {}秒, 内容: \"{}\"",
-                                sessionId, task.sentenceNumber, df.format(ttsDuration), task.sentence);
-                    }
+        // 获取该句子的音频Future
+        CompletableFuture<String> audioFuture = sessionAudioFutures.getOrDefault(sessionId, new ConcurrentHashMap<>())
+                .get(task.sentenceNumber);
 
-                    // 如果是最后一个句子，记录完整回复
-                    if (task.isEnd) {
-                        StringBuilder fullResponse = sessionFullResponses.get(sessionId);
-                        if (fullResponse != null) {
-                            logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId,
-                                    fullResponse.toString());
+        if (audioFuture == null) {
+            // 如果没有找到音频Future，创建一个新的
+            audioFuture = new CompletableFuture<>();
+
+            // 计算模型响应时间
+            double modelResponseTime = 0.00;
+            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+            if (llmStartTime != null) {
+                modelResponseTime = (System.currentTimeMillis() - llmStartTime) / 1000.0;
+            }
+
+            prepareAudioForSentence(
+                    sessionId,
+                    task.sentence,
+                    task.ttsConfig,
+                    task.voiceName,
+                    task.sentenceNumber,
+                    modelResponseTime);
+        }
+
+        // 等待音频准备完成，然后发送
+        audioFuture.whenComplete((audioPath, exception) -> {
+            if (exception != null) {
+                logger.error("获取音频失败 - 句子序号: {}, 错误: {}", task.sentenceNumber, exception.getMessage(), exception);
+
+                // 继续处理队列中的下一个任务，即使当前任务失败
+                if (!queue.isEmpty() && session.isOpen()) {
+                    processSentenceQueue(session, sessionId);
+                } else {
+                    isProcessing.set(false);
+                }
+                return;
+            }
+
+            // 发送音频消息
+            audioService.sendAudioMessage(session, audioPath, task.sentence, task.isStart, task.isEnd)
+                    .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e))
+                    .doFinally(signalType -> {
+                        // 如果是最后一个句子，记录完整回复
+                        if (task.isEnd) {
+                            StringBuilder fullResponse = sessionFullResponses.get(sessionId);
+                            if (fullResponse != null) {
+                                logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId,
+                                        fullResponse.toString());
+                            }
                         }
-                    }
 
-                    return audioService.sendAudioMessage(session, audioPath, task.sentence, task.isStart, task.isEnd)
-                            .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e));
-                })
-                .doFinally(signalType -> {
-                    // 继续处理队列中的下一个任务
-                    if (!queue.isEmpty() && session.isOpen()) {
-                        processSentenceQueue(session, sessionId);
-                    } else {
-                        // 队列为空，重置处理状态
-                        isProcessing.set(false);
-                    }
-                })
-                .onErrorResume(e -> {
-                    logger.error("处理句子 #{} 失败: {}", task.sentenceNumber, e.getMessage(), e);
-
-                    // 继续处理队列中的下一个任务，即使当前任务失败
-                    if (!queue.isEmpty() && session.isOpen()) {
-                        processSentenceQueue(session, sessionId);
-                    } else {
-                        isProcessing.set(false);
-                    }
-                    return Mono.empty();
-                })
-                .subscribe();
+                        // 继续处理队列中的下一个任务
+                        if (!queue.isEmpty() && session.isOpen()) {
+                            processSentenceQueue(session, sessionId);
+                        } else {
+                            // 队列为空，重置处理状态
+                            isProcessing.set(false);
+                        }
+                    })
+                    .subscribe();
+        });
     }
 
     /**
      * 处理语音唤醒
-     * 
-     * @param session WebSocket会话
-     * @param text    唤醒词文本
-     * @return 处理结果
      */
     public Mono<Void> handleWakeWord(WebSocketSession session, String text) {
         String sessionId = session.getId();
@@ -452,6 +526,10 @@ public class DialogueService {
         sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
         sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
 
+        // 初始化音频准备映射
+        sessionPreparedAudio.putIfAbsent(sessionId, new ConcurrentSkipListMap<>());
+        sessionAudioFutures.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+
         // 发送识别结果
         messageService.sendMessage(session, "stt", "start", text).subscribe();
 
@@ -466,18 +544,24 @@ public class DialogueService {
                         // 累加完整回复内容
                         sessionFullResponses.get(sessionId).append(sentence);
 
-                        // 如果是第一个句子，记录模型回复完成时间
-                        if (isStart) {
-                            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
-                            if (llmStartTime != null) {
-                                double llmDuration = (System.currentTimeMillis() - llmStartTime) / 1000.0;
-                                logger.info("模型回复完成 - SessionId: {}, 用时: {}秒, 首句内容: \"{}\"",
-                                        sessionId, df.format(llmDuration), sentence);
-                            }
+                        // 计算模型响应时间
+                        double modelResponseTime = 0.00;
+                        Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+                        if (llmStartTime != null) {
+                            modelResponseTime = (System.currentTimeMillis() - llmStartTime) / 1000.0;
                         }
 
                         // 记录TTS开始时间
                         sessionTtsStartTimes.get(sessionId).put(sentenceNumber, System.currentTimeMillis());
+
+                        // 立即开始准备音频，但不立即播放
+                        prepareAudioForSentence(
+                                sessionId,
+                                sentence,
+                                ttsConfig,
+                                device.getVoiceName(),
+                                sentenceNumber,
+                                modelResponseTime);
 
                         // 将句子添加到处理队列，确保按顺序处理
                         addSentenceToQueue(
@@ -514,6 +598,17 @@ public class DialogueService {
             queue.clear();
         }
 
+        // 清空音频准备映射
+        Map<Integer, CompletableFuture<String>> futures = sessionAudioFutures.get(sessionId);
+        if (futures != null) {
+            futures.clear();
+        }
+
+        ConcurrentSkipListMap<Integer, String> preparedAudio = sessionPreparedAudio.get(sessionId);
+        if (preparedAudio != null) {
+            preparedAudio.clear();
+        }
+
         // 终止语音发送
         return audioService.sendStop(session);
     }
@@ -535,5 +630,9 @@ public class DialogueService {
         sessionLlmStartTimes.remove(sessionId);
         sessionTtsStartTimes.remove(sessionId);
         sessionFullResponses.remove(sessionId);
+
+        // 移除音频准备映射
+        sessionPreparedAudio.remove(sessionId);
+        sessionAudioFutures.remove(sessionId);
     }
 }
