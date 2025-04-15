@@ -302,7 +302,7 @@ public class DeviceController {
                                     websocketData.put("token", "");
 
                                     // 检查设备是否已绑定
-                                    if (devices.isEmpty()) {
+                                    if (devices.isEmpty() || devices.get(0).getModelId() == null) {
                                         // 设备未绑定，生成验证码
                                         try {
                                             SysDevice codeResult = deviceService.generateCode(device);
