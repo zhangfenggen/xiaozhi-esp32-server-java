@@ -511,6 +511,7 @@ export default {
         .then((res) => {
           if (res.code === 200) {
             this.getData()
+            this.editVisible = false
             message.success("修改成功");
           } else {
             this.$message.error(res.message);
