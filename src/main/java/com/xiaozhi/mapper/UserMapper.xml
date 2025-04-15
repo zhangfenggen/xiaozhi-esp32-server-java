@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaozhi.dao.UserMapper">
+
+    <sql id="userSql">
+        sys_user.userId, sys_user.username, sys_user.`name`, sys_user.tel, sys_user.email, sys_user.avatar, sys_user.password, sys_user.state, sys_user.isAdmin, sys_user.loginIp, sys_user.loginTime, sys_user.createTime
+    </sql>
+
+    <select id="selectUserByUsername" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            username = #{username}
+    </select>
+
+    <select id="selectUserByEmail" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            email = #{email}
+    </select>
+
+    <select id="query" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>,
+        (
+            SELECT count(*) FROM sys_device WHERE sys_device.userId = sys_user.userId
+        ) AS totalDevice,
+        (
+            SELECT
+                count(*)
+            FROM
+                sys_message
+                LEFT JOIN sys_device ON sys_device.deviceId = sys_message.deviceId
+            WHERE
+                sys_device.userId = sys_user.userId
+                <if test="startTime != null and startTime != ''">
+                    AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
+                </if>
+        ) AS messageNumber,
+        (
+            SELECT count(*) FROM sys_device WHERE sys_device.userId = sys_user.userId and sys_device.state = 1
+        ) AS aliveNumber
+        FROM
+            sys_user
+        WHERE
+            username = #{username}
+    </select>
+
+    <select id="selectUserByUserId" resultType="com.xiaozhi.entity.SysUser">
+        SELECT
+        <include refid="userSql"></include>
+        FROM
+            sys_user
+        WHERE
+            userId = #{userId}
+    </select>
+
+    <insert id="add" parameterType="com.xiaozhi.entity.SysUser">
+        INSERT INTO sys_user ( username, `name`, tel, email, password, state, isAdmin )
+        VALUES
+            (#{username}, #{name}, #{tel}, #{email}, #{password}, '1', '0')
+    </insert>
+
+    <update id="update" parameterType="com.xiaozhi.entity.SysUser">
+        UPDATE
+            sys_user
+        <set>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="tel != null and tel != ''">tel = #{tel},</if>
+            <if test="email != null and email != ''">email = #{email},</if>
+            <if test="password != null and password != ''">password = #{password},</if>
+            <if test="avatar != null and avatar != ''">avatar = #{avatar},</if>
+            <if test="state != null and state != ''">state = ${state},</if>
+        </set>
+        WHERE
+            `username` = #{username}
+            <if test="email != null and email != ''">AND email = #{email}</if>
+    </update>
+
+    <insert id="generateCode" parameterType="com.xiaozhi.entity.SysUser">
+        <selectKey keyProperty="code" order="BEFORE" resultType="java.lang.String">
+            SELECT LPAD(FLOOR(RAND() * 1000000), 6, '0') as code
+        </selectKey>
+        INSERT INTO sys_code (email, code, createTime)
+        VALUES (#{email}, #{code}, NOW())
+    </insert>
+
+    <select id="queryCaptcha" resultType="java.lang.Integer">
+        SELECT
+            count(*)
+        FROM
+            sys_code
+        WHERE
+            code = #{code}
+            AND email = #{email}
+            AND createTime &gt;= DATE_SUB(NOW(),INTERVAL 10 MINUTE)
+            ORDER BY createTime
+            DESC
+            LIMIT 1
+    </select>
+
+</mapper>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xiaozhi.dao.DeviceMapper">
+
+    <sql id="deviceSql">
+        sys_device.deviceId, sys_device.deviceName, sys_device.ip, sys_device.wifiName, sys_device.chipModelName, sys_device.version, sys_device.state, sys_device.userId, sys_device.lastLogin, sys_device.createTime
+    </sql>
+
+    <sql id="roleSql">
+        sys_role.roleId, sys_role.roleName, sys_role.roleDesc, sys_role.voiceName
+    </sql>
+
+    <sql id="modelSql">
+        model_config.configId AS modelId
+    </sql>
+
+    <sql id="sttSql">
+        stt_config.configId AS sttId
+    </sql>
+
+    <sql id="ttsSql">
+        tts_config.configId AS ttsId
+    </sql>
+
+    <select id="query" resultType="com.xiaozhi.entity.SysDevice">
+        SELECT
+        <include refid="deviceSql"></include>,
+        <include refid="roleSql"></include>,
+        <include refid="modelSql"></include>,
+        <include refid="sttSql"></include>,
+        <include refid="ttsSql"></include>
+        FROM
+            sys_device
+            LEFT JOIN sys_role ON sys_device.roleId = sys_role.roleId
+            LEFT JOIN sys_config model_config ON sys_device.modelId = model_config.configId AND model_config.configType = 'llm'
+            LEFT JOIN sys_config stt_config ON sys_device.sttId = stt_config.configId AND stt_config.configType = 'stt'
+            LEFT JOIN sys_config tts_config ON ttsId = tts_config.configId AND tts_config.configType = 'tts'
+        WHERE
+            1 = 1
+            <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>
+            <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
+            <if test="deviceName != null and deviceName != ''">AND deviceName LIKE CONCAT('%', #{deviceName}, '%')</if>
+            <if test="state != null and state != ''">AND sys_device.state = #{state}</if>
+    </select>
+
+    <select id="queryVerifyCode" parameterType="com.xiaozhi.entity.SysDevice" resultType="com.xiaozhi.entity.SysDevice">
+        SELECT
+            code, audioPath, deviceId
+        FROM
+            sys_code
+        WHERE
+            1 = 1
+            <if test="deviceId != null and deviceId != ''">AND deviceId = #{deviceId}</if>
+            <if test="sessionId != null and sessionId != ''">AND sessionId = #{sessionId}</if>
+            <if test="code != null and code != ''">AND code = #{code}</if>
+            AND createTime &gt;= DATE_SUB(NOW(),INTERVAL 10 MINUTE)
+            ORDER BY createTime DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateCode" parameterType="com.xiaozhi.entity.SysDevice">
+        UPDATE
+            sys_code
+        SET
+            audioPath = #{audioPath}
+        WHERE
+            deviceId = #{deviceId}
+            AND sessionId = #{sessionId}
+            AND code = #{code}
+    </update>
+
+    <insert id="generateCode" parameterType="com.xiaozhi.entity.SysDevice">
+        <selectKey keyProperty="code" order="BEFORE" resultType="java.lang.String">
+            SELECT LPAD(FLOOR(RAND() * 1000000), 6, '0') as code
+        </selectKey>
+        INSERT INTO sys_code (deviceId, sessionId, code, createTime)
+        VALUES (#{deviceId}, #{sessionId}, #{code}, NOW())
+    </insert>
+
+    <update id="update" parameterType="com.xiaozhi.entity.SysDevice">
+        UPDATE
+            sys_device
+        <set>
+            <if test="state != null and state != ''">state = #{state},</if>
+            <if test="deviceName != null and deviceName != ''">deviceName = #{deviceName},</if>
+            <if test="wifiName != null and wifiName != ''">wifiName = #{wifiName},</if>
+            <if test="chipModelName != null and chipModelName != ''">chipModelName = #{chipModelName},</if>
+            <if test="version != null and version != ''">version = #{version},</if>
+            <if test="ip != null and ip != ''">ip = #{ip},</if>
+            <if test="lastLogin != null and lastLogin != ''">lastLogin = NOW(),</if>
+            <if test="modelId != null and modelId != ''">modelId = #{modelId},</if>
+            <if test="sttId != null and sttId != ''">
+                <choose>
+                    <when test="sttId == -1">sttId = null,</when>
+                    <otherwise>sttId = #{sttId},</otherwise>
+                </choose>
+            </if>
+            <if test="roleId != null and roleId != ''">roleId = #{roleId},</if>
+        </set>
+        WHERE
+            deviceId = #{deviceId}
+    </update>
+
+    <insert id="add" useGeneratedKeys="true" keyProperty="deviceName" parameterType="com.xiaozhi.entity.SysDevice">
+        INSERT INTO sys_device ( deviceId, deviceName, userId ) VALUES (
+            #{deviceId}, #{deviceName}, #{userId}
+        )
+    </insert>
+
+</mapper>

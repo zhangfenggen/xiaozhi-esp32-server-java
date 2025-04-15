@@ -1,0 +1,35 @@
+{
+  "configurations": [
+    {
+      "type": "java",
+      "name": "ApplicationTest",
+      "request": "launch",
+      "mainClass": "com.xiaozhi.ApplicationTest",
+      "projectName": "xiaozhi.server"
+    },
+    {
+      "type": "java",
+      "name": "ApplicationTest",
+      "request": "launch",
+      "mainClass": "com.xiaozhi.ApplicationTest",
+      "projectName": "xiaozhi.webui"
+    },
+    {
+      "type": "java",
+      "name": "XiaozhiApplication",
+      "request": "launch",
+      "mainClass": "com.xiaozhi.XiaozhiApplication",
+      "projectName": "xiaozhi.webui"
+    },
+    {
+      "type": "java",
+      "name": "Spring Boot-XiaozhiApplication<xiaozhi.server>",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "mainClass": "com.xiaozhi.XiaozhiApplication",
+      "projectName": "xiaozhi.server",
+      "args": "",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}
