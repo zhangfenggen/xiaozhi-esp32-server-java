@@ -1,0 +1,12 @@
+FROM node:18-alpine
+
+WORKDIR /node
+
+COPY web .
+
+# 合并RUN命令减少层数
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm ci --only=production
+
+# 使用生产模式
+CMD ["npm", "run", "dev"]

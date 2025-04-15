@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mysql:
+    build:
+      context: .
+      dockerfile: Dockerfile-mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - app-network
+    volumes:
+      - mysql_data:/var/lib/mysql  # 持久化数据
+
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile-node
+    depends_on:
+      - mysql
+    ports:
+      - "8084:8084"
+    networks:
+      - app-network
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile-server
+      args:
+        - VOSK_MODEL_SIZE=${VOSK_MODEL_SIZE:-standard}
+      # 添加构建缓存设置
+      cache_from:
+        - eclipse-temurin:8-jre-alpine
+    depends_on:
+      - mysql
+    ports:
+      - "8091:8091"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql_data:  # 定义持久化卷
