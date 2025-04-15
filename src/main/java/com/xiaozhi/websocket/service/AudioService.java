@@ -68,6 +68,9 @@ public class AudioService {
     @Autowired
     private OpusProcessor opusProcessor;
 
+    @Autowired
+    private SessionManager sessionManager;
+
     private final DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
     /**
@@ -199,6 +202,7 @@ public class AudioService {
         sessionMessageCounters.putIfAbsent(sessionId, new AtomicInteger(0));
         sessionStreamingQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
         sessionStreamingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
+        sessionManager.updateLastActivity(sessionId);
     }
 
     /**
@@ -645,7 +649,7 @@ public class AudioService {
         if (audioPath == null) {
             return false;
         }
-
+        // 这边后续应该把所有音频文件合并起来，先不删除音频文件
         return true;
         /*
          * try {

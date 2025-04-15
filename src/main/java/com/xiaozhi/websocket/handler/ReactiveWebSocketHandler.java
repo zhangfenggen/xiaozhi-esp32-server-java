@@ -11,7 +11,6 @@ import com.xiaozhi.websocket.service.AudioService;
 import com.xiaozhi.websocket.service.DialogueService;
 import com.xiaozhi.websocket.service.SessionManager;
 import com.xiaozhi.websocket.service.VadService;
-import com.xiaozhi.websocket.token.AliyunTokenManager;
 import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +19,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
@@ -30,12 +28,9 @@ import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.util.Date;
-import java.util.Optional;
 
 @Component
 public class ReactiveWebSocketHandler implements WebSocketHandler {
-
-    private final AliyunTokenManager aliyunTokenManager;
 
     @Autowired
     private SysDeviceService deviceService;
@@ -62,10 +57,6 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    ReactiveWebSocketHandler(AliyunTokenManager aliyunTokenManager) {
-        this.aliyunTokenManager = aliyunTokenManager;
-    }
-
     @Override
     public Mono<Void> handle(WebSocketSession session) {
         String sessionId = session.getId();
@@ -73,17 +64,37 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
         sessionManager.registerSession(sessionId, session);
         logger.info(session.getHandshakeInfo().getHeaders().toString());
 
-        // 从请求头中获取设备ID
-        String deviceIdAuth = session.getHandshakeInfo().getHeaders().getFirst("device-Id");
-        if (deviceIdAuth == null) {
-            // 从握手 URI 中获取 device_id 参数
-            URI uri = session.getHandshakeInfo().getUri();
-            deviceIdAuth = Optional.ofNullable(uri.getQuery())
-                    .map(query -> query.split("device_id=|&"))
-                    .filter(arr -> arr.length > 1)
-                    .map(arr -> arr[1])
-                    .orElse(null);
+        // 尝试从请求头获取设备ID，按优先级顺序尝试不同的头
+        String[] deviceKeys = {"device-Id", "mac_address", "uuid"};
+        String deviceIdAuth = null;
+        
+        for (String key : deviceKeys) {
+            deviceIdAuth = session.getHandshakeInfo().getHeaders().getFirst(key);
+            if (deviceIdAuth != null) {
+                break;
+            }
         }
+
+        // 如果请求头中没有找到，尝试从URI参数中获取
+        if (deviceIdAuth == null) {
+            URI uri = session.getHandshakeInfo().getUri();
+            String query = uri.getQuery();
+            if (query != null) {
+                for (String key : deviceKeys) {
+                    String paramPattern = key + "=";
+                    int startIdx = query.indexOf(paramPattern);
+                    if (startIdx >= 0) {
+                        startIdx += paramPattern.length();
+                        int endIdx = query.indexOf('&', startIdx);
+                        deviceIdAuth = endIdx >= 0 ? 
+                            query.substring(startIdx, endIdx) : 
+                            query.substring(startIdx);
+                        break;
+                    }
+                }
+            }
+        }
+        
         if (deviceIdAuth == null) {
             logger.error("设备ID为空");
             return session.close();
