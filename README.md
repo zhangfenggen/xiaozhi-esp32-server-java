@@ -72,7 +72,7 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 
 ## 使用方式
 
-### 1. 本地源码运行
+### 1. 本地源码运行（该部分由群友@汇合提供）
 [点击此处查看Windows部署文档](./docs/WINDOWS_DEVELOPMENT.md)
 
 [点击此处查看Centos部署文档](./docs/CENTOS_DEVELOPMENT.md)
