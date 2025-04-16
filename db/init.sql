@@ -1,3 +1,7 @@
+-- 在文件顶部添加以下语句
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 -- 创建本地用户并设置密码（使用mysql_native_password插件）
 CREATE USER IF NOT EXISTS 'xiaozhi'@'localhost' IDENTIFIED WITH mysql_native_password BY '123456';
 
@@ -33,7 +37,7 @@ CREATE TABLE `xiaozhi`.`sys_user` (
   `loginIp` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isAdmin` enum('1','0') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `loginTime` datetime DEFAULT NULL,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `createTime` datetime DEFAULT CURRENT_TIMESTAMP,
   `updateTime` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`userId`),
@@ -42,9 +46,9 @@ CREATE TABLE `xiaozhi`.`sys_user` (
 
 -- Insert admin user only if it doesn't exist
 INSERT INTO xiaozhi.sys_user (username, password, state, isAdmin, name, createTime, updateTime)
-SELECT 'admin', '11cd9c061d614dcf37ec60c44c11d2ad', '1', '1', '小智', '2025-03-09 18:32:29', '2025-03-09 18:32:35'
-FROM dual
-WHERE NOT EXISTS (SELECT 1 FROM xiaozhi.sys_user WHERE username = 'admin');
+VALUES ('admin', '11cd9c061d614dcf37ec60c44c11d2ad', '1', '1', '小智', '2025-03-09 18:32:29', '2025-03-09 18:32:35');
+
+update sys_user set name = '小智' where username = 'admin';
 
 -- xiaozhi.sys_device definition
 DROP TABLE IF EXISTS `xiaozhi`.`sys_device`;

@@ -4,9 +4,14 @@ WORKDIR /node
 
 COPY web .
 
-# 合并RUN命令减少层数
+# 安装所有依赖
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm ci --only=production
+    npm install
 
-# 使用生产模式
+# 设置环境变量
+ENV HOST=0.0.0.0
+ENV PORT=8084
+ENV API_URL=http://server:8091
+
+# 使用开发模式
 CMD ["npm", "run", "dev"]
