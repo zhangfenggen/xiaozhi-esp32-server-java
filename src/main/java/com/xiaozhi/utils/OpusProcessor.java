@@ -93,7 +93,7 @@ public class OpusProcessor {
         String key = sessionId + "_" + sampleRate + "_" + channels;
         return sessionEncoders.computeIfAbsent(key, k -> {
             try {
-                OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_VOIP);
+                OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_AUDIO);
                 encoder.setBitrate(DEFAULT_SAMPLE_RATE); // 设置默认比特率
                 return encoder;
             } catch (OpusException e) {

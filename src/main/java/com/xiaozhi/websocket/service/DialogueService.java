@@ -18,14 +18,13 @@ import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.text.DecimalFormat;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * 对话处理服务
@@ -68,43 +67,35 @@ public class DialogueService {
     // 添加会话的模型回复开始时间记录
     private final Map<String, Long> sessionLlmStartTimes = new ConcurrentHashMap<>();
 
-    // 添加会话的TTS开始时间记录
-    private final Map<String, Map<Integer, Long>> sessionTtsStartTimes = new ConcurrentHashMap<>();
-
     // 添加会话的完整回复内容
     private final Map<String, StringBuilder> sessionFullResponses = new ConcurrentHashMap<>();
-
-    // 添加会话的句子处理队列，确保按顺序处理
-    private final Map<String, Queue<SentenceTask>> sessionSentenceQueues = new ConcurrentHashMap<>();
-
-    // 添加会话的处理状态标志
-    private final Map<String, AtomicBoolean> sessionProcessingFlags = new ConcurrentHashMap<>();
-
-    // 添加会话的音频准备映射，用于存储已准备好的音频路径
-    private final Map<String, ConcurrentSkipListMap<Integer, String>> sessionPreparedAudio = new ConcurrentHashMap<>();
-
-    // 添加会话的音频准备状态映射
-    private final Map<String, Map<Integer, CompletableFuture<String>>> sessionAudioFutures = new ConcurrentHashMap<>();
+    
+    // 添加会话的音频生成任务列表，用于跟踪并发生成的音频任务
+    private final Map<String, List<CompletableFuture<String>>> sessionAudioTasks = new ConcurrentHashMap<>();
+    
+    // 添加会话的句子顺序列表，确保按顺序发送
+    private final Map<String, List<PendingSentence>> sessionPendingSentences = new ConcurrentHashMap<>();
 
     /**
-     * 句子任务类，用于按顺序处理句子
+     * 待处理句子类，用于按顺序发送句子
      */
-    private static class SentenceTask {
+    private static class PendingSentence {
+        private final int sentenceNumber;
         private final String sentence;
         private final boolean isStart;
         private final boolean isEnd;
-        private final SysConfig ttsConfig;
-        private final String voiceName;
-        private final int sentenceNumber;
+        private CompletableFuture<String> audioFuture;
 
-        public SentenceTask(String sentence, boolean isStart, boolean isEnd,
-                SysConfig ttsConfig, String voiceName, int sentenceNumber) {
+        public PendingSentence(int sentenceNumber, String sentence, boolean isStart, boolean isEnd) {
+            this.sentenceNumber = sentenceNumber;
             this.sentence = sentence;
             this.isStart = isStart;
             this.isEnd = isEnd;
-            this.ttsConfig = ttsConfig;
-            this.voiceName = voiceName;
-            this.sentenceNumber = sentenceNumber;
+            this.audioFuture = null;
+        }
+        
+        public void setAudioFuture(CompletableFuture<String> audioFuture) {
+            this.audioFuture = audioFuture;
         }
     }
 
@@ -255,9 +246,6 @@ public class DialogueService {
                     // 记录模型回复开始时间
                     sessionLlmStartTimes.put(sessionId, System.currentTimeMillis());
 
-                    // 初始化TTS时间记录Map
-                    sessionTtsStartTimes.putIfAbsent(sessionId, new ConcurrentHashMap<>());
-
                     // 初始化完整回复内容
                     sessionFullResponses.put(sessionId, new StringBuilder());
 
@@ -266,14 +254,10 @@ public class DialogueService {
 
                     // 初始化句子计数器
                     sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
-
-                    // 初始化句子队列和处理标志
-                    sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
-                    sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
-
-                    // 初始化音频准备映射
-                    sessionPreparedAudio.putIfAbsent(sessionId, new ConcurrentSkipListMap<>());
-                    sessionAudioFutures.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+                    
+                    // 初始化音频任务列表和待处理句子列表
+                    sessionAudioTasks.putIfAbsent(sessionId, new ArrayList<>());
+                    sessionPendingSentences.putIfAbsent(sessionId, new ArrayList<>());
 
                     // 发送最终识别结果
                     return messageService.sendMessage(session, "stt", "final", finalText)
@@ -281,44 +265,15 @@ public class DialogueService {
                                 // 使用句子切分处理流式响应
                                 llmManager.chatStreamBySentence(device, finalText,
                                         (sentence, isStart, isEnd) -> {
-                                            // 获取句子序列号
-                                            int sentenceNumber = sessionSentenceCounters.get(sessionId)
-                                                    .incrementAndGet();
-
-                                            // 累加完整回复内容
-                                            sessionFullResponses.get(sessionId).append(sentence);
-
-                                            // 计算模型响应时间
-                                            double modelResponseTime = 0.00;
-                                            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
-                                            if (llmStartTime != null) {
-                                                modelResponseTime = (System.currentTimeMillis() - llmStartTime)
-                                                        / 1000.0;
-                                            }
-
-                                            // 记录TTS开始时间
-                                            sessionTtsStartTimes.get(sessionId).put(sentenceNumber,
-                                                    System.currentTimeMillis());
-
-                                            // 立即开始准备音频，但不立即播放
-                                            prepareAudioForSentence(
-                                                    sessionId,
-                                                    sentence,
-                                                    finalTtsConfig,
-                                                    device.getVoiceName(),
-                                                    sentenceNumber,
-                                                    modelResponseTime);
-
-                                            // 将句子添加到处理队列，确保按顺序处理
-                                            addSentenceToQueue(
-                                                    session,
-                                                    sessionId,
-                                                    sentence,
-                                                    isStart,
-                                                    isEnd,
-                                                    finalTtsConfig,
-                                                    device.getVoiceName(),
-                                                    sentenceNumber);
+                                            processSentenceFromLlm(
+                                                session, 
+                                                sessionId, 
+                                                sentence, 
+                                                isStart, 
+                                                isEnd, 
+                                                finalTtsConfig, 
+                                                device.getVoiceName()
+                                            );
                                         });
                             }));
                 })
@@ -332,162 +287,167 @@ public class DialogueService {
     }
 
     /**
-     * 准备句子的音频，但不立即播放
+     * 处理从LLM接收到的句子
      */
-    private void prepareAudioForSentence(
-            String sessionId,
-            String sentence,
-            SysConfig ttsConfig,
-            String voiceName,
-            int sentenceNumber,
-            double modelResponseTime) {
-
-        // 创建一个CompletableFuture来跟踪TTS处理
-        CompletableFuture<String> audioFuture = new CompletableFuture<>();
-
-        // 将Future添加到会话的映射中
-        sessionAudioFutures.get(sessionId).put(sentenceNumber, audioFuture);
-
-        // 记录TTS开始时间
-        long ttsStartTime = System.currentTimeMillis();
-
-        // 异步生成音频
-        CompletableFuture.runAsync(() -> {
-            try {
-                // 调用TTS服务生成音频
-                String audioPath = ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence);
-
-                // 计算TTS处理用时（仅当前句子）
-                long ttsDuration = System.currentTimeMillis() - ttsStartTime;
-
-                // 使用统一格式记录日志：序号、模型响应时间、语音生成时间、内容
-                logger.info("序号: {}, 模型回复: {}秒, 语音生成: {}秒, 内容: \"{}\"",
-                        sentenceNumber, df.format(modelResponseTime), df.format(ttsDuration / 1000.0), sentence);
-
-                // 将生成的音频路径存储到已准备好的映射中
-                sessionPreparedAudio.get(sessionId).put(sentenceNumber, audioPath);
-
-                // 完成Future
-                audioFuture.complete(audioPath);
-            } catch (Exception e) {
-                logger.error("准备音频失败 - 句子序号: {}, 错误: {}", sentenceNumber, e.getMessage(), e);
-                audioFuture.completeExceptionally(e);
-            }
-        });
-    }
-
-    /**
-     * 将句子添加到处理队列并启动处理
-     */
-    private void addSentenceToQueue(
+    private void processSentenceFromLlm(
             WebSocketSession session,
             String sessionId,
             String sentence,
             boolean isStart,
             boolean isEnd,
             SysConfig ttsConfig,
-            String voiceName,
-            int sentenceNumber) {
-
-        // 创建句子任务
-        SentenceTask task = new SentenceTask(sentence, isStart, isEnd, ttsConfig, voiceName, sentenceNumber);
-
-        // 获取会话的句子队列
-        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
-        if (queue == null) {
-            queue = new ConcurrentLinkedQueue<>();
-            sessionSentenceQueues.put(sessionId, queue);
+            String voiceName) {
+        
+        // 获取句子序列号
+        int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
+        
+        // 累加完整回复内容
+        sessionFullResponses.get(sessionId).append(sentence);
+        
+        // 计算模型响应时间
+        double modelResponseTime = 0.00;
+        Long llmStartTime = sessionLlmStartTimes.get(sessionId);
+        if (llmStartTime != null) {
+            modelResponseTime = (System.currentTimeMillis() - llmStartTime) / 1000.0;
         }
-
-        // 将任务添加到队列
-        queue.add(task);
-
-        // 如果当前没有正在处理的任务，开始处理队列
-        AtomicBoolean isProcessing = sessionProcessingFlags.get(sessionId);
-        if (isProcessing != null && isProcessing.compareAndSet(false, true)) {
-            processSentenceQueue(session, sessionId);
+        
+        // 创建待处理句子对象
+        PendingSentence pendingSentence = new PendingSentence(sentenceNumber, sentence, isStart, isEnd);
+        
+        // 添加到待处理句子列表
+        List<PendingSentence> pendingSentences = sessionPendingSentences.get(sessionId);
+        synchronized (pendingSentences) {
+            pendingSentences.add(pendingSentence);
         }
+        
+        // 并发生成音频
+        CompletableFuture<String> audioFuture = generateAudioAsync(sessionId, sentence, ttsConfig, voiceName, sentenceNumber, modelResponseTime);
+        
+        // 设置句子的音频Future
+        pendingSentence.setAudioFuture(audioFuture);
+        
+        // 添加到音频任务列表
+        List<CompletableFuture<String>> audioTasks = sessionAudioTasks.get(sessionId);
+        synchronized (audioTasks) {
+            audioTasks.add(audioFuture);
+        }
+        
+        // 检查是否可以发送句子
+        checkAndSendPendingSentences(session, sessionId);
     }
-
+    
     /**
-     * 处理句子队列
+     * 异步生成音频
      */
-    private void processSentenceQueue(WebSocketSession session, String sessionId) {
-        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
-        AtomicBoolean isProcessing = sessionProcessingFlags.get(sessionId);
-
-        // 如果队列为空或会话已关闭，结束处理
-        if (queue == null || queue.isEmpty() || !session.isOpen()) {
-            if (isProcessing != null) {
-                isProcessing.set(false);
+    private CompletableFuture<String> generateAudioAsync(
+            String sessionId,
+            String sentence,
+            SysConfig ttsConfig,
+            String voiceName,
+            int sentenceNumber,
+            double modelResponseTime) {
+        
+        // 记录TTS开始时间
+        long ttsStartTime = System.currentTimeMillis();
+        
+        // 创建CompletableFuture
+        CompletableFuture<String> future = new CompletableFuture<>();
+        
+        // 异步生成音频
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 调用TTS服务生成音频
+                String audioPath = ttsService.getTtsService(ttsConfig, voiceName).textToSpeech(sentence);
+                
+                // 计算TTS处理用时
+                long ttsDuration = System.currentTimeMillis() - ttsStartTime;
+                
+                // 记录日志
+                logger.info("序号: {}, 模型回复: {}秒, 语音生成: {}秒, 内容: \"{}\"",
+                        sentenceNumber, df.format(modelResponseTime), df.format(ttsDuration / 1000.0), sentence);
+                
+                // 完成Future
+                future.complete(audioPath);
+                
+                // 检查是否可以发送句子
+                checkAndSendPendingSentences(null, sessionId);
+            } catch (Exception e) {
+                logger.error("生成音频失败 - 句子序号: {}, 错误: {}", sentenceNumber, e.getMessage(), e);
+                future.completeExceptionally(e);
             }
-            return;
-        }
-
-        // 获取下一个任务
-        SentenceTask task = queue.poll();
-
-        // 获取该句子的音频Future
-        CompletableFuture<String> audioFuture = sessionAudioFutures.getOrDefault(sessionId, new ConcurrentHashMap<>())
-                .get(task.sentenceNumber);
-
-        if (audioFuture == null) {
-            // 如果没有找到音频Future，创建一个新的
-            audioFuture = new CompletableFuture<>();
-
-            // 计算模型响应时间
-            double modelResponseTime = 0.00;
-            Long llmStartTime = sessionLlmStartTimes.get(sessionId);
-            if (llmStartTime != null) {
-                modelResponseTime = (System.currentTimeMillis() - llmStartTime) / 1000.0;
-            }
-
-            prepareAudioForSentence(
-                    sessionId,
-                    task.sentence,
-                    task.ttsConfig,
-                    task.voiceName,
-                    task.sentenceNumber,
-                    modelResponseTime);
-        }
-
-        // 等待音频准备完成，然后发送
-        audioFuture.whenComplete((audioPath, exception) -> {
-            if (exception != null) {
-                logger.error("获取音频失败 - 句子序号: {}, 错误: {}", task.sentenceNumber, exception.getMessage(), exception);
-
-                // 继续处理队列中的下一个任务，即使当前任务失败
-                if (!queue.isEmpty() && session.isOpen()) {
-                    processSentenceQueue(session, sessionId);
-                } else {
-                    isProcessing.set(false);
-                }
+        });
+        
+        return future;
+    }
+    
+    /**
+     * 检查并发送待处理的句子
+     */
+    private synchronized void checkAndSendPendingSentences(WebSocketSession session, String sessionId) {
+        // 如果没有提供session，尝试从SessionManager获取
+        if (session == null) {
+            session = sessionManager.getSession(sessionId);
+            if (session == null || !session.isOpen()) {
                 return;
             }
-
-            // 发送音频消息
-            audioService.sendAudioMessage(session, audioPath, task.sentence, task.isStart, task.isEnd)
-                    .doOnError(e -> logger.error("发送音频消息失败: {}", e.getMessage(), e))
-                    .doFinally(signalType -> {
-                        // 如果是最后一个句子，记录完整回复
-                        if (task.isEnd) {
-                            StringBuilder fullResponse = sessionFullResponses.get(sessionId);
-                            if (fullResponse != null) {
-                                logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId,
-                                        fullResponse.toString());
-                            }
+        }
+        
+        // 获取待处理句子列表
+        List<PendingSentence> pendingSentences = sessionPendingSentences.get(sessionId);
+        if (pendingSentences == null || pendingSentences.isEmpty()) {
+            return;
+        }
+        
+        // 创建最终变量以在lambda中使用
+        final WebSocketSession finalSession = session;
+        
+        // 检查并按顺序发送句子
+        synchronized (pendingSentences) {
+            // 使用迭代器安全地遍历和删除元素
+            Iterator<PendingSentence> iterator = pendingSentences.iterator();
+            List<PendingSentence> processedSentences = new ArrayList<>();
+            
+            while (iterator.hasNext()) {
+                PendingSentence sentence = iterator.next();
+                
+                // 如果音频未准备好，停止处理
+                if (sentence.audioFuture == null || !sentence.audioFuture.isDone()) {
+                    break;
+                }
+                
+                try {
+                    // 获取音频路径
+                    String audioPath = sentence.audioFuture.get();
+                    
+                    // 发送音频消息
+                    audioService.sendAudioMessage(
+                            finalSession, 
+                            audioPath, 
+                            sentence.sentence, 
+                            sentence.isStart, 
+                            sentence.isEnd
+                    ).subscribe();
+                    
+                    // 记录已处理的句子，稍后一次性删除
+                    processedSentences.add(sentence);
+                    
+                    // 如果是最后一个句子，记录完整回复
+                    if (sentence.isEnd) {
+                        StringBuilder fullResponse = sessionFullResponses.get(sessionId);
+                        if (fullResponse != null) {
+                            logger.info("对话完成 - SessionId: {}, 完整回复: \"{}\"", sessionId, fullResponse.toString());
                         }
-
-                        // 继续处理队列中的下一个任务
-                        if (!queue.isEmpty() && session.isOpen()) {
-                            processSentenceQueue(session, sessionId);
-                        } else {
-                            // 队列为空，重置处理状态
-                            isProcessing.set(false);
-                        }
-                    })
-                    .subscribe();
-        });
+                    }
+                } catch (Exception e) {
+                    logger.error("处理音频失败 - 句子序号: {}, 错误: {}", sentence.sentenceNumber, e.getMessage(), e);
+                    // 记录失败的句子，稍后一次性删除
+                    processedSentences.add(sentence);
+                }
+            }
+            
+            // 一次性从列表中删除所有已处理的句子
+            pendingSentences.removeAll(processedSentences);
+        }
     }
 
     /**
@@ -510,9 +470,6 @@ public class DialogueService {
         // 记录模型回复开始时间
         sessionLlmStartTimes.put(sessionId, System.currentTimeMillis());
 
-        // 初始化TTS时间记录Map
-        sessionTtsStartTimes.putIfAbsent(sessionId, new ConcurrentHashMap<>());
-
         // 初始化完整回复内容
         sessionFullResponses.put(sessionId, new StringBuilder());
 
@@ -521,14 +478,10 @@ public class DialogueService {
 
         // 初始化句子计数器
         sessionSentenceCounters.putIfAbsent(sessionId, new AtomicInteger(0));
-
-        // 初始化句子队列和处理标志
-        sessionSentenceQueues.putIfAbsent(sessionId, new ConcurrentLinkedQueue<>());
-        sessionProcessingFlags.putIfAbsent(sessionId, new AtomicBoolean(false));
-
-        // 初始化音频准备映射
-        sessionPreparedAudio.putIfAbsent(sessionId, new ConcurrentSkipListMap<>());
-        sessionAudioFutures.putIfAbsent(sessionId, new ConcurrentHashMap<>());
+        
+        // 初始化音频任务列表和待处理句子列表
+        sessionAudioTasks.putIfAbsent(sessionId, new ArrayList<>());
+        sessionPendingSentences.putIfAbsent(sessionId, new ArrayList<>());
 
         // 发送识别结果
         messageService.sendMessage(session, "stt", "start", text).subscribe();
@@ -538,41 +491,15 @@ public class DialogueService {
             // 使用句子切分处理流式响应
             llmManager.chatStreamBySentence(device, text,
                     (sentence, isStart, isEnd) -> {
-                        // 获取句子序列号
-                        int sentenceNumber = sessionSentenceCounters.get(sessionId).incrementAndGet();
-
-                        // 累加完整回复内容
-                        sessionFullResponses.get(sessionId).append(sentence);
-
-                        // 计算模型响应时间
-                        double modelResponseTime = 0.00;
-                        Long llmStartTime = sessionLlmStartTimes.get(sessionId);
-                        if (llmStartTime != null) {
-                            modelResponseTime = (System.currentTimeMillis() - llmStartTime) / 1000.0;
-                        }
-
-                        // 记录TTS开始时间
-                        sessionTtsStartTimes.get(sessionId).put(sentenceNumber, System.currentTimeMillis());
-
-                        // 立即开始准备音频，但不立即播放
-                        prepareAudioForSentence(
-                                sessionId,
-                                sentence,
-                                ttsConfig,
-                                device.getVoiceName(),
-                                sentenceNumber,
-                                modelResponseTime);
-
-                        // 将句子添加到处理队列，确保按顺序处理
-                        addSentenceToQueue(
-                                session,
-                                sessionId,
-                                sentence,
-                                isStart,
-                                isEnd,
-                                ttsConfig,
-                                device.getVoiceName(),
-                                sentenceNumber);
+                        processSentenceFromLlm(
+                            session, 
+                            sessionId, 
+                            sentence, 
+                            isStart, 
+                            isEnd, 
+                            ttsConfig, 
+                            device.getVoiceName()
+                        );
                     });
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
@@ -591,22 +518,26 @@ public class DialogueService {
         // 关闭音频流
         sessionManager.closeAudioSink(sessionId);
         sessionManager.setStreamingState(sessionId, false);
-
-        // 清空句子队列
-        Queue<SentenceTask> queue = sessionSentenceQueues.get(sessionId);
-        if (queue != null) {
-            queue.clear();
+        
+        // 清空待处理句子列表
+        List<PendingSentence> pendingSentences = sessionPendingSentences.get(sessionId);
+        if (pendingSentences != null) {
+            synchronized (pendingSentences) {
+                pendingSentences.clear();
+            }
         }
-
-        // 清空音频准备映射
-        Map<Integer, CompletableFuture<String>> futures = sessionAudioFutures.get(sessionId);
-        if (futures != null) {
-            futures.clear();
-        }
-
-        ConcurrentSkipListMap<Integer, String> preparedAudio = sessionPreparedAudio.get(sessionId);
-        if (preparedAudio != null) {
-            preparedAudio.clear();
+        
+        // 取消所有未完成的音频任务
+        List<CompletableFuture<String>> audioTasks = sessionAudioTasks.get(sessionId);
+        if (audioTasks != null) {
+            synchronized (audioTasks) {
+                for (CompletableFuture<String> task : audioTasks) {
+                    if (!task.isDone()) {
+                        task.cancel(true);
+                    }
+                }
+                audioTasks.clear();
+            }
         }
 
         // 终止语音发送
@@ -620,19 +551,21 @@ public class DialogueService {
      */
     public void cleanupSession(String sessionId) {
         sessionSentenceCounters.remove(sessionId);
-
-        // 移除句子队列和处理标志
-        sessionSentenceQueues.remove(sessionId);
-        sessionProcessingFlags.remove(sessionId);
-
-        // 移除时间记录
         sessionSttStartTimes.remove(sessionId);
         sessionLlmStartTimes.remove(sessionId);
-        sessionTtsStartTimes.remove(sessionId);
         sessionFullResponses.remove(sessionId);
+        
+        // 清理音频任务列表
+        List<CompletableFuture<String>> audioTasks = sessionAudioTasks.remove(sessionId);
+        if (audioTasks != null) {
+            for (CompletableFuture<String> task : audioTasks) {
+                if (!task.isDone()) {
+                    task.cancel(true);
+                }
+            }
+        }
 
-        // 移除音频准备映射
-        sessionPreparedAudio.remove(sessionId);
-        sessionAudioFutures.remove(sessionId);
+        // 清理待处理句子列表
+        sessionPendingSentences.remove(sessionId);
     }
 }
