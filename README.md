@@ -111,5 +111,14 @@ Server端采用 Spring Boot 框架，前端采用 Vue.js 框架，全局响应�
 <img src="./web/static/img/qq.jpg" alt="qq" width="200" />
 
 
-
 ---
+
+## Star History
+
+<a href="https://www.star-history.com/#joey-zhou/xiaozhi-esp32-server-java&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=joey-zhou/xiaozhi-esp32-server-java&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=joey-zhou/xiaozhi-esp32-server-java&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=joey-zhou/xiaozhi-esp32-server-java&type=Date" />
+ </picture>
+</a>
