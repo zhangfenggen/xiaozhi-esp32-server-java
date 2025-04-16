@@ -198,7 +198,7 @@ export default {
             ],
             spark: [
               { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' }
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://spark-api-open.xf-yun.com/v2" }
             ]
           }
         },
@@ -355,6 +355,12 @@ export default {
       allParamFields.forEach(field => {
         newValues[field] = undefined;
       });
+
+      //填写llm默认url
+      if(this.configType === 'llm') {
+        newValues.apiUrl = this.configTypeMap.llm.typeFields[value].find(item=>item.name === 'apiUrl').defaultUrl
+      }
+
       // 重置表单
       this.$nextTick(() => {
         // 设置新的表单值
