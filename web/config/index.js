@@ -11,7 +11,7 @@ module.exports = {
     assetsPublicPath: '/',
     proxyTable: {
       '/api': {
-        target: process.env.API_URL || 'http://server:8091', // 使用环境变量或默认使用服务名
+        target: process.env.API_URL || 'http://localhost:8091', // 使用环境变量或默认使用服务名
         changeOrigin: true,
         pathRewrite: {
           '^/api': '/api'
