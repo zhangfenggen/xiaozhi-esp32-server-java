@@ -248,7 +248,7 @@ import axios from "@/services/axios";
 import api from "@/services/api";
 import mixin from "@/mixins/index";
 import { message } from "ant-design-vue";
-import DeviceEditDialog from "./components/DeviceEditDialog.vue";
+import DeviceEditDialog from "@/components/DeviceEditDialog.vue";
 export default {
   components: {DeviceEditDialog},
   mixins: [mixin],
