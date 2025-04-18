@@ -105,6 +105,7 @@
                     :dataSource="data"
                     :pagination="{ pageSize: 5 }"
                     :loading=userLoading
+                    :scroll="{ x: 500 }"
                   >
                     <div
                       slot="filterDropdown"
@@ -230,6 +231,7 @@ export default {
           title: "设备名称",
           dataIndex: "deviceName",
           name: "deviceName",
+          with: 100,
           scopedSlots: {
             filterDropdown: "filterDropdown",
             filterIcon: "filterIcon",
@@ -250,6 +252,7 @@ export default {
           dataIndex: "totalMessage",
           key: "totalMessage",
           align: "right",
+          width: 100,
           sorter: (a, b) => a.totalMessage - b.totalMessage,
         },
         {
@@ -264,6 +267,7 @@ export default {
           dataIndex: "lastLogin",
           key: "lastLogin",
           align: "right",
+          width: 180,
           sorter: (a, b) => a.lastLogin - b.lastLogin,
         },
       ],
