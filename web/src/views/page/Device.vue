@@ -228,20 +228,18 @@
                 </a-popconfirm>
                 <a href="javascript:;" @click="cancel(record.deviceId)">取消</a>
               </a-space>
-              <span v-else>
-                <a
-                  href="javascript:;"
-                  :disabled="editingKey !== ''"
-                  @click="edit(record.deviceId)"
-                  >编辑</a
-                >
-              </span>
+              <a-space v-else>
+                <a href="javascript:" @click="edit(record.deviceId)">编辑</a>
+                <a href="javascript:" @click="editWithDialog(record)">详情</a>
+              </a-space>
             </template>
           </a-table>
         </a-card>
       </div>
     </a-layout-content>
     <a-back-top />
+
+    <DeviceEditDialog @submit="update" @close="editVisible = false" :visible="editVisible" :current="currentDevice" :model-items="modelItems" :stt-items="sttItems" :role-items="roleItems"></DeviceEditDialog>
   </a-layout>
 </template>
 
@@ -250,11 +248,15 @@ import axios from "@/services/axios";
 import api from "@/services/api";
 import mixin from "@/mixins/index";
 import { message } from "ant-design-vue";
+import DeviceEditDialog from "@/components/DeviceEditDialog.vue";
 export default {
+  components: {DeviceEditDialog},
   mixins: [mixin],
   data() {
     return {
       // 查询框
+      editVisible: false,
+      currentDevice:{},
       query: {
         state: "",
       },
@@ -508,24 +510,14 @@ export default {
         })
         .then((res) => {
           if (res.code === 200) {
-            if (key) {
-              const data = this.editLine(key);
-              this.updateSuccess(data);
-            }
+            this.getData()
+            this.editVisible = false
             message.success("修改成功");
           } else {
-            if (key) {
-              const data = this.editLine(key);
-              this.updateFailed(data, key);
-            }
             this.$message.error(res.message);
           }
         })
         .catch(() => {
-          if (key) {
-            const data = this.editLine(key);
-            this.updateFailed(data, key);
-          }
           message.error("服务器维护/重启中,请稍后再试");
         })
         .finally(() => {
@@ -591,6 +583,11 @@ export default {
       const item = items.find((item) => item[idField] === id);
       return item ? item[nameField] : "";
     },
+
+    editWithDialog(device){
+      this.editVisible = true
+      this.currentDevice = device
+    }
   },
 };
 </script>

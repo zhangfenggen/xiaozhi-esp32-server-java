@@ -38,7 +38,7 @@ public class SysUser extends Base implements Serializable {
     /**
      * 对话次数
      */
-    private Integer messageNumber;
+    private Integer totalMessage;
 
     /**
      * 参加人数
@@ -145,12 +145,12 @@ public class SysUser extends Base implements Serializable {
         return this;
     }
 
-    public Integer getMessageNumber() {
-        return messageNumber;
+    public Integer getTotalMessage() {
+        return totalMessage;
     }
 
-    public SysUser setMessageNumber(Integer messageNumber) {
-        this.messageNumber = messageNumber;
+    public SysUser setTotalMessage(Integer totalMessage) {
+        this.totalMessage = totalMessage;
         return this;
     }
 
