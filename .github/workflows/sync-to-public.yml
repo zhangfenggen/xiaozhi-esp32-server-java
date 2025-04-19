@@ -1,0 +1,25 @@
+name: Sync to Public Repo
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Push to public repository
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.SYNC_TOKEN }}
+          branch: main
+          repository: joey-zhou/xiaozhi-esp32-server-java
+          force: false  # 避免强制推送，防止覆盖公共仓库的更改
+

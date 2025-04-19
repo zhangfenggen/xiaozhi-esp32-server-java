@@ -1,0 +1,39 @@
+name: Sync from Public Repo
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'  # 每12小时运行一次
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Fetch from public repository
+        run: |
+          git remote add public https://github.com/joey-zhou/xiaozhi-esp32-server-java.git
+          git fetch public
+
+      - name: Merge changes from public main
+        run: |
+          # 尝试合并，如果有冲突则中止
+          if git merge public/main --no-commit; then
+            git commit -m "Merge changes from public repository"
+            git push
+          else
+            echo "Merge conflicts detected. Manual intervention required."
+            git merge --abort
+            exit 1
+          fi
+
