@@ -13,7 +13,7 @@ import io.reactivex.Flowable;
 import io.reactivex.schedulers.Schedulers;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -191,22 +191,22 @@ public class CozeService extends AbstractLlmService {
      * @return Coze格式的消息列表
      */
     private List<Message> convertToCozeMessages(List<Map<String, String>> messages) {
-        // 只取最后一条用户消息，因为Coze API目前只支持单条消息输入
-        Map<String, String> lastUserMessage = null;
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            if ("user".equals(messages.get(i).get("role"))) {
-                lastUserMessage = messages.get(i);
-                break;
+        List<Message> cozeMessages = new ArrayList<>();
+
+        for (Map<String, String> msg : messages) {
+            String role = msg.get("role");
+            String content = msg.get("content");
+
+            if ("user".equals(role)) {
+                cozeMessages.add(Message.buildUserQuestionText(content));
+            } else if ("assistant".equals(role)) {
+                cozeMessages.add(Message.buildAssistantAnswer(content));
+            } else if ("system".equals(role)) {
+                // coze 系统提示默认不在这里设定，需要在 coze 中设定
             }
         }
 
-        if (lastUserMessage == null) {
-            // 如果没有找到用户消息，使用第一条消息
-            lastUserMessage = messages.get(0);
-        }
-
-        String content = lastUserMessage.get("content");
-        return Collections.singletonList(Message.buildUserQuestionText(content));
+        return cozeMessages;
     }
 
     @Override
