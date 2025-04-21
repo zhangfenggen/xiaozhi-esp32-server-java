@@ -28,7 +28,6 @@ public class LlmServiceFactory {
     public static LlmService createLlmService(String provider, String endpoint, String appId, String apiKey,
             String apiSecret, String model) {
         provider = provider.toLowerCase();
-
         switch (provider) {
             case "openai":
                 return new OpenAiService(endpoint, appId, apiKey, apiSecret, model);

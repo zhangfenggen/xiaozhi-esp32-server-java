@@ -47,7 +47,7 @@ public class CozeService extends AbstractLlmService {
         this.authCli = new TokenAuth(apiSecret);
 
         // 使用endpoint或默认的Coze API地址
-        String baseUrl = (endpoint != null && !endpoint.isEmpty()) ? endpoint : "https://api.coze.cn";
+        String baseUrl = "https://api.coze.cn";
 
         // 初始化Coze API客户端
         this.coze = new CozeAPI.Builder()
@@ -57,7 +57,7 @@ public class CozeService extends AbstractLlmService {
                 .build();
 
         // 使用appId作为botId
-        this.botId = appId;
+        this.botId = model;
 
         logger.info("初始化Coze服务，botId: {}, baseUrl: {}", botId, baseUrl);
     }
