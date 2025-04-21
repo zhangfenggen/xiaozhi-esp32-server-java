@@ -23,9 +23,6 @@ public class OpusProcessor {
     // 存储每个会话的解码器
     private final ConcurrentHashMap<String, OpusDecoder> sessionDecoders = new ConcurrentHashMap<>();
 
-    // 存储每个会话的编码器
-    private final ConcurrentHashMap<String, OpusEncoder> sessionEncoders = new ConcurrentHashMap<>();
-
     // 默认的帧大小
     private static final int DEFAULT_FRAME_SIZE = 960; // Opus典型帧大小
 
@@ -92,30 +89,30 @@ public class OpusProcessor {
     }
 
     /**
-     * 获取会话的Opus编码器（如果不存在则创建）
+     * 创建一个新的Opus编码器
+     * 
+     * @param sampleRate 采样率
+     * @param channels 通道数
+     * @return 新创建的Opus编码器
      */
-    public OpusEncoder getSessionEncoder(String sessionId, int sampleRate, int channels) {
-        String key = sessionId + "_" + sampleRate + "_" + channels;
-        return sessionEncoders.computeIfAbsent(key, k -> {
-            try {
-                OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_AUDIO);
-                encoder.setBitrate(DEFAULT_SAMPLE_RATE); // 设置默认比特率
-                return encoder;
-            } catch (OpusException e) {
-                logger.error("创建Opus编码器失败", e);
-                throw new RuntimeException("创建Opus编码器失败", e);
-            }
-        });
+    private OpusEncoder createEncoder(int sampleRate, int channels) {
+        try {
+            OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_AUDIO);
+            encoder.setBitrate(sampleRate); // 设置比特率与采样率相同，更合理
+            return encoder;
+        } catch (OpusException e) {
+            logger.error("创建Opus编码器失败 - 采样率: {}, 通道数: {}", sampleRate, channels, e);
+            throw new RuntimeException("创建Opus编码器失败", e);
+        }
     }
 
     /**
      * 将PCM数据转换为Opus格式
      */
     public List<byte[]> convertPcmToOpus(String sessionId, byte[] pcmData, int sampleRate, int channels,
-            int frameDurationMs)
-            throws OpusException {
-        // 获取或创建Opus编码器
-        OpusEncoder encoder = getSessionEncoder(sessionId, sampleRate, channels);
+            int frameDurationMs) throws OpusException {
+        // 每次都创建新的编码器实例，避免多线程并发问题
+        OpusEncoder encoder = createEncoder(sampleRate, channels);
 
         // 每帧样本数
         int frameSize = sampleRate * frameDurationMs / 1000;
@@ -149,13 +146,19 @@ public class OpusProcessor {
                 }
             }
 
-            // 编码
-            int opusLength = encoder.encode(shortBuffer, 0, frameSize, opusBuffer, 0, opusBuffer.length);
+            try {
+                // 编码
+                int opusLength = encoder.encode(shortBuffer, 0, frameSize, opusBuffer, 0, opusBuffer.length);
 
-            // 创建正确大小的帧并添加到列表
-            byte[] opusFrame = new byte[opusLength];
-            System.arraycopy(opusBuffer, 0, opusFrame, 0, opusLength);
-            opusFrames.add(opusFrame);
+                // 创建正确大小的帧并添加到列表
+                byte[] opusFrame = new byte[opusLength];
+                System.arraycopy(opusBuffer, 0, opusFrame, 0, opusLength);
+                opusFrames.add(opusFrame);
+            } catch (Exception e) {
+                logger.error("音频编码失败 - SessionId: {}, 帧起始位置: {}, 错误: {}", 
+                        sessionId, frameStart, e.getMessage(), e);
+                throw e;
+            }
         }
 
         return opusFrames;
@@ -166,9 +169,6 @@ public class OpusProcessor {
      */
     public void cleanupSession(String sessionId) {
         sessionDecoders.remove(sessionId);
-
-        // 清理所有与该sessionId相关的编码器
-        sessionEncoders.keySet().removeIf(key -> key.startsWith(sessionId + "_"));
     }
 
     /**
@@ -177,7 +177,5 @@ public class OpusProcessor {
     @PreDestroy
     public void cleanup() {
         sessionDecoders.clear();
-        sessionEncoders.clear();
-        logger.info("OpusProcessor resources cleaned up");
     }
 }
