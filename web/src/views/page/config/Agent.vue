@@ -106,11 +106,6 @@ export default {
       // 平台选项
       providerOptions: [
         { label: 'COZE', value: 'COZE' },
-        { label: '微信', value: '微信' },
-        { label: '飞书', value: '飞书' },
-        { label: 'Telegram', value: 'Telegram' },
-        { label: 'Slack', value: 'Slack' },
-        { label: '其他', value: '其他' }
       ],
       // 表格列定义
       tableColumns: [
@@ -148,11 +143,6 @@ export default {
           placeholder: '请选择平台类型',
           options: [
             { label: 'COZE', value: 'COZE' },
-            { label: '微信', value: '微信' },
-            { label: '飞书', value: '飞书' },
-            { label: 'Telegram', value: 'Telegram' },
-            { label: 'Slack', value: 'Slack' },
-            { label: '其他', value: '其他' }
           ]
         },
         {
