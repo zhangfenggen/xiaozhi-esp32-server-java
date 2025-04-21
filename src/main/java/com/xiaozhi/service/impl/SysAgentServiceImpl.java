@@ -16,11 +16,15 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * 智能体服务实现
@@ -92,24 +96,24 @@ public class SysAgentServiceImpl implements SysAgentService {
     }
 
     /**
-     * 从Coze API获取智能体列表
+     * 从Coze API获取智能体列表，并与数据库同步
      * 
      * @param agent 智能体信息
      * @return 智能体集合的Mono对象
      */
     private Mono<List<SysAgent>> getCozeAgents(SysAgent agent) {
-
+        // 获取当前用户的Coze配置
         List<SysConfig> configs = configService.query(agent);
-        SysConfig config = new SysConfig();
-        if (!ObjectUtils.isEmpty(configs)) {
-            config = configs.get(0);
-        } else {
+        if (ObjectUtils.isEmpty(configs)) {
             return Mono.just(new ArrayList<>());
         }
-        // 获取API密钥和空间ID，优先使用传入的值，否则使用默认值
+        
+        SysConfig config = configs.get(0);
+        
+        // 获取API密钥和空间ID
         String apiSecret = config.getApiSecret();
-
         String spaceId = config.getAppId();
+        Integer userId = agent.getUserId();
 
         // 调用Coze API获取智能体列表
         return webClient.get()
@@ -118,24 +122,50 @@ public class SysAgentServiceImpl implements SysAgentService {
                 .header("Content-Type", "application/json")
                 .retrieve()
                 .bodyToMono(String.class)
-                .map(response -> {
+                .flatMap(response -> {
                     List<SysAgent> agentList = new ArrayList<>();
                     try {
                         JsonNode rootNode = objectMapper.readTree(response);
                         if (rootNode.has("code") && rootNode.get("code").asInt() == 0) {
                             JsonNode spaceBots = rootNode.path("data").path("space_bots");
+                            
+                            // 查询数据库中现有的所有与当前用户相关的coze智能体配置
+                            SysConfig queryConfig = new SysConfig();
+                            queryConfig.setUserId(userId);
+                            queryConfig.setConfigType("llm");
+                            queryConfig.setProvider("coze");
+                            List<SysConfig> existingConfigs = configService.query(queryConfig);
+                            
+                            // 创建一个Map来存储现有的配置，以botId为键
+                            Map<String, SysConfig> existingConfigMap = new HashMap<>();
+                            for (SysConfig existingConfig : existingConfigs) {
+                                if (existingConfig.getAppId() != null) {
+                                    existingConfigMap.put(existingConfig.getAppId(), existingConfig);
+                                }
+                            }
+                            
+                            // 记录API返回的所有botId，用于后续比对删除
+                            List<String> apiBotIds = new ArrayList<>();
 
                             // 遍历智能体列表
                             for (JsonNode botNode : spaceBots) {
+                                String botId = botNode.path("bot_id").asText();
+                                String botName = botNode.path("bot_name").asText();
+                                String description = botNode.path("description").asText();
+                                String iconUrl = botNode.path("icon_url").asText();
+                                long publishTime = Long.parseLong(botNode.path("publish_time").asText());
+                                
+                                apiBotIds.add(botId);
+                                
+                                // 创建SysAgent对象用于返回
                                 SysAgent botAgent = new SysAgent();
-                                botAgent.setBotId(botNode.path("bot_id").asText());
-                                botAgent.setAgentName(botNode.path("bot_name").asText());
-                                botAgent.setAgentDesc(botNode.path("description").asText());
-                                botAgent.setIconUrl(botNode.path("icon_url").asText());
-                                botAgent.setPublishTime(
-                                        new Date(Long.parseLong(botNode.path("publish_time").asText()) * 1000));
+                                botAgent.setBotId(botId);
+                                botAgent.setAgentName(botName);
+                                botAgent.setAgentDesc(description);
+                                botAgent.setIconUrl(iconUrl);
+                                botAgent.setPublishTime(new Date(publishTime * 1000));
                                 botAgent.setProvider("coze");
-
+                                
                                 // 如果前端传入了智能体名称过滤条件，则进行过滤
                                 if (StringUtils.hasText(agent.getAgentName())) {
                                     if (botAgent.getAgentName().toLowerCase()
@@ -145,8 +175,57 @@ public class SysAgentServiceImpl implements SysAgentService {
                                 } else {
                                     agentList.add(botAgent);
                                 }
-                            }
+                                
+                                // 同步到数据库（使用非阻塞方式）
+                                // 检查是否已存在该botId的配置
+                                if (existingConfigMap.containsKey(botId)) {
+                                    // 存在则更新
+                                    SysConfig existingConfig = existingConfigMap.get(botId);
+                                    existingConfig.setConfigName(botId);
+                                    existingConfig.setConfigDesc(description);
+                                    // 如果数据库已存在，返回对应 ConfigId 为前端设备绑定使用
+                                    botAgent.setConfigId(existingConfig.getConfigId());
 
+                                    // 使用publishOn将数据库操作调度到适合的线程池
+                                    Mono.fromCallable(() -> configService.update(existingConfig))
+                                        .subscribeOn(Schedulers.boundedElastic())
+                                        .subscribe(
+                                            result -> logger.debug("更新智能体配置成功: {}", botId),
+                                            error -> logger.error("更新智能体配置失败: {}", error.getMessage())
+                                        );
+                                } else {
+                                    // 不存在则新增
+                                    SysConfig newConfig = new SysConfig();
+                                    newConfig.setUserId(userId);
+                                    newConfig.setConfigType("llm");
+                                    newConfig.setProvider("coze");
+                                    newConfig.setAppId(botId);
+                                    newConfig.setConfigName(botId);
+                                    newConfig.setConfigDesc(description);
+                                    newConfig.setApiSecret(apiSecret);  // 使用主配置的apiSecret
+                                    newConfig.setState("1");  // 默认启用
+
+                                    Mono.fromCallable(() -> configService.add(newConfig))
+                                        .subscribeOn(Schedulers.boundedElastic())
+                                        .subscribe(
+                                            result -> logger.debug("添加智能体配置成功: {}", botId),
+                                            error -> logger.error("添加智能体配置失败: {}", error.getMessage())
+                                        );
+                                }
+                            }
+                            
+                            // 删除不再存在的智能体配置
+                            // for (String existingBotId : existingConfigMap.keySet()) {
+                            //     if (!apiBotIds.contains(existingBotId)) {
+                            //         SysConfig configToDelete = existingConfigMap.get(existingBotId);
+                            //         Mono.fromCallable(() -> configService.delete(configToDelete.getConfigId()))
+                            //             .subscribeOn(Schedulers.boundedElastic())
+                            //             .subscribe(
+                            //                 result -> logger.debug("删除智能体配置成功: {}", existingBotId),
+                            //                 error -> logger.error("删除智能体配置失败: {}", error.getMessage())
+                            //             );
+                            //     }
+                            // }
                         } else {
                             String errorMsg = rootNode.has("msg") ? rootNode.get("msg").asText() : "未知错误";
                             logger.error("查询Coze智能体列表失败：{}", errorMsg);
@@ -154,12 +233,11 @@ public class SysAgentServiceImpl implements SysAgentService {
                     } catch (Exception e) {
                         logger.error("解析Coze API响应异常", e);
                     }
-                    return agentList;
+                    return Mono.just(agentList);
                 })
                 .onErrorResume(e -> {
                     logger.error("查询Coze智能体列表异常", e);
                     return Mono.just(new ArrayList<>());
                 });
     }
-
 }

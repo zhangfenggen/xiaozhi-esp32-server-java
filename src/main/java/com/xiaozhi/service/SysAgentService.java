@@ -1,7 +1,6 @@
 package com.xiaozhi.service;
 
 import java.util.List;
-import java.util.Map;
 
 import com.xiaozhi.entity.SysAgent;
 
@@ -42,7 +41,7 @@ public interface SysAgentService {
      * 查询智能体列表
      * 
      * @param agent 智能体信息
-     * @return 智能体集合
+     * @return 智能体集合的Mono对象
      */
     Mono<List<SysAgent>> query(SysAgent agent);
 

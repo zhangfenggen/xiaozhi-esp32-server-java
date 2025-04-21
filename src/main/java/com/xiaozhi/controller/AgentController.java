@@ -40,7 +40,7 @@ public class AgentController {
     /**
      * 查询智能体列表
      * 
-     * @param agent 查询条件
+     * @param agent    查询条件
      * @param exchange 请求交换
      * @return 智能体列表
      */
@@ -68,7 +68,7 @@ public class AgentController {
     /**
      * 添加智能体
      * 
-     * @param agent 智能体信息
+     * @param agent    智能体信息
      * @param exchange 请求交换
      * @return 添加结果
      */
@@ -81,7 +81,7 @@ public class AgentController {
                 if (user != null) {
                     agent.setUserId(user.getUserId());
                 }
-                
+
                 agentService.add(agent);
                 return AjaxResult.success();
             } catch (Exception e) {
