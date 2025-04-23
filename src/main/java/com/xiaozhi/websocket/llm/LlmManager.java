@@ -215,6 +215,7 @@ public class LlmManager {
             StreamResponseListener streamListener = new StreamResponseListener() {
                 @Override
                 public void onStart() {
+                    sessionCompleted.set(false);
                 }
 
                 @Override
@@ -410,17 +411,6 @@ public class LlmManager {
                         logger.debug("总共处理了 {} 个句子", sentenceCount.get());
                     }
 
-                    // 设置一个定时任务，在一段时间后清除标志位（例如30秒后）
-                    // 这样可以确保下一次对话能够正常进行
-                    new java.util.Timer().schedule(
-                            new java.util.TimerTask() {
-                                @Override
-                                public void run() {
-                                    sessionCompletionFlags.remove(sessionId);
-                                }
-                            },
-                            5000 // 5秒后清除
-                    );
                 }
 
                 @Override
