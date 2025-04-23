@@ -92,7 +92,7 @@ public class OpusProcessor {
      * 创建一个新的Opus编码器
      * 
      * @param sampleRate 采样率
-     * @param channels 通道数
+     * @param channels   通道数
      * @return 新创建的Opus编码器
      */
     private OpusEncoder createEncoder(int sampleRate, int channels) {
@@ -135,9 +135,11 @@ public class OpusProcessor {
             if (samplesToRead <= 0)
                 break;
 
-            // 读取样本
-            shortBufferView.position(frameStart);
-            shortBufferView.get(shortBuffer, 0, samplesToRead);
+            shortBufferView.position(frameStart); // 这行返回Buffer类型而非ShortBuffer
+            // 创建一个临时数组来存储当前帧的数据
+            for (int i = 0; i < samplesToRead; i++) {
+                shortBuffer[i] = shortBufferView.get();
+            }
 
             // 如果最后一帧不足，用0填充
             if (samplesToRead < frameSize * channels) {
@@ -155,7 +157,7 @@ public class OpusProcessor {
                 System.arraycopy(opusBuffer, 0, opusFrame, 0, opusLength);
                 opusFrames.add(opusFrame);
             } catch (Exception e) {
-                logger.error("音频编码失败 - SessionId: {}, 帧起始位置: {}, 错误: {}", 
+                logger.error("音频编码失败 - SessionId: {}, 帧起始位置: {}, 错误: {}",
                         sessionId, frameStart, e.getMessage(), e);
                 throw e;
             }

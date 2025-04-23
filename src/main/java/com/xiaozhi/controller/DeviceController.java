@@ -205,9 +205,9 @@ public class DeviceController {
                         String requestBody = new String(bytes);
                         SysDevice device = new SysDevice();
                         String deviceIdAuth = null;
-                        
+
                         // 首先从请求头获取设备ID
-                        String[] headerKeys = {"device-Id", "mac_address", "uuid"};
+                        String[] headerKeys = { "device-Id", "mac_address", "uuid" };
                         for (String key : headerKeys) {
                             deviceIdAuth = exchange.getRequest().getHeaders().getFirst(key);
                             if (deviceIdAuth != null) {
@@ -220,16 +220,15 @@ public class DeviceController {
                             URI uri = exchange.getRequest().getURI();
                             String query = uri.getQuery();
                             if (query != null) {
-                                String[] paramKeys = {"device_id", "mac_address", "uuid"};
+                                String[] paramKeys = { "device_id", "mac_address", "uuid" };
                                 for (String key : paramKeys) {
                                     String paramPattern = key + "=";
                                     int startIdx = query.indexOf(paramPattern);
                                     if (startIdx >= 0) {
                                         startIdx += paramPattern.length();
                                         int endIdx = query.indexOf('&', startIdx);
-                                        deviceIdAuth = endIdx >= 0 ? 
-                                            query.substring(startIdx, endIdx) : 
-                                            query.substring(startIdx);
+                                        deviceIdAuth = endIdx >= 0 ? query.substring(startIdx, endIdx)
+                                                : query.substring(startIdx);
                                         break;
                                     }
                                 }
@@ -237,15 +236,15 @@ public class DeviceController {
                         }
 
                         // 解析JSON请求体
-                        if (deviceIdAuth == null && 
-                            exchange.getRequest().getHeaders().getContentType() != null &&
-                            exchange.getRequest().getHeaders().getContentType().toString()
-                                    .contains("application/json")) {
+                        if (deviceIdAuth == null &&
+                                exchange.getRequest().getHeaders().getContentType() != null &&
+                                exchange.getRequest().getHeaders().getContentType().toString()
+                                        .contains("application/json")) {
 
                             Map<String, Object> jsonData = objectMapper.readValue(requestBody,
                                     new TypeReference<Map<String, Object>>() {
                                     });
-                            
+
                             // 尝试从JSON中获取设备ID
                             if (jsonData.containsKey("mac_address")) {
                                 deviceIdAuth = (String) jsonData.get("mac_address");
@@ -253,7 +252,7 @@ public class DeviceController {
                             if (deviceIdAuth == null && jsonData.containsKey("uuid")) {
                                 deviceIdAuth = (String) jsonData.get("uuid");
                             }
-                            
+
                             // 提取chip_model_name
                             if (jsonData.containsKey("chip_model_name")) {
                                 device.setChipModelName((String) jsonData.get("chip_model_name"));
@@ -278,9 +277,8 @@ public class DeviceController {
 
                         final String deviceId = deviceIdAuth;
                         device.setDeviceId(deviceId);
-                        device.setState("1");
                         device.setLastLogin(new Date().toString());
-                        
+
                         // 查询设备是否已绑定
                         return Mono.fromCallable(() -> deviceService.query(device))
                                 .flatMap(devices -> {
@@ -288,17 +286,18 @@ public class DeviceController {
                                     Map<String, Object> firmwareData = new java.util.HashMap<>();
                                     Map<String, Object> serverTimeData = new java.util.HashMap<>();
                                     Map<String, Object> websocketData = new java.util.HashMap<>();
-                                    
+
                                     // 设置服务器时间
                                     long timestamp = System.currentTimeMillis();
                                     serverTimeData.put("timestamp", timestamp);
                                     serverTimeData.put("timezone_offset", 480); // 东八区
-                        
+
                                     // 设置固件信息
                                     firmwareData.put("url", "");
                                     firmwareData.put("version", "1.0.0");
-                                    
-                                    // 设置WebSocket token
+
+                                    // 设置WebSocket token和address
+                                    websocketData.put("url", "ws://192.168.31.130:8091/ws/xiaozhi/v1/");
                                     websocketData.put("token", "");
 
                                     // 检查设备是否已绑定
@@ -325,16 +324,16 @@ public class DeviceController {
                                     } else {
                                         // 设备已绑定，不需要返回activation字段
                                         SysDevice boundDevice = devices.get(0);
-                                        
+
                                         // 更新设备状态
-                                        deviceService.update(device.setDeviceName(boundDevice.getDeviceName()));
+                                        deviceService.update(device.setDeviceName(boundDevice.getDeviceName()).setState("1"));
                                     }
-                                    
+
                                     // 组装响应数据 - 只包含必要的字段
                                     responseData.put("firmware", firmwareData);
                                     responseData.put("serverTime", serverTimeData);
                                     responseData.put("websocket", websocketData);
-                                    
+
                                     return Mono.just(responseData);
                                 });
                     } catch (Exception e) {
