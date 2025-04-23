@@ -135,11 +135,9 @@ public class OpusProcessor {
             if (samplesToRead <= 0)
                 break;
 
-            shortBufferView.position(frameStart); // 这行返回Buffer类型而非ShortBuffer
-            // 创建一个临时数组来存储当前帧的数据
-            for (int i = 0; i < samplesToRead; i++) {
-                shortBuffer[i] = shortBufferView.get();
-            }
+            // 读取样本
+            shortBufferView.position(frameStart);
+            shortBufferView.get(shortBuffer, 0, samplesToRead);
 
             // 如果最后一帧不足，用0填充
             if (samplesToRead < frameSize * channels) {

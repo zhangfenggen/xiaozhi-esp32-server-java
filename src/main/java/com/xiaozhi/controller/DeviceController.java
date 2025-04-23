@@ -297,18 +297,18 @@ public class DeviceController {
                                     firmwareData.put("version", "1.0.0");
 
                                     // 设置WebSocket token和address
-                                    websocketData.put("url", "ws://192.168.31.130:8091/ws/xiaozhi/v1/");
+                                    websocketData.put("url", "ws://14.103.233.248/ws/xiaozhi/v1/");
                                     websocketData.put("token", "");
 
                                     // 检查设备是否已绑定
-                                    if (devices.isEmpty() || devices.get(0).getModelId() == null) {
+                                    if (devices.isEmpty()) {
                                         // 设备未绑定，生成验证码
                                         try {
                                             SysDevice codeResult = deviceService.generateCode(device);
                                             // 只有在需要验证码时才添加activation字段
                                             Map<String, Object> activationData = new java.util.HashMap<>();
                                             activationData.put("code", codeResult.getCode());
-                                            activationData.put("message", "请到设备管理页面添加设备，输入验证码" + codeResult.getCode());
+                                            activationData.put("message", codeResult.getCode());
                                             responseData.put("activation", activationData);
 
                                             // 如果是新设备，更新设备信息
