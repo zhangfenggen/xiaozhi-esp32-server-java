@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -52,9 +51,6 @@ public class LlmManager {
 
     // 新句子判断的字符阈值
     private static final int NEW_SENTENCE_TOKEN_THRESHOLD = 8;
-    
-    // 句子最大等待时间（毫秒）- 即使没有下一个句子结束，也会在这个时间后发送当前暂存的句子
-    private static final long MAX_SENTENCE_WAIT_MS = 200;
 
     @Autowired
     private SysConfigService configService;
@@ -66,6 +62,8 @@ public class LlmManager {
     private Map<String, LlmService> deviceLlmServices = new ConcurrentHashMap<>();
     // 设备当前使用的configId缓存
     private Map<String, Integer> deviceConfigIds = new ConcurrentHashMap<>();
+    // 会话完成状态，因为 coze 会返回两次 onComplete 事件，会导致重复保存到数据库中
+    private final Map<String, AtomicBoolean> sessionCompletionFlags = new ConcurrentHashMap<>();
 
     /**
      * 处理用户查询（同步方式）
@@ -183,6 +181,25 @@ public class LlmManager {
     public void chatStreamBySentence(SysDevice device, String message,
             TriConsumer<String, Boolean, Boolean> sentenceHandler) {
         try {
+            final String deviceId = device.getDeviceId();
+            final String sessionId = device.getSessionId();
+            final Integer roleId = device.getRoleId();
+
+            // 为这个会话创建或重置完成标志
+            AtomicBoolean sessionCompleted = sessionCompletionFlags.computeIfAbsent(sessionId,
+                    k -> new AtomicBoolean(false));
+            sessionCompleted.set(false);
+
+            // 创建模型上下文
+            ModelContext modelContext = new ModelContext(
+                deviceId,
+                sessionId,
+                roleId,
+                chatMemory);
+                
+            // 保存用户消息
+            modelContext.addUserMessage(message);
+
             final StringBuilder currentSentence = new StringBuilder(); // 当前句子的缓冲区
             final StringBuilder contextBuffer = new StringBuilder(); // 上下文缓冲区，用于检测数字中的小数点
             final AtomicInteger sentenceCount = new AtomicInteger(0); // 已发送句子的计数
@@ -193,9 +210,6 @@ public class LlmManager {
             final AtomicBoolean lastCharWasPauseMark = new AtomicBoolean(false); // 上一个字符是否为停顿标记
             final AtomicBoolean lastCharWasSpecialMark = new AtomicBoolean(false); // 上一个字符是否为特殊标记
             final AtomicBoolean lastCharWasNewline = new AtomicBoolean(false); // 上一个字符是否为换行符
-            
-            // 记录暂存句子的时间戳，用于判断是否需要强制发送
-            final AtomicLong pendingSentenceTimestamp = new AtomicLong(0);
 
             // 创建流式响应监听器
             StreamResponseListener streamListener = new StreamResponseListener() {
@@ -205,22 +219,6 @@ public class LlmManager {
 
                 @Override
                 public void onToken(String token) {
-                    
-                    // 检查是否需要强制发送暂存的句子（超过最大等待时间）
-                    if (pendingSentence.get() != null && 
-                        pendingSentenceTimestamp.get() > 0 && 
-                        System.currentTimeMillis() - pendingSentenceTimestamp.get() > MAX_SENTENCE_WAIT_MS) {
-                        
-                        String pendingText = pendingSentence.get();
-                        boolean isFirst = sentenceCount.get() == 0;
-                        
-                        // 发送句子
-                        sentenceHandler.accept(pendingText, isFirst, false);
-                        sentenceCount.incrementAndGet();
-                        pendingSentence.set(null);
-                        pendingSentenceTimestamp.set(0);
-                    }
-                    
                     // 将token添加到完整响应
                     fullResponse.append(token);
 
@@ -270,33 +268,15 @@ public class LlmManager {
                             if (sentence.length() >= MIN_SENTENCE_LENGTH) {
                                 // 如果有暂存的句子，先发送它（isEnd = false）
                                 if (pendingSentence.get() != null) {
-                                    String pendingText = pendingSentence.get();
-                                    boolean isFirst = sentenceCount.get() == 0;
-                                    
-                                    // 发送句子
-                                    sentenceHandler.accept(pendingText, isFirst, false);
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                     sentenceCount.incrementAndGet();
-                                    pendingSentenceTimestamp.set(0);
                                 }
 
                                 // 将当前句子标记为暂存句子
                                 pendingSentence.set(sentence);
-                                pendingSentenceTimestamp.set(System.currentTimeMillis());
 
                                 // 清空当前句子缓冲区
                                 currentSentence.setLength(0);
-                                
-                                // 如果当前句子是一个完整的句子（以句号结尾），直接发送它
-                                if (isEndMark && !Character.isWhitespace(c)) {
-                                    String pendingText = pendingSentence.get();
-                                    boolean isFirst = sentenceCount.get() == 0;
-                                    
-                                    // 发送句子
-                                    sentenceHandler.accept(pendingText, isFirst, false);
-                                    sentenceCount.incrementAndGet();
-                                    pendingSentence.set(null);
-                                    pendingSentenceTimestamp.set(0);
-                                }
                             }
                         }
                         // 处理换行符 - 强制分割句子
@@ -311,34 +291,18 @@ public class LlmManager {
                             if (sentence.length() >= MIN_SENTENCE_LENGTH) {
                                 // 如果有暂存的句子，先发送它
                                 if (pendingSentence.get() != null) {
-                                    String pendingText = pendingSentence.get();
-                                    boolean isFirst = sentenceCount.get() == 0;
-                                    
-                                    // 发送句子
-                                    sentenceHandler.accept(pendingText, isFirst, false);
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                     sentenceCount.incrementAndGet();
-                                    pendingSentenceTimestamp.set(0);
                                 }
 
                                 // 将当前句子标记为暂存句子
                                 pendingSentence.set(sentence);
-                                pendingSentenceTimestamp.set(System.currentTimeMillis());
 
                                 // 清空当前句子缓冲区
                                 currentSentence.setLength(0);
 
                                 // 重置字符计数
                                 charsSinceLastEnd.set(0);
-                                
-                                // 如果当前句子是由换行符分割的，直接发送它
-                                String pendingText = pendingSentence.get();
-                                boolean isFirst = sentenceCount.get() == 0;
-                                
-                                // 发送句子
-                                sentenceHandler.accept(pendingText, isFirst, false);
-                                sentenceCount.incrementAndGet();
-                                pendingSentence.set(null);
-                                pendingSentenceTimestamp.set(0);
                             }
                         }
                         // 处理冒号等特殊标点 - 可能需要分割句子
@@ -355,18 +319,12 @@ public class LlmManager {
 
                                 // 如果有暂存的句子，先发送它
                                 if (pendingSentence.get() != null) {
-                                    String pendingText = pendingSentence.get();
-                                    boolean isFirst = sentenceCount.get() == 0;
-                                    
-                                    // 发送句子
-                                    sentenceHandler.accept(pendingText, isFirst, false);
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                     sentenceCount.incrementAndGet();
-                                    pendingSentenceTimestamp.set(0);
                                 }
 
                                 // 将当前句子标记为暂存句子
                                 pendingSentence.set(sentence);
-                                pendingSentenceTimestamp.set(System.currentTimeMillis());
 
                                 // 清空当前句子缓冲区
                                 currentSentence.setLength(0);
@@ -389,18 +347,12 @@ public class LlmManager {
 
                                 // 如果有暂存的句子，先发送它
                                 if (pendingSentence.get() != null) {
-                                    String pendingText = pendingSentence.get();
-                                    boolean isFirst = sentenceCount.get() == 0;
-                                    
-                                    // 发送句子
-                                    sentenceHandler.accept(pendingText, isFirst, false);
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                     sentenceCount.incrementAndGet();
-                                    pendingSentenceTimestamp.set(0);
                                 }
 
                                 // 将当前句子标记为暂存句子
                                 pendingSentence.set(sentence);
-                                pendingSentenceTimestamp.set(System.currentTimeMillis());
 
                                 // 清空当前句子缓冲区
                                 currentSentence.setLength(0);
@@ -422,14 +374,9 @@ public class LlmManager {
                             // 且有暂存的句子，则发送暂存的句子
                             if (charsSinceLastEnd.get() >= NEW_SENTENCE_TOKEN_THRESHOLD
                                     && pendingSentence.get() != null) {
-                                String pendingText = pendingSentence.get();
-                                boolean isFirst = sentenceCount.get() == 0;
-                                
-                                // 发送句子
-                                sentenceHandler.accept(pendingText, isFirst, false);
+                                sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
                                 sentenceCount.incrementAndGet();
                                 pendingSentence.set(null);
-                                pendingSentenceTimestamp.set(0);
                             }
                         }
                     }
@@ -438,39 +385,52 @@ public class LlmManager {
                 @Override
                 public void onComplete(String completeResponse) {
 
-                    // 如果有暂存的句子，发送它
-                    if (pendingSentence.get() != null) {
-                        boolean isFirst = sentenceCount.get() == 0;
-                        boolean isLast = currentSentence.length() == 0 ||
-                                !containsSubstantialContent(currentSentence.toString());
-                        
-                        String pendingText = pendingSentence.get();
-                        
-                        // 发送句子
-                        sentenceHandler.accept(pendingText, isFirst, isLast);
-                        sentenceCount.incrementAndGet();
-                        pendingSentence.set(null);
-                        pendingSentenceTimestamp.set(0);
+                    // 检查该会话是否已完成处理
+                    if (sessionCompleted.compareAndSet(false, true)) {
+                        modelContext.addAssistantMessage(completeResponse);
+                        // 如果有暂存的句子，发送它
+                        if (pendingSentence.get() != null) {
+                            boolean isFirst = sentenceCount.get() == 0;
+                            boolean isLast = currentSentence.length() == 0 ||
+                                    !containsSubstantialContent(currentSentence.toString());
+
+                            sentenceHandler.accept(pendingSentence.get(), isFirst, isLast);
+                            sentenceCount.incrementAndGet();
+                            pendingSentence.set(null);
+                        }
+
+                        // 处理当前缓冲区剩余的内容（如果有）
+                        if (currentSentence.length() > 0 && containsSubstantialContent(currentSentence.toString())) {
+                            String sentence = currentSentence.toString().trim();
+                            sentenceHandler.accept(sentence, sentenceCount.get() == 0, true);
+                            sentenceCount.incrementAndGet();
+                        }
+
+                        // 记录处理的句子数量
+                        logger.debug("总共处理了 {} 个句子", sentenceCount.get());
                     }
 
-                    // 处理当前缓冲区剩余的内容（如果有）
-                    if (currentSentence.length() > 0 && containsSubstantialContent(currentSentence.toString())) {
-                        String sentence = currentSentence.toString().trim();
-                        boolean isFirst = sentenceCount.get() == 0;
-                        
-                        // 发送句子
-                        sentenceHandler.accept(sentence, isFirst, true);
-                        sentenceCount.incrementAndGet();
-                    }
-
+                    // 设置一个定时任务，在一段时间后清除标志位（例如30秒后）
+                    // 这样可以确保下一次对话能够正常进行
+                    new java.util.Timer().schedule(
+                            new java.util.TimerTask() {
+                                @Override
+                                public void run() {
+                                    sessionCompletionFlags.remove(sessionId);
+                                }
+                            },
+                            5000 // 5秒后清除
+                    );
                 }
 
                 @Override
                 public void onError(Throwable e) {
                     logger.error("流式响应出错: {}", e.getMessage(), e);
-                    
                     // 发送错误信号
                     sentenceHandler.accept("抱歉，我在处理您的请求时遇到了问题。", true, true);
+
+                    // 清除会话完成标志
+                    sessionCompletionFlags.remove(sessionId);
                 }
             };
 
@@ -481,6 +441,9 @@ public class LlmManager {
             logger.error("处理流式查询时出错: {}", e.getMessage(), e);
             // 发送错误信号
             sentenceHandler.accept("抱歉，我在处理您的请求时遇到了问题。", true, true);
+
+            // 清除会话完成标志
+            sessionCompletionFlags.remove(device.getSessionId());
         }
     }
 
