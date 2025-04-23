@@ -192,6 +192,43 @@ public class DeviceController {
                 });
     }
 
+    /**
+     * 删除设备
+     * 
+     * @param device
+     * @return
+     */
+    @PostMapping("/delete")
+    public Mono<AjaxResult> delete(SysDevice device, ServerWebExchange exchange) {
+        return Mono.fromCallable(() -> {
+            try {
+                // 从请求属性中获取用户信息
+                SysUser user = exchange.getAttribute(CmsUtils.USER_ATTRIBUTE_KEY);
+                if (user != null) {
+                    device.setUserId(user.getUserId());
+                }
+                
+                // 删除设备
+                int rows = deviceService.delete(device);
+                
+                if (rows > 0) {
+                    // 如果设备有会话，清除会话
+                    String deviceId = device.getDeviceId();
+                    String sessionId = sessionManager.getSessionByDeviceId(deviceId);
+                    if (sessionId != null) {
+                        sessionManager.closeSession(sessionId);
+                    }
+                    return AjaxResult.success("删除成功");
+                } else {
+                    return AjaxResult.error("删除失败");
+                }
+            } catch (Exception e) {
+                logger.error("删除设备时发生错误", e);
+                return AjaxResult.error("删除设备时发生错误");
+            }
+        });
+    }
+
     @PostMapping("/ota")
     public Mono<Map<String, Object>> ota(ServerWebExchange exchange) {
         // 读取请求体内容

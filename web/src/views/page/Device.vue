@@ -126,6 +126,14 @@
               <a-space v-else>
                 <a href="javascript:" @click="edit(record.deviceId)">编辑</a>
                 <a href="javascript:" @click="editWithDialog(record)">详情</a>
+                <a-popconfirm
+                  title="确定要删除此设备吗？"
+                  ok-text="确定"
+                  cancel-text="取消"
+                  @confirm="deleteDevice(record)"
+                >
+                  <a href="javascript:" style="color: #ff4d4f">删除</a>
+                </a-popconfirm>
               </a-space>
             </template>
           </a-table>
@@ -276,7 +284,7 @@ export default {
           title: "操作",
           dataIndex: "operation",
           scopedSlots: { customRender: "operation" },
-          width: 110,
+          width: 150,
           align: "center",
           fixed: "right",
         },
@@ -449,6 +457,32 @@ export default {
           this.$message.error("服务器维护/重启中，请稍后再试");
         });
     },
+    // 添加删除设备方法
+    deleteDevice(record) {
+      this.loading = true;
+      axios
+        .post({
+          url: api.device.delete,
+          data: {
+            deviceId: record.deviceId
+          }
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.$message.success("设备删除成功");
+            this.getData();
+          } else {
+            this.$message.error(res.message);
+          }
+        })
+        .catch(() => {
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
+    
     // 选择变更处理函数
     handleSelectChange(value, key, type) {
       // 根据类型确定要使用的数据源和字段名
