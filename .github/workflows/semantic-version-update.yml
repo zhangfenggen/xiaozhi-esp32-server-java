@@ -174,6 +174,6 @@ jobs:
       - name: Push changes and tags
         run: |
           # 将远程URL更改为SSH格式
-          git remote set-url origin git@github.com:joey-zhou/xiaozhi-esp32-server-java-private.git
+          git remote set-url origin "git@github.com:${REPO_NAME}.git"
           git push
           git push --tags
