@@ -173,6 +173,10 @@ jobs:
           
       - name: Push changes and tags
         run: |
+          # 使用 GITHUB_REPOSITORY 环境变量获取当前仓库名称
+          REPO_NAME="${GITHUB_REPOSITORY}"
+          echo "Pushing to repository: ${REPO_NAME}"
+          
           # 将远程URL更改为SSH格式
           git remote set-url origin "git@github.com:${REPO_NAME}.git"
           git push
