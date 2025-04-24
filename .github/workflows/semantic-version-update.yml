@@ -11,11 +11,15 @@ on:
 jobs:
   update-version:
     runs-on: ubuntu-latest
+    # 添加写入权限
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          # 使用GITHUB_TOKEN进行初始检出
           token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Set up JDK
@@ -90,15 +94,6 @@ jobs:
           # 更新Maven版本
           mvn versions:set -DnewVersion=${NEW_VERSION} -DgenerateBackupPoms=false
           
-          # 更新应用程序配置中的版本信息（如果存在）
-          if [ -f "src/main/resources/application.properties" ]; then
-            if grep -q "app.version" src/main/resources/application.properties; then
-              sed -i "s/app.version=.*/app.version=${NEW_VERSION}/g" src/main/resources/application.properties
-            else
-              echo "app.version=${NEW_VERSION}" >> src/main/resources/application.properties
-            fi
-          fi
-          
       - name: Commit version changes
         run: |
           git config --global user.name 'GitHub Actions'
@@ -161,18 +156,9 @@ jobs:
             git commit -m "docs: update changelog for v${NEW_VERSION} [skip ci]"
           fi
           
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SYNC_SSH_KEY }}
-          
-      - name: Add GitHub to known hosts
+      # 使用 GitHub CLI 直接推送更改
+      - name: Push changes with GitHub CLI
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          
-      - name: Push changes and tags
-        run: |
-          # 使用 HTTPS 方式推送更改
-          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
-          git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git --tags
+          # 直接使用 GitHub CLI 推送更改
+          git push
+          git push --tags
