@@ -230,6 +230,34 @@ export default {
           this.loading = false
         })
     },
+    /* 删除消息 */
+    deleteMessage(record) {
+      this.loading = true;
+      axios
+        .post({
+          url: api.message.update,
+          data: {
+            messageId: record.messageId,
+            sender: record.sender,
+            deviceId: record.deviceId,
+            sessionId: record.sessionId
+          },
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.$message.success("删除成功");
+            this.getData();
+          } else {
+            this.$message.error(res.message);
+          }
+        })
+        .catch(() => {
+          this.$message.error("服务器维护/重启中,请稍后再试");
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
   },
 };
 </script>

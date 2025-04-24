@@ -142,8 +142,15 @@
     </a-layout-content>
     <a-back-top />
 
-    <DeviceEditDialog @submit="update" @close="editVisible = false" :visible="editVisible" :current="currentDevice"
-      :model-items="modelItems" :stt-items="sttItems" :role-items="roleItems"></DeviceEditDialog>
+    <DeviceEditDialog 
+      @submit="update" 
+      @close="editVisible = false" 
+      :visible="editVisible" 
+      :current="currentDevice"
+      :model-items="modelItems" 
+      :stt-items="sttItems" 
+      :role-items="roleItems"
+      :agent-items="agentItems"/>
   </a-layout>
 </template>
 
