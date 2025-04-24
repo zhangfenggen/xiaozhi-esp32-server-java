@@ -28,17 +28,15 @@ public class XiaozhiApplication {
             String contextPath = event.getApplicationContext().getEnvironment()
                     .getProperty("spring.webflux.base-path", "");
 
-            try {
-                // 获取本地实际 IP 地址
-                String localIp = CmsUtils.getLocalIPAddress();
+            // 获取最适合的服务器IP地址
+            String serverIp = CmsUtils.getServerIp();
 
-                logger.info("==========================================================");
-                logger.info("WebFlux WebSocket service is running at:");
-                logger.info("ws://" + localIp + ":" + port + contextPath + WebFluxWebSocketConfig.WS_PATH);
-                logger.info("==========================================================");
-            } catch (Exception e) {
-                logger.error("无法获取本地 IP 地址：" + e.getMessage());
-            }
+            logger.info("==========================================================");
+            logger.info("WebFlux WebSocket service is running at:");
+            logger.info("ws://" + serverIp + ":" + port + contextPath + WebFluxWebSocketConfig.WS_PATH);
+
+            logger.info("==========================================================");
+
         };
     }
 }

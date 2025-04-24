@@ -333,8 +333,9 @@ public class DeviceController {
                                     firmwareData.put("url", "");
                                     firmwareData.put("version", "1.0.0");
 
+                                    String serverIp = CmsUtils.getServerIp();
                                     // 设置WebSocket token和address
-                                    websocketData.put("url", "ws://14.103.233.248/ws/xiaozhi/v1/");
+                                    websocketData.put("url", "ws://" + serverIp + "/ws/xiaozhi/v1/");
                                     websocketData.put("token", "");
 
                                     // 检查设备是否已绑定
