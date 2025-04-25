@@ -377,6 +377,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             case "detect":
                 // 检测到唤醒词
                 String text = jsonNode.path("text").asText();
+                logger.info("检测到唤醒词 - WakeWord: {}", text);
                 return dialogueService.handleWakeWord(session, text);
             default:
                 logger.warn("未知的listen状态: {}", state);
