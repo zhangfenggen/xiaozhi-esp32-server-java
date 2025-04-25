@@ -185,7 +185,8 @@ export default {
           typeOptions: [
             { label: 'OpenAI', value: 'openai', key: '0' },
             { label: 'Ollama', value: 'ollama', key: '1' },
-            { label: 'Spark', value: 'spark', key: '2' }
+            { label: 'Spark', value: 'spark', key: '2' },
+            { label: 'Zhipu', value: 'zhipu', key: '3' }
           ],
           // 各类别对应的参数字段定义
           typeFields: {
@@ -199,6 +200,10 @@ export default {
             spark: [
               { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
               { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://spark-api-open.xf-yun.com/v2" }
+            ],
+            zhipu: [
+              { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
+              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://open.bigmodel.cn/api/paas/v4" }
             ]
           }
         },
@@ -206,7 +211,8 @@ export default {
           label: '语音识别',
           typeOptions: [
             { label: 'Tencent', value: 'tencent', key: '0' },
-            { label: 'Aliyun', value: 'aliyun', key: '1' }
+            { label: 'Aliyun', value: 'aliyun', key: '1' },
+            { label: 'FunASR', value: 'funasr', key: '2' }
           ],
           typeFields: {
             tencent: [
@@ -216,6 +222,9 @@ export default {
             ],
             aliyun: [
               { name: 'apiKey', label: 'API Key', required: true, span: 12 },
+            ],
+            funasr: [
+              { name: 'apiUrl', label: 'Websocket URL', required: true, span: 12, defaultUrl:"ws://127.0.0.1:10095" }
             ]
           }
         },
