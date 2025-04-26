@@ -85,10 +85,13 @@ public class SysDeviceServiceImpl implements SysDeviceService {
     public int delete(SysDevice device) {
         int row = deviceMapper.delete(device);
         if (row > 0) {
+            SysMessage message = new SysMessage();
+            message.setUserId(device.getUserId());
+            message.setDeviceId(device.getDeviceId());
             // 清空设备聊天记录
-            messageMapper.delete(new SysMessage().setDeviceId(device.getDeviceId()));
+            messageMapper.delete(message);
         }
-        return deviceMapper.delete(device);
+        return row;
     }
 
     /**
