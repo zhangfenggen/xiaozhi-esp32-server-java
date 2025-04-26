@@ -620,6 +620,7 @@ export default {
               this.providerMap = {};
 
               res.data.list.forEach((item) => {
+                if (item.provider == 'coze') {return}
                 if (item.configType == "llm") {
                   // 确保configId是数字类型
                   item.configId = item.configId;
