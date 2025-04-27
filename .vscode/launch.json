@@ -2,6 +2,13 @@
   "configurations": [
     {
       "type": "java",
+      "name": "EmojiUtils",
+      "request": "launch",
+      "mainClass": "com.xiaozhi.utils.EmojiUtils",
+      "projectName": "xiaozhi.server"
+    },
+    {
+      "type": "java",
       "name": "ApplicationTest",
       "request": "launch",
       "mainClass": "com.xiaozhi.ApplicationTest",
