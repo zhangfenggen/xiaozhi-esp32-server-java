@@ -246,18 +246,4 @@ public class EmojiUtils {
         }
     }
 
-    /**
-     * 示例方法
-     */
-    public static void main(String[] args) {
-        // 示例句子
-        String sentence = "你好！😃 今天天气真好。🌈 This is \na sun( ny<H1> day! \n**  \t## $$$ 哈（）哈哈 ";
-
-        // 处理句子
-        EmoSentence result = processSentence(sentence);
-        System.err.println(result.getTtsSentence());
-
-        String cleanedText = cleanText(sentence);
-        System.out.println("清理后的文本: " + cleanedText);
-    }
 }

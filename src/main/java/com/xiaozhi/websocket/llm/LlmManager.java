@@ -3,6 +3,7 @@ package com.xiaozhi.websocket.llm;
 import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.service.SysConfigService;
+import com.xiaozhi.utils.EmojiUtils;
 import com.xiaozhi.websocket.llm.api.LlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
 import com.xiaozhi.websocket.llm.factory.LlmServiceFactory;
@@ -45,6 +46,9 @@ public class LlmManager {
 
     // 数字模式（用于检测小数点是否在数字中）
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+\\.\\d+");
+
+    // 表情符号模式
+    private static final Pattern EMOJI_PATTERN = Pattern.compile("\\p{So}|\\p{Sk}|\\p{Sm}");
 
     // 最小句子长度（字符数）
     private static final int MIN_SENTENCE_LENGTH = 5;
@@ -192,11 +196,11 @@ public class LlmManager {
 
             // 创建模型上下文
             ModelContext modelContext = new ModelContext(
-                deviceId,
-                sessionId,
-                roleId,
-                chatMemory);
-                
+                    deviceId,
+                    sessionId,
+                    roleId,
+                    chatMemory);
+
             // 保存用户消息
             modelContext.addUserMessage(message);
 
@@ -210,6 +214,7 @@ public class LlmManager {
             final AtomicBoolean lastCharWasPauseMark = new AtomicBoolean(false); // 上一个字符是否为停顿标记
             final AtomicBoolean lastCharWasSpecialMark = new AtomicBoolean(false); // 上一个字符是否为特殊标记
             final AtomicBoolean lastCharWasNewline = new AtomicBoolean(false); // 上一个字符是否为换行符
+            final AtomicBoolean lastCharWasEmoji = new AtomicBoolean(false); // 上一个字符是否为表情符号
 
             // 创建流式响应监听器
             StreamResponseListener streamListener = new StreamResponseListener() {
@@ -224,9 +229,9 @@ public class LlmManager {
                     fullResponse.append(token);
 
                     // 逐字符处理token
-                    for (int i = 0; i < token.length(); i++) {
-                        char c = token.charAt(i);
-                        String charStr = String.valueOf(c);
+                    for (int i = 0; i < token.length();) {
+                        int codePoint = token.codePointAt(i);
+                        String charStr = new String(Character.toChars(codePoint));
 
                         // 将字符添加到上下文缓冲区（保留最近的字符以检测数字模式）
                         contextBuffer.append(charStr);
@@ -237,11 +242,12 @@ public class LlmManager {
                         // 将字符添加到当前句子缓冲区
                         currentSentence.append(charStr);
 
-                        // 检查各种标点符号
+                        // 检查各种标点符号和表情符号
                         boolean isEndMark = SENTENCE_END_PATTERN.matcher(charStr).find();
                         boolean isPauseMark = PAUSE_PATTERN.matcher(charStr).find();
                         boolean isSpecialMark = SPECIAL_PATTERN.matcher(charStr).find();
                         boolean isNewline = NEWLINE_PATTERN.matcher(charStr).find();
+                        boolean isEmoji = EmojiUtils.isEmoji(codePoint);
 
                         // 如果当前字符是句子结束标点，需要检查它是否是数字中的小数点
                         if (isEndMark && charStr.equals(".")) {
@@ -256,13 +262,14 @@ public class LlmManager {
                         }
 
                         // 如果当前字符是句子结束标点，或者上一个字符是句子结束标点且当前是空白字符
-                        if (isEndMark || (lastCharWasEndMark.get() && Character.isWhitespace(c))) {
+                        if (isEndMark || (lastCharWasEndMark.get() && Character.isWhitespace(codePoint))) {
                             // 重置计数器
                             charsSinceLastEnd.set(0);
                             lastCharWasEndMark.set(isEndMark);
                             lastCharWasPauseMark.set(false);
                             lastCharWasSpecialMark.set(false);
                             lastCharWasNewline.set(false);
+                            lastCharWasEmoji.set(false);
 
                             // 当前句子包含句子结束标点，检查是否达到最小长度
                             String sentence = currentSentence.toString().trim();
@@ -286,10 +293,43 @@ public class LlmManager {
                             lastCharWasPauseMark.set(false);
                             lastCharWasSpecialMark.set(false);
                             lastCharWasNewline.set(true);
+                            lastCharWasEmoji.set(false);
 
                             // 如果当前句子不为空，则作为一个完整句子处理
                             String sentence = currentSentence.toString().trim();
                             if (sentence.length() >= MIN_SENTENCE_LENGTH) {
+                                // 如果有暂存的句子，先发送它
+                                if (pendingSentence.get() != null) {
+                                    sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
+                                    sentenceCount.incrementAndGet();
+                                }
+
+                                // 将当前句子标记为暂存句子
+                                pendingSentence.set(sentence);
+
+                                // 清空当前句子缓冲区
+                                currentSentence.setLength(0);
+
+                                // 重置字符计数
+                                charsSinceLastEnd.set(0);
+                            }
+                        }
+                        // 处理表情符号 - 在表情符号后可能需要分割句子
+                        else if (isEmoji) {
+                            lastCharWasEndMark.set(false);
+                            lastCharWasPauseMark.set(false);
+                            lastCharWasSpecialMark.set(false);
+                            lastCharWasNewline.set(false);
+                            lastCharWasEmoji.set(true);
+
+                            // 增加自上一个句子结束标点以来的字符计数
+                            charsSinceLastEnd.incrementAndGet();
+
+                            // 检查当前句子长度，如果已经足够长，可以在表情符号后分割
+                            String sentence = currentSentence.toString().trim();
+                            if (sentence.length() >= MIN_SENTENCE_LENGTH &&
+                                    (pendingSentence.get() == null || charsSinceLastEnd.get() >= MIN_SENTENCE_LENGTH)) {
+
                                 // 如果有暂存的句子，先发送它
                                 if (pendingSentence.get() != null) {
                                     sentenceHandler.accept(pendingSentence.get(), sentenceCount.get() == 0, false);
@@ -312,6 +352,7 @@ public class LlmManager {
                             lastCharWasPauseMark.set(false);
                             lastCharWasSpecialMark.set(true);
                             lastCharWasNewline.set(false);
+                            lastCharWasEmoji.set(false);
 
                             // 如果当前句子已经足够长，可以考虑在冒号处分割
                             String sentence = currentSentence.toString().trim();
@@ -340,6 +381,7 @@ public class LlmManager {
                             lastCharWasPauseMark.set(true);
                             lastCharWasSpecialMark.set(false);
                             lastCharWasNewline.set(false);
+                            lastCharWasEmoji.set(false);
 
                             // 如果当前句子已经足够长，可以考虑在逗号处分割
                             String sentence = currentSentence.toString().trim();
@@ -367,6 +409,7 @@ public class LlmManager {
                             lastCharWasPauseMark.set(false);
                             lastCharWasSpecialMark.set(false);
                             lastCharWasNewline.set(false);
+                            lastCharWasEmoji.set(false);
 
                             // 增加自上一个句子结束标点以来的字符计数
                             charsSinceLastEnd.incrementAndGet();
@@ -380,6 +423,9 @@ public class LlmManager {
                                 pendingSentence.set(null);
                             }
                         }
+
+                        // 移动到下一个码点
+                        i += Character.charCount(codePoint);
                     }
                 }
 
