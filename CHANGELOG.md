@@ -12,8 +12,6 @@
 - chore: update version to 2.7.24 [skip ci]
 - docs: update changelog for v2.7.23 [skip ci]
 - chore: update version to 2.7.23 [skip ci]
-- docs: update changelog for v2.7.23 [skip ci]
-- chore: update version to 2.7.23 [skip ci]
 
 ## [2.7.24] - 2025-04-26
 
