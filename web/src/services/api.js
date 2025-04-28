@@ -28,6 +28,11 @@ export default {
     update: "/api/role/update",
     testVoice: "/api/role/testVoice"
   },
+  template: {
+    query: "/api/template/query",
+    add: "/api/template/add",
+    update: "/api/template/update",
+  },
   message: {
     query: "/api/message/query",
     update: "/api/message/update",

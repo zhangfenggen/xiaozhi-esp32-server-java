@@ -12,7 +12,7 @@
       @openChange="onOpenChange"
       :selectedKeys="[onRoutes]"
     >
-      <template v-for="item in sidebar">
+      <template v-for="item in filteredSidebar">
         <a-menu-item v-if="!item.children" :key="item.path">
           <router-link :to="{ path: item.path }">
             <a-icon :type="item.meta.icon"></a-icon>
@@ -78,6 +78,13 @@ export default {
       return this.$route.path;
       // return this.$route.path.replace('/', '')
     },
+    filteredSidebar() {
+      return this.sidebar.filter(route => {
+        // 判断管理员页面
+        // 判断是否为不显示的子页面
+        return (!route.meta.isAdmin || (route.meta.isAdmin && this.isAdmin)) && !route.meta.hideInMenu;
+      });
+    }
   },
   watch: {},
   mounted() {},
