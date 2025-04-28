@@ -68,7 +68,7 @@
                   <a-switch v-decorator="[
                     'isDefault',
                     { valuePropName: 'checked', initialValue: false },
-                  ]" @change="handleDefaultChange" />
+                  ]" />
                   <span style="margin-left: 8px; color: #999">设为默认后将优先使用此角色</span>
                 </a-form-item>
 
@@ -342,28 +342,6 @@ export default {
     handleTabChange(key) {
       this.activeTabKey = key;
       this.resetForm();
-    },
-
-    // 处理默认开关变化
-    handleDefaultChange(checked) {
-      if (checked) {
-        // 可以在这里添加确认提示
-        this.$confirm({
-          title: '确定要将此角色设为默认吗？',
-          content: '设为默认后，系统将优先使用此角色，原默认角色将被取消默认状态。',
-          okText: '确定',
-          cancelText: '取消',
-          onOk: () => {
-            // 用户确认，不需要做任何事情，表单提交时会处理
-          },
-          onCancel: () => {
-            // 用户取消，将开关状态重置
-            this.roleForm.setFieldsValue({
-              isDefault: false,
-            });
-          },
-        });
-      }
     },
 
     // 处理模板选择变化
