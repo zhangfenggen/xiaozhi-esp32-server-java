@@ -1,3 +1,4 @@
+alter table sys_role add column `isDefault` enum('1','0') DEFAULT '0' COMMENT '是否为默认配置: 1-是, 0-否' after `state`;
 
 -- xiaozhi.sys_template definition
 CREATE TABLE IF NOT EXISTS `sys_template` (

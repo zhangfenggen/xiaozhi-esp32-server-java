@@ -58,7 +58,7 @@ public class SysDeviceServiceImpl implements SysDeviceService {
         SysRole queryRole = new SysRole();
         queryRole.setUserId(device.getUserId());
         queryRole.setIsDefault("1");
-        SysRole role = roleMapper.query(queryRole).get(0);
+        List<SysRole> roles = roleMapper.query(queryRole);
         // 遍历查询是否有默认配置
         for (SysConfig config : configs) {
             if (config.getConfigType().equals("llm")) {
@@ -67,8 +67,8 @@ public class SysDeviceServiceImpl implements SysDeviceService {
                 device.setSttId(config.getConfigId());
             }
         }
-        if (role != null) {
-            device.setRoleId(role.getRoleId());
+        if (roles != null) {
+            device.setRoleId(roles.get(0).getRoleId());
         }
         // 添加设备
         return deviceMapper.add(device);

@@ -2,31 +2,10 @@
   "configurations": [
     {
       "type": "java",
-      "name": "EmojiUtils",
-      "request": "launch",
-      "mainClass": "com.xiaozhi.utils.EmojiUtils",
-      "projectName": "xiaozhi.server"
-    },
-    {
-      "type": "java",
       "name": "ApplicationTest",
       "request": "launch",
       "mainClass": "com.xiaozhi.ApplicationTest",
       "projectName": "xiaozhi.server"
-    },
-    {
-      "type": "java",
-      "name": "ApplicationTest",
-      "request": "launch",
-      "mainClass": "com.xiaozhi.ApplicationTest",
-      "projectName": "xiaozhi.webui"
-    },
-    {
-      "type": "java",
-      "name": "XiaozhiApplication",
-      "request": "launch",
-      "mainClass": "com.xiaozhi.XiaozhiApplication",
-      "projectName": "xiaozhi.webui"
     },
     {
       "type": "java",
