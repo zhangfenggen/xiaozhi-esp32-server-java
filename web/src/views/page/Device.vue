@@ -147,12 +147,14 @@
     <DeviceEditDialog 
       @submit="update" 
       @close="editVisible = false" 
+      @clear-memory="clearMemory"
       :visible="editVisible" 
       :current="currentDevice"
       :model-items="modelItems" 
       :stt-items="sttItems" 
       :role-items="roleItems"
-      :agent-items="agentItems"/>
+      :agent-items="agentItems"
+      :clearMemoryLoading="clearMemoryLoading"/>
   </a-layout>
 </template>
 
@@ -332,6 +334,8 @@ export default {
       // 加载状态标志
       configLoaded: false,
       agentsLoaded: false,
+      // 记忆清除状态
+      clearMemoryLoading: false,
     };
   },
   mounted() {
@@ -616,6 +620,7 @@ export default {
               this.providerMap = {};
 
               res.data.list.forEach((item) => {
+                if (item.provider == 'coze') {return}
                 if (item.configType == "llm") {
                   // 确保configId是数字类型
                   item.configId = item.configId;
@@ -785,6 +790,32 @@ export default {
     editWithDialog(device) {
       this.editVisible = true;
       this.currentDevice = device;
+    },
+
+    // 清除记忆方法
+    clearMemory(record) {
+      this.clearMemoryLoading = true;
+      axios
+        .post({
+          url: api.message.delete,
+          data: {
+            deviceId: record.deviceId
+          }
+        })
+        .then((res) => {
+          if (res.code === 200) {
+            this.editVisible = false;
+            this.$message.success("记忆清除成功");
+          } else {
+            this.$message.error(res.message);
+          }
+        })
+        .catch(() => {
+          this.$message.error("服务器维护/重启中，请稍后再试");
+        })
+        .finally(() => {
+          this.clearMemoryLoading = false;
+        });
     },
   },
 };

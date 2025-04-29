@@ -44,6 +44,18 @@ export default new Router({
           meta: { title: "角色配置", icon: "user-add" }
         },
         {
+          path: '/prompt-template',
+          name: 'PromptTemplate',
+          component: resolve => require(['@/views/page/PromptTemplate'], resolve),
+          meta: {
+            title: '提示词模板管理',
+            icon: 'snippets',
+            isAdmin: true,
+            parent: '角色管理',
+            hideInMenu: true
+          }
+        },
+        {
           path: "/config",
           component: resolve => require(["@/views/common/PageView"], resolve),
           name: "Config",

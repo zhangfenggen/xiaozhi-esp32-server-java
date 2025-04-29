@@ -104,10 +104,6 @@ jobs:
           fi
           git commit -m "chore: update version to ${NEW_VERSION} [skip ci]"
           
-      - name: Create Git tag
-        run: |
-          git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION} (${CHANGE_TYPE} change)"
-          
       - name: Generate changelog entry
         run: |
           # 获取上一个标签以来的所有提交
@@ -159,6 +155,5 @@ jobs:
       # 使用 GitHub CLI 直接推送更改
       - name: Push changes with GitHub CLI
         run: |
-          # 直接使用 GitHub CLI 推送更改
+          # 直接使用 GitHub CLI 推送更改（只推送分支，不推送标签）
           git push
-          git push --tags

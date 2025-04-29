@@ -25,6 +25,25 @@
         </a-select>
       </a-form-item>
     </a-form>
+    
+    <template slot="footer">
+      <a-popconfirm
+        title="确定要清除该设备的所有对话记忆吗？此操作不可恢复。"
+        ok-text="确定"
+        cancel-text="取消"
+        @confirm="handleClearMemory"
+      >
+        <a-button key="clear" type="danger" :loading="clearMemoryLoading">
+          清除记忆
+        </a-button>
+      </a-popconfirm>
+      <a-button key="back" @click="handleClose">
+        取消
+      </a-button>
+      <a-button key="submit" type="primary" @click="handleOk">
+        确定
+      </a-button>
+    </template>
   </a-modal>
 </template>
 
@@ -37,7 +56,8 @@ export default {
     sttItems: Array,
     roleItems: Array,
     current: Object,
-    agentItems: Array
+    agentItems: Array,
+    clearMemoryLoading: Boolean
   },
   data(){
     return {
@@ -68,7 +88,7 @@ export default {
           ]
         }
       ],
-      providerMap: {} // 用于存储按提供商分组的模型
+      providerMap: {}, // 用于存储按提供商分组的模型
     }
   },
   methods:{
@@ -77,6 +97,11 @@ export default {
     },
     handleOk(){
       this.$emit("submit", this.form)
+    },
+    
+    // 新增清除记忆方法
+    handleClearMemory() {
+      this.$emit("clear-memory", this.form);
     },
     
     // 处理级联选择器变更 - 修改为三级结构

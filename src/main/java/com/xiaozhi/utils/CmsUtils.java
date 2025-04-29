@@ -66,10 +66,7 @@ public class CmsUtils {
     // 以下是改进的 IP 检测相关代码
 
     private static final String[] IP_INFO_SERVICES = {
-            // 国内可访问的IP信息服务
-            "https://www.cip.cc/", // CIP.CC，返回详细信息
             "https://myip.ipip.net/json", // IPIP.net，返回详细信息
-            "https://ip.cn/api/index?ip=&type=0" // IP.CN，返回详细信息
     };
 
     // 云服务商IP段特征
@@ -324,49 +321,15 @@ public class CmsUtils {
      */
     private static IPInfo parseIPInfo(String service, String content) {
         try {
-            if (service.contains("cip.cc")) {
-                // 提取IP
-                Pattern patternIp = Pattern.compile("IP\\s*:\\s*([\\d.]+)");
-                Matcher matcherIp = patternIp.matcher(content);
-
-                if (matcherIp.find()) {
-                    String ip = matcherIp.group(1);
-
-                    // 提取地址和运营商信息
-                    // cip.cc的HTML结构：地址 : 中国 上海 上海\n运营商 : 联通
-                    Pattern patternAddr = Pattern.compile("地址\\s*:\\s*([^\\n]+)");
-                    Pattern patternIsp = Pattern.compile("运营商\\s*:\\s*([^\\n]+)");
-
-                    Matcher matcherAddr = patternAddr.matcher(content);
-                    Matcher matcherIsp = patternIsp.matcher(content);
-
-                    String location = matcherAddr.find() ? matcherAddr.group(1).trim() : "";
-                    String isp = matcherIsp.find() ? matcherIsp.group(1).trim() : "";
-
-                    // 如果无法提取运营商，尝试从地址中提取
-                    if (isp.isEmpty() && location.contains("联通") || location.contains("电信") ||
-                            location.contains("移动") || location.contains("铁通")) {
-                        String[] parts = location.split(" ");
-                        if (parts.length > 0) {
-                            isp = parts[parts.length - 1];
-                        }
-                    }
-
-                    // 清理HTML标签
-                    location = cleanHtml(location);
-                    isp = cleanHtml(isp);
-
-                    return new IPInfo(ip, location, isp);
-                }
-            } else if (service.contains("ipip.net")) {
+            if (service.contains("ipip.net")) {
                 // IPIP.net
-                // {"ret":"ok","data":{"ip":"xxx.xxx.xxx.xxx","country":"中国","province":"广东","city":"深圳","isp":"电信"}}
+                // {"ret":"ok","data":{"ip":"139.226.72.136","location":["中国","上海","上海","","联通"]}}
                 Pattern patternIp = Pattern.compile("\"ip\":\"([\\d.]+)\"");
-                Pattern patternCountry = Pattern.compile("\"country\":\"([^\"]+)\"");
-                Pattern patternProvince = Pattern.compile("\"province\":\"([^\"]+)\"");
-                Pattern patternCity = Pattern.compile("\"city\":\"([^\"]+)\"");
-                Pattern patternIsp = Pattern.compile("\"isp\":\"([^\"]+)\"");
-
+                Pattern patternCountry = Pattern.compile("\\[\"([^\"]*?)\""); // 匹配location数组中的第一个元素(国家)
+                Pattern patternProvince = Pattern.compile("\\[\"[^\"]*?\",\"([^\"]*?)\""); // 匹配location数组中的第二个元素(省份)
+                Pattern patternCity = Pattern.compile("\\[\"[^\"]*?\",\"[^\"]*?\",\"([^\"]*?)\""); // 匹配location数组中的第三个元素(城市)
+                Pattern patternIsp = Pattern
+                        .compile("\\[\"[^\"]*?\",\"[^\"]*?\",\"[^\"]*?\",\"[^\"]*?\",\"([^\"]*?)\""); // 匹配location数组中的第五个元素(运营商)
                 Matcher matcherIp = patternIp.matcher(content);
                 Matcher matcherCountry = patternCountry.matcher(content);
                 Matcher matcherProvince = patternProvince.matcher(content);
@@ -381,25 +344,6 @@ public class CmsUtils {
                     String isp = matcherIsp.find() ? matcherIsp.group(1) : "";
 
                     String location = country + " " + province + " " + city;
-                    return new IPInfo(ip, location, isp);
-                }
-            } else if (service.contains("ip.cn")) {
-                // IP.CN
-                // {"rs":1,"code":0,"address":"中国 广东
-                // 深圳","ip":"xxx.xxx.xxx.xxx","isDomain":0,"location":{"latitude":"22.54286","longitude":"114.05956"},"netname":"电信"}
-                Pattern patternIp = Pattern.compile("\"ip\":\"([\\d.]+)\"");
-                Pattern patternAddr = Pattern.compile("\"address\":\"([^\"]+)\"");
-                Pattern patternNetname = Pattern.compile("\"netname\":\"([^\"]+)\"");
-
-                Matcher matcherIp = patternIp.matcher(content);
-                Matcher matcherAddr = patternAddr.matcher(content);
-                Matcher matcherNetname = patternNetname.matcher(content);
-
-                if (matcherIp.find()) {
-                    String ip = matcherIp.group(1);
-                    String location = matcherAddr.find() ? matcherAddr.group(1) : "";
-                    String isp = matcherNetname.find() ? matcherNetname.group(1) : "";
-
                     return new IPInfo(ip, location, isp);
                 }
             }
