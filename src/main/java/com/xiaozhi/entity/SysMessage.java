@@ -35,6 +35,12 @@ public class SysMessage extends SysDevice {
      */
     private String state;
 
+    /**
+     * 消息类型: NORMAL-普通消息，FUNCTION_CALL-函数调用消息，MCP-多轮对话消息
+     *
+     */
+    private String messageType = "NORMAL";
+
     public String getDeviceId() {
         return deviceId;
     }
@@ -89,11 +95,19 @@ public class SysMessage extends SysDevice {
         return this;
     }
 
+    public String getMessageType() {
+        return messageType;
+    }
+
+    public void setMessageType(String messageType) {
+        this.messageType = messageType;
+    }
+
     @Override
     public String toString() {
         return "SysMessage [deviceId=" + deviceId + ", sessionId=" + sessionId + ", messageId=" + messageId
                 + ", sender=" + sender + ", message="
-                + message + ", audioPath=" + audioPath + ", state=" + state + "]";
+                + message + ", audioPath=" + audioPath + ", state=" + state + ", messageType=" + messageType + "]";
     }
 
 }

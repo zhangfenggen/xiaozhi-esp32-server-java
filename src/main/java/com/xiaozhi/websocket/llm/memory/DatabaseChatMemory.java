@@ -36,7 +36,7 @@ public class DatabaseChatMemory implements ChatMemory {
     private Map<String, String> systemMessageCache = new ConcurrentHashMap<>();
 
     @Override
-    public void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId) {
+    public void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId, String messageType) {
         try {
             SysMessage message = new SysMessage();
             message.setDeviceId(deviceId);
@@ -44,6 +44,7 @@ public class DatabaseChatMemory implements ChatMemory {
             message.setSender(sender);
             message.setMessage(content);
             message.setRoleId(roleId);
+            message.setMessageType(messageType);
             if (sender == "assistant") {
                 // 目前生成的语音保存采用默认的语音合成服务，后续可以考虑支持自定义语音合成服务
                 // todo
@@ -70,6 +71,25 @@ public class DatabaseChatMemory implements ChatMemory {
             // return messages;
         } catch (Exception e) {
             logger.error("获取历史消息时出错: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<SysMessage> getNormalChatMessages(String deviceId, Integer limit) {
+        try {
+            SysMessage queryMessage = new SysMessage();
+            queryMessage.setDeviceId(deviceId);
+            queryMessage.setStart(1);
+            queryMessage.setLimit(limit);
+
+            List<SysMessage> messages = messageService.queryNormalChat(queryMessage);
+            messages = new ArrayList<>(messages);
+            messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
+            return messages;
+            // return messages;
+        } catch (Exception e) {
+            logger.error("获取NormalChat历史消息时出错: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }

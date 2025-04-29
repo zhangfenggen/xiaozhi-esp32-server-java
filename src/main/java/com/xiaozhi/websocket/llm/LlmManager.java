@@ -6,15 +6,20 @@ import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.utils.EmojiUtils;
 import com.xiaozhi.websocket.llm.api.LlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
+import com.xiaozhi.websocket.llm.api.ToolCallInfo;
 import com.xiaozhi.websocket.llm.factory.LlmServiceFactory;
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
 import com.xiaozhi.websocket.llm.memory.ChatMemory;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
 
+import com.xiaozhi.websocket.service.SessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,6 +66,9 @@ public class LlmManager {
 
     @Autowired
     private ChatMemory chatMemory;
+
+    @Autowired
+    private SessionManager sessionManager;
 
     // 设备LLM服务缓存，每个设备只保留一个服务
     private Map<String, LlmService> deviceLlmServices = new ConcurrentHashMap<>();
@@ -115,12 +123,14 @@ public class LlmManager {
             // 获取LLM服务
             LlmService llmService = getLlmService(deviceId, configId);
 
+            FunctionSessionHolder functionSessionHolder = sessionManager.getFunctionSessionHolder(device.getSessionId());
             // 创建模型上下文
             ModelContext modelContext = new ModelContext(
                     deviceId,
                     device.getSessionId(),
                     device.getRoleId(),
-                    chatMemory);
+                    chatMemory,
+                    functionSessionHolder);
 
             // 调用LLM流式接口
             llmService.chatStream(message, modelContext, streamListener);
@@ -194,15 +204,17 @@ public class LlmManager {
                     k -> new AtomicBoolean(false));
             sessionCompleted.set(false);
 
+            FunctionSessionHolder functionSessionHolder = sessionManager.getFunctionSessionHolder(device.getSessionId());
             // 创建模型上下文
             ModelContext modelContext = new ModelContext(
                     deviceId,
                     sessionId,
                     roleId,
-                    chatMemory);
+                    chatMemory,
+                    functionSessionHolder);
 
-            // 保存用户消息
-            modelContext.addUserMessage(message);
+            //保存用户消息迁移到onFinal(List<Map<String, Object>)中处理
+            // modelContext.addUserMessage(message);
 
             final StringBuilder currentSentence = new StringBuilder(); // 当前句子的缓冲区
             final StringBuilder contextBuffer = new StringBuilder(); // 上下文缓冲区，用于检测数字中的小数点
@@ -434,7 +446,8 @@ public class LlmManager {
 
                     // 检查该会话是否已完成处理
                     if (sessionCompleted.compareAndSet(false, true)) {
-                        modelContext.addAssistantMessage(completeResponse);
+                        //迁移到onFinal(List<Map<String, Object>)中处理
+                        //modelContext.addAssistantMessage(completeResponse);
                         // 如果有暂存的句子，发送它
                         if (pendingSentence.get() != null) {
                             boolean isFirst = sentenceCount.get() == 0;
@@ -457,6 +470,35 @@ public class LlmManager {
                         logger.debug("总共处理了 {} 个句子", sentenceCount.get());
                     }
 
+                }
+
+                @Override
+                public void onFinal(List<Map<String, Object>> allMessages, LlmService llmService, ToolCallInfo toolCallInfo) {
+                    List<Map<String, Object>> newMessages = new ArrayList<>();
+                    //遍历allMessages，将未保存的user及assistant入库
+                    allMessages.forEach(message ->{
+                        Object messageId = message.get("messageId");
+                        String role = String.valueOf(message.get("role"));
+                        String messageType = toolCallInfo != null? toolCallInfo.getType() : String.valueOf(message.get("messageType"));
+
+                        if(!"system".equals(role) && messageId == null){//系统消息跳过
+                            //这里后续看下，是否需要把messageContent为空的入库，目前不入库（这类主要是function_call的过程消息）
+                            String messageContent = message.get("content") == null? "" : String.valueOf(message.get("content"));
+                            if(!messageContent.isEmpty()){
+                                modelContext.addMessage(messageContent, role, messageType);
+                                //数据入库后，给个id，避免下次再被入库
+                                message.put("messageId", 0);
+                                message.put("messageType", messageType);
+                                newMessages.add(message);
+                            }
+                        }
+                    });
+                    newMessages.forEach(message->{
+                        if("NORMAL".equals(String.valueOf(message.get("messageType")))){
+                            //普通消息才加入历史缓存
+                            llmService.updateHistoryCache(modelContext, message);
+                        }
+                    });
                 }
 
                 @Override

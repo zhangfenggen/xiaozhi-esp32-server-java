@@ -63,4 +63,18 @@ public class SysMessageServiceImpl implements SysMessageService {
         return messageMapper.delete(message);
     }
 
+    /**
+     * 查询聊天记录，只查普通消息，剔除function_call消息及mcp消息
+     *
+     * @param message
+     * @return
+     */
+    @Override
+    public List<SysMessage> queryNormalChat(SysMessage message) {
+        if (message.getLimit() != null && message.getLimit() > 0) {
+            PageHelper.startPage(message.getStart(), message.getLimit());
+        }
+        return messageMapper.queryNormalChat(message);
+    }
+
 }

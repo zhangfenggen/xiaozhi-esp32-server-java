@@ -17,8 +17,9 @@ public interface ChatMemory {
      * @param sender 发送者
      * @param content 内容
      * @param roleId 角色ID
+     * @param messageType 消息类型
      */
-    void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId);
+    void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId, String messageType);
     
     /**
      * 获取历史消息
@@ -28,7 +29,16 @@ public interface ChatMemory {
      * @return 历史消息列表
      */
     List<SysMessage> getMessages(String deviceId, Integer limit);
-    
+
+    /**
+     * 获取历史消息
+     *
+     * @param deviceId 设备ID
+     * @param limit 消息数量限制
+     * @return 历史消息列表
+     */
+    List<SysMessage> getNormalChatMessages(String deviceId, Integer limit);
+
     /**
      * 清除设备的历史记录
      * 

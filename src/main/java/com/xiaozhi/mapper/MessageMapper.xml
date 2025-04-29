@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.MessageMapper">
 
     <sql id="messageSql">
-        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.roleId, sys_message.audioPath, sys_message.state, sys_message.createTime
+        sys_message.messageId, sys_message.message, sys_message.sender, sys_message.roleId, sys_message.audioPath, sys_message.state, sys_message.createTime, sys_message.messageType
     </sql>
 
     <sql id="deviceSql">
@@ -41,9 +41,37 @@
         ORDER BY sys_message.createTime DESC
     </select>
 
+    <select id="queryNormalChat" resultType="com.xiaozhi.entity.SysMessage">
+        SELECT
+        <include refid="messageSql"></include>,
+        <include refid="deviceSql"></include>,
+        <include refid="roleSql"></include>
+        FROM
+        sys_message
+        LEFT JOIN sys_device ON sys_message.deviceId = sys_device.deviceId
+        LEFT JOIN sys_role ON sys_message.roleId = sys_role.roleId
+        WHERE
+        sys_message.state = 1
+            AND (sys_message.messageType = 'NORMAL' or sys_message.messageType is null)
+        <if test="userId != null and userId != ''">AND sys_device.userId = #{userId}</if>
+        <if test="deviceId != null and deviceId != ''">
+            AND sys_message.deviceId = #{deviceId}
+        </if>
+        <if test="deviceName != null and deviceName != ''">
+            AND sys_message.deviceName = #{deviceName}
+        </if>
+        <if test="startTime != null and startTime != ''">
+            AND sys_message.createTime &gt;= #{startTime} AND sys_message.createTime &lt;= #{endTime}
+        </if>
+        <if test="sender != null and sender != ''">
+            AND sys_message.sender = #{sender}
+        </if>
+        ORDER BY sys_message.createTime DESC
+    </select>
+
     <insert id="add" parameterType="com.xiaozhi.entity.SysMessage">
-        INSERT INTO sys_message ( deviceId, sessionId, sender, roleId, message, audioPath )
-        SELECT #{deviceId}, #{sessionId}, #{sender}, #{roleId}, #{message}, #{audioPath}
+        INSERT INTO sys_message ( deviceId, sessionId, sender, roleId, message, audioPath, messageType )
+        SELECT #{deviceId}, #{sessionId}, #{sender}, #{roleId}, #{message}, #{audioPath}, #{messageType}
     </insert>
 
     <update id="delete" parameterType="com.xiaozhi.entity.SysMessage">
