@@ -66,6 +66,7 @@ public class CmsUtils {
     // 以下是改进的 IP 检测相关代码
 
     private static final String[] IP_INFO_SERVICES = {
+            "https://www.cip.cc/", // CIP.CC，返回详细信息
             "https://myip.ipip.net/json", // IPIP.net，返回详细信息
     };
 
@@ -149,7 +150,8 @@ public class CmsUtils {
             "cloud.google.com", "oracle.com", "ibm.com", "salesforce.com", "sap.com",
             "vmware.com", "rackspace.com", "digitalocean.com", "linode.com", "vultr.com",
             "ovh.com", "hetzner.com", "scaleway.com", "heroku.com", "cloudflare.com",
-            "akamai.com", "fastly.com", "volcengine.com", "bytecdn.com", "byted.org"
+            "akamai.com", "fastly.com", "volcengine.com", "bytecdn.com", "byted.org",
+            "bytedance.com"
     };
 
     /**
@@ -282,35 +284,80 @@ public class CmsUtils {
      */
     private static IPInfo getIPInfo() {
         for (String service : IP_INFO_SERVICES) {
+            HttpURLConnection connection = null;
+            BufferedReader reader = null;
+            long startTime = System.currentTimeMillis();
+            
             try {
                 URL url = new URL(service);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(3000);
-                connection.setReadTimeout(3000);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(3000); // 3秒连接超时
+                connection.setReadTimeout(3000);    // 3秒读取超时
                 connection.setRequestProperty("User-Agent",
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-
+                
+                // 开始连接
+                connection.connect();
+                
+                // 检查是否超时
+                if (System.currentTimeMillis() - startTime > 3000) {
+                    logger.warn("获取IP信息超时，切换到下一个服务: {}", service);
+                    continue;
+                }
+                
                 if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                    BufferedReader reader = new BufferedReader(
+                    reader = new BufferedReader(
                             new InputStreamReader(connection.getInputStream(), "UTF-8"));
                     StringBuilder response = new StringBuilder();
                     String line;
+                    
+                    // 设置最大读取时间
+                    long maxReadTime = startTime + 3000;
+                    
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
+                        
+                        // 检查是否超过最大读取时间
+                        if (System.currentTimeMillis() > maxReadTime) {
+                            logger.warn("读取IP信息响应超时，切换到下一个服务: {}", service);
+                            break;
+                        }
                     }
-                    reader.close();
-                    String content = response.toString();
-
-                    // 解析IP信息
-                    IPInfo ipInfo = parseIPInfo(service, content);
-                    if (ipInfo != null) {
-                        return ipInfo;
+                    
+                    // 如果超时了但已经读取了部分数据，继续处理
+                    if (System.currentTimeMillis() <= maxReadTime || response.length() > 0) {
+                        String content = response.toString();
+                        
+                        // 解析IP信息
+                        IPInfo ipInfo = parseIPInfo(service, content);
+                        if (ipInfo != null) {
+                            logger.info("成功从服务获取IP信息: {}", service);
+                            return ipInfo;
+                        }
                     }
+                } else {
+                    logger.warn("IP信息服务返回非200状态码: {} - {}", service, connection.getResponseCode());
                 }
+            } catch (java.net.SocketTimeoutException e) {
+                logger.warn("获取IP信息超时，切换到下一个服务: {} - {}", service, e.getMessage());
             } catch (Exception e) {
-                logger.warn("获取IP信息失败: {}", e.getMessage());
-                // 忽略异常，尝试下一个服务
+                logger.warn("获取IP信息失败: {} - {}", service, e.getMessage());
+            } finally {
+                // 关闭资源
+                try {
+                    if (reader != null) {
+                        reader.close();
+                    }
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                } catch (Exception e) {
+                    logger.warn("关闭资源失败: {}", e.getMessage());
+                }
             }
+            
+            // 记录切换服务
+            logger.info("切换到下一个IP信息服务");
         }
 
         return null;
@@ -321,7 +368,41 @@ public class CmsUtils {
      */
     private static IPInfo parseIPInfo(String service, String content) {
         try {
-            if (service.contains("ipip.net")) {
+            if (service.contains("cip.cc")) {
+                // 提取IP
+                Pattern patternIp = Pattern.compile("IP\\s*:\\s*([\\d.]+)");
+                Matcher matcherIp = patternIp.matcher(content);
+
+                if (matcherIp.find()) {
+                    String ip = matcherIp.group(1);
+
+                    // 提取地址和运营商信息
+                    // cip.cc的HTML结构：地址 : 中国 上海 上海\n运营商 : 联通
+                    Pattern patternAddr = Pattern.compile("地址\\s*:\\s*([^\\n]+)");
+                    Pattern patternIsp = Pattern.compile("运营商\\s*:\\s*([^\\n]+)");
+
+                    Matcher matcherAddr = patternAddr.matcher(content);
+                    Matcher matcherIsp = patternIsp.matcher(content);
+
+                    String location = matcherAddr.find() ? matcherAddr.group(1).trim() : "";
+                    String isp = matcherIsp.find() ? matcherIsp.group(1).trim() : "";
+
+                    // 如果无法提取运营商，尝试从地址中提取
+                    if (isp.isEmpty() && location.contains("联通") || location.contains("电信") ||
+                            location.contains("移动") || location.contains("铁通")) {
+                        String[] parts = location.split(" ");
+                        if (parts.length > 0) {
+                            isp = parts[parts.length - 1];
+                        }
+                    }
+
+                    // 清理HTML标签
+                    location = cleanHtml(location);
+                    isp = cleanHtml(isp);
+
+                    return new IPInfo(ip, location, isp);
+                }
+            } else if (service.contains("ipip.net")) {
                 // IPIP.net
                 // {"ret":"ok","data":{"ip":"139.226.72.136","location":["中国","上海","上海","","联通"]}}
                 Pattern patternIp = Pattern.compile("\"ip\":\"([\\d.]+)\"");
