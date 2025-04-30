@@ -68,7 +68,7 @@ public abstract class AbstractLlmService implements LlmService {
         String deviceId = modelContext.getDeviceId();
         if (!deviceHistoryCache.containsKey(deviceId)) {
             // 从数据库加载历史记录
-            List<SysMessage> history = modelContext.getNormalChatMessages(DEFAULT_HISTORY_LIMIT); // 这里后期可以设置 limit，来自定义历史记录条数
+            List<SysMessage> history = modelContext.getMessages(SysMessage.MESSAGE_TYPE_NORMAL, DEFAULT_HISTORY_LIMIT); // 这里后期可以设置 limit，来自定义历史记录条数
             deviceHistoryCache.put(deviceId, history);
             logger.info("已初始化设备 {} 的历史记录缓存，共 {} 条消息", deviceId, history.size());
         }

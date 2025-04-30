@@ -76,20 +76,21 @@ public class DatabaseChatMemory implements ChatMemory {
     }
 
     @Override
-    public List<SysMessage> getNormalChatMessages(String deviceId, Integer limit) {
+    public List<SysMessage> getMessages(String deviceId, String messageType, Integer limit) {
         try {
             SysMessage queryMessage = new SysMessage();
             queryMessage.setDeviceId(deviceId);
+            queryMessage.setMessageType(messageType);
             queryMessage.setStart(1);
             queryMessage.setLimit(limit);
 
-            List<SysMessage> messages = messageService.queryNormalChat(queryMessage);
+            List<SysMessage> messages = messageService.query(queryMessage);
             messages = new ArrayList<>(messages);
             messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
             return messages;
             // return messages;
         } catch (Exception e) {
-            logger.error("获取NormalChat历史消息时出错: {}", e.getMessage(), e);
+            logger.error("获取历史消息时出错: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }

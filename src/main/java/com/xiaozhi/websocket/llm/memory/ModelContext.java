@@ -130,11 +130,12 @@ public class ModelContext {
     /**
      * 获取历史消息
      *
+     * @param messageType 消息类型
      * @param limit 消息数量限制
      * @return 历史消息列表
      */
-    public List<SysMessage> getNormalChatMessages(Integer limit) {
-        return chatMemory.getNormalChatMessages(deviceId, limit);
+    public List<SysMessage> getMessages(String messageType, Integer limit) {
+        return chatMemory.getMessages(deviceId, messageType, limit);
     }
 
     /**

@@ -35,13 +35,4 @@ public interface SysMessageService {
    */
   public int delete(SysMessage message);
 
-  /**
-   * 查询聊天记录
-   * 剔除function_call消息及mcp消息
-   *
-   * @param message
-   * @return
-   */
-  public List<SysMessage> queryNormalChat(SysMessage message);
-
 }

@@ -7,6 +7,18 @@ package com.xiaozhi.entity;
  * 
  */
 public class SysMessage extends SysDevice {
+    /**
+     * 消息类型 - 普通消息
+     */
+    public static final String MESSAGE_TYPE_NORMAL = "NORMAL";
+    /**
+     * 消息类型 - 函数调用消息
+     */
+    public static final String MESSAGE_TYPE_FUNCTION_CALL = "FUNCTION_CALL";
+    /**
+     * 消息类型 - MCP消息
+     */
+    public static final String MESSAGE_TYPE_MCP = "MCP";
 
     private Integer messageId;
 

@@ -17,6 +17,4 @@ public interface MessageMapper {
   int delete(SysMessage message);
 
   List<SysMessage> query(SysMessage message);
-
-  List<SysMessage> queryNormalChat(SysMessage message);
 }
