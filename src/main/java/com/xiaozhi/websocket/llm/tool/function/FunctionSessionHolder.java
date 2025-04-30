@@ -56,7 +56,7 @@ public class FunctionSessionHolder {
      */
     public void registerFunction(String name, FunctionCallTool functionCallTool) {
         functionRegistry.put(name, functionCallTool);
-        logger.debug("[{}] - SessionId:{} Function:{} registered successfully", TAG, sessionId, name);
+//        logger.debug("[{}] - SessionId:{} Function:{} registered successfully", TAG, sessionId, name);
     }
 
     /**

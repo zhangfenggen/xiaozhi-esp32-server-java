@@ -202,7 +202,6 @@ public class SessionManager {
      */
     public void registerFunctionSessionHolder(String sessionId, FunctionSessionHolder functionSessionHolder) {
         functionHolders.putIfAbsent(sessionId, functionSessionHolder);
-        logger.debug("设备functionHolder已注册 - SessionId: {} ", sessionId);
     }
 
     /**

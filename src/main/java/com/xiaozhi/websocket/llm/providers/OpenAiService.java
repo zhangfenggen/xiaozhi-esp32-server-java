@@ -148,7 +148,6 @@ public class OpenAiService extends AbstractLlmService {
                         }
                         if (line.startsWith("data: ")) {
                             String jsonData = line.substring(6);
-                            logger.debug("流式响应数据: {}", jsonData);
                             try {
                                 Map<String, Object> data = objectMapper.readValue(jsonData,
                                         new TypeReference<Map<String, Object>>() {
@@ -204,7 +203,6 @@ public class OpenAiService extends AbstractLlmService {
                     // 处理函数调用
                     if(isFunctionCall){
                         try{
-                            logger.debug("toolId: {} 函数调用: {} with arguments: {}", tool_call_id, functionName, functionArguments);
                             toolCallInfo = new ToolCallInfo(tool_call_id, functionName, objectMapper.readValue(functionArguments.toString(),
                                     new TypeReference<Map<String, Object>>() {}));
                             doFunctionCall(modelContext, toolCallInfo, streamListener, messages, fullResponse);
@@ -256,6 +254,8 @@ public class OpenAiService extends AbstractLlmService {
                 responeMessage.put("content", toolResponse.getResponse());
                 responeMessage.put("messageType", "FUNCTION_CALL");
                 messages.add(responeMessage);
+            }else{
+                logger.error("llm回调未找到函数: 函数名: {} with arguments: {}toolId: {} ", toolCallInfo.getName(), toolCallInfo.getArguments(), toolCallInfo.getTool_call_id());
             }
         }
     }
