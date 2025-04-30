@@ -143,6 +143,7 @@ CREATE TABLE `xiaozhi`.`sys_config` (
 
 -- xiaozhi.sys_template definition
 CREATE TABLE IF NOT EXISTS `sys_template` (
+  `userId` int NOT NULL COMMENT '创建用户ID',
   `templateId` int unsigned NOT NULL AUTO_INCREMENT COMMENT '模板ID',
   `templateName` varchar(100) NOT NULL COMMENT '模板名称',
   `templateDesc` varchar(500) DEFAULT NULL COMMENT '模板描述',
