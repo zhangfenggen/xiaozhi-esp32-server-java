@@ -148,6 +148,7 @@ public class OpenAiService extends AbstractLlmService {
                         }
                         if (line.startsWith("data: ")) {
                             String jsonData = line.substring(6);
+                            logger.debug("流式响应数据: {}", jsonData);
                             try {
                                 Map<String, Object> data = objectMapper.readValue(jsonData,
                                         new TypeReference<Map<String, Object>>() {
@@ -163,7 +164,7 @@ public class OpenAiService extends AbstractLlmService {
                                                 Map<String, Object> toolInfo =  toolCalls.get(0);
                                                 tool_call_id = isFunctionCall? tool_call_id : (String) toolInfo.get("id");
                                                 String new_tool_id = (String) toolInfo.get("id");
-                                                if(new_tool_id != null){//new_tool_id不为空，则说明是一个function调用信息
+                                                if(new_tool_id != null && !new_tool_id.isEmpty()){//new_tool_id不为空，则说明是一个function调用信息
                                                     tool_call_id = new_tool_id;
                                                     Map<String, String> toolCall = (Map<String, String>)toolInfo.get("function");
                                                     functionName = toolCall.get("name");//获取function的名称
