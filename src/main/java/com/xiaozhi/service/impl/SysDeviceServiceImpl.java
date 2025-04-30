@@ -67,7 +67,7 @@ public class SysDeviceServiceImpl implements SysDeviceService {
                 device.setSttId(config.getConfigId());
             }
         }
-        if (roles != null) {
+        if (roles.size() > 0) {
             device.setRoleId(roles.get(0).getRoleId());
         }
         // 添加设备
