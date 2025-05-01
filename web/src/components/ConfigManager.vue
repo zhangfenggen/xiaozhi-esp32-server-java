@@ -212,6 +212,7 @@ export default {
               { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/api/chat' }
             ],
             spark: [
+              { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
               { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://spark-api-open.xf-yun.com/v2" }
             ],
             zhipu: [
