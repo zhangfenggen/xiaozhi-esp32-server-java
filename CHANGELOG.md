@@ -1,4 +1,12 @@
 # 变更日志
+## [2.7.33] - 2025-05-01
+
+### 其他变更
+- chore: update version to 2.7.33 [skip ci]
+- docs: update changelog for v2.7.32 [skip ci]
+- chore: update version to 2.7.32 [skip ci]
+- test
+
 ## [2.7.32] - 2025-05-01
 
 ### 其他变更
