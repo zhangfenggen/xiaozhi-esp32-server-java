@@ -142,7 +142,7 @@ public abstract class AbstractLlmService implements LlmService {
 
         // 获取当前缓存，如果没有则从数据库加载
         List<SysMessage> history = deviceHistoryCache.computeIfAbsent(deviceId,
-                k -> modelContext.getMessages(DEFAULT_HISTORY_LIMIT));
+                k -> modelContext.getMessages(SysMessage.MESSAGE_TYPE_NORMAL, DEFAULT_HISTORY_LIMIT));
 
         // 创建新的用户消息对象
         SysMessage sysMessage = new SysMessage();
@@ -182,7 +182,7 @@ public abstract class AbstractLlmService implements LlmService {
 
         // 获取当前缓存，如果没有则从数据库加载
         List<SysMessage> history = deviceHistoryCache.computeIfAbsent(deviceId,
-                k -> modelContext.getMessages(DEFAULT_HISTORY_LIMIT));
+                k -> modelContext.getMessages(SysMessage.MESSAGE_TYPE_NORMAL, DEFAULT_HISTORY_LIMIT));
 
         // 创建新的用户消息对象
         SysMessage userMsg = new SysMessage();

@@ -23,18 +23,9 @@ public interface ChatMemory {
     
     /**
      * 获取历史消息
-     * 
-     * @param deviceId 设备ID
-     * @param limit 消息数量限制
-     * @return 历史消息列表
-     */
-    List<SysMessage> getMessages(String deviceId, Integer limit);
-
-    /**
-     * 获取历史消息
      *
      * @param deviceId 设备ID
-     * @param messageType 消息类型
+     * @param messageType 指定查询的消息类型 - 传null查所有消息
      * @param limit 消息数量限制
      * @return 历史消息列表
      */

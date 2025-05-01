@@ -1,5 +1,6 @@
 package com.xiaozhi.websocket.llm.memory;
 
+import com.xiaozhi.entity.Base;
 import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.entity.SysRole;
 import com.xiaozhi.service.SysMessageService;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,25 +59,6 @@ public class DatabaseChatMemory implements ChatMemory {
     }
 
     @Override
-    public List<SysMessage> getMessages(String deviceId, Integer limit) {
-        try {
-            SysMessage queryMessage = new SysMessage();
-            queryMessage.setDeviceId(deviceId);
-            queryMessage.setStart(1);
-            queryMessage.setLimit(limit);
-
-            List<SysMessage> messages = messageService.query(queryMessage);
-            messages = new ArrayList<>(messages);
-            messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
-            return messages;
-            // return messages;
-        } catch (Exception e) {
-            logger.error("获取历史消息时出错: {}", e.getMessage(), e);
-            return new ArrayList<>();
-        }
-    }
-
-    @Override
     public List<SysMessage> getMessages(String deviceId, String messageType, Integer limit) {
         try {
             SysMessage queryMessage = new SysMessage();
@@ -86,7 +69,7 @@ public class DatabaseChatMemory implements ChatMemory {
 
             List<SysMessage> messages = messageService.query(queryMessage);
             messages = new ArrayList<>(messages);
-            messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
+            messages.sort(Comparator.comparing(Base::getCreateTime));
             return messages;
             // return messages;
         } catch (Exception e) {
