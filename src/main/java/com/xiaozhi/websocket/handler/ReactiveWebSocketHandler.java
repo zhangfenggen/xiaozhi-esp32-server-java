@@ -7,10 +7,7 @@ import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysDeviceService;
-import com.xiaozhi.websocket.service.AudioService;
-import com.xiaozhi.websocket.service.DialogueService;
-import com.xiaozhi.websocket.service.SessionManager;
-import com.xiaozhi.websocket.service.VadService;
+import com.xiaozhi.websocket.service.*;
 import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,9 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
     @Autowired
     private DialogueService dialogueService;
+
+    @Autowired
+    private IotService iotService;
 
     private static final Logger logger = LoggerFactory.getLogger(ReactiveWebSocketHandler.class);
 
@@ -393,6 +393,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             JsonNode descriptors = jsonNode.path("descriptors");
             logger.info("收到设备描述信息: {}", descriptors);
             // 处理设备描述信息的逻辑
+            iotService.handleDeviceDescriptors(sessionId, descriptors);
         }
 
         // 处理设备状态更新
@@ -400,6 +401,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             JsonNode states = jsonNode.path("states");
             logger.info("收到设备状态更新: {}", states);
             // 处理设备状态更新的逻辑
+            iotService.handleDeviceStates(sessionId, states);
         }
 
         return Mono.empty();

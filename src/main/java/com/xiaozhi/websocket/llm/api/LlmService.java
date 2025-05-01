@@ -2,6 +2,7 @@ package com.xiaozhi.websocket.llm.api;
 
 import com.xiaozhi.websocket.llm.memory.ModelContext;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * LLM服务接口
@@ -42,4 +43,11 @@ public interface LlmService {
      * @return 提供商名称
      */
     String getProviderName();
+
+    /**
+     * 更新历史消息缓存
+     * @param modelContext 模型上下文
+     * @param message 当前消息
+     */
+    void updateHistoryCache(ModelContext modelContext, Map<String, Object> message);
 }

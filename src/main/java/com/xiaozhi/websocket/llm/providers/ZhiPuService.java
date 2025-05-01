@@ -3,6 +3,7 @@ package com.xiaozhi.websocket.llm.providers;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.xiaozhi.websocket.llm.api.AbstractLlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
+import com.xiaozhi.websocket.llm.memory.ModelContext;
 import okhttp3.*;
 import okio.BufferedSource;
 import org.apache.commons.lang3.StringUtils;
@@ -30,13 +31,13 @@ public class ZhiPuService extends AbstractLlmService {
     }
 
     @Override
-    protected String chat(List<Map<String, String>> messages) throws IOException {
+    protected String chat(List<Map<String, Object>> messages) throws IOException {
         logger.warn("不支持，请使用流式对话");
         return StringUtils.EMPTY;
     }
 
     @Override
-    protected void chatStream(List<Map<String, String>> messages, StreamResponseListener streamListener)
+    protected void chatStream(List<Map<String, Object>> messages, StreamResponseListener streamListener, ModelContext modelContext)
             throws IOException {
         try {
             // 构建请求体

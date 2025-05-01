@@ -1,5 +1,6 @@
 package com.xiaozhi.websocket.llm.memory;
 
+import com.xiaozhi.entity.Base;
 import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.entity.SysRole;
 import com.xiaozhi.service.SysMessageService;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +38,7 @@ public class DatabaseChatMemory implements ChatMemory {
     private Map<String, String> systemMessageCache = new ConcurrentHashMap<>();
 
     @Override
-    public void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId) {
+    public void addMessage(String deviceId, String sessionId, String sender, String content, Integer roleId, String messageType) {
         try {
             SysMessage message = new SysMessage();
             message.setDeviceId(deviceId);
@@ -44,6 +46,7 @@ public class DatabaseChatMemory implements ChatMemory {
             message.setSender(sender);
             message.setMessage(content);
             message.setRoleId(roleId);
+            message.setMessageType(messageType);
             if (sender == "assistant") {
                 // 目前生成的语音保存采用默认的语音合成服务，后续可以考虑支持自定义语音合成服务
                 // todo
@@ -56,16 +59,17 @@ public class DatabaseChatMemory implements ChatMemory {
     }
 
     @Override
-    public List<SysMessage> getMessages(String deviceId, Integer limit) {
+    public List<SysMessage> getMessages(String deviceId, String messageType, Integer limit) {
         try {
             SysMessage queryMessage = new SysMessage();
             queryMessage.setDeviceId(deviceId);
+            queryMessage.setMessageType(messageType);
             queryMessage.setStart(1);
             queryMessage.setLimit(limit);
 
             List<SysMessage> messages = messageService.query(queryMessage);
             messages = new ArrayList<>(messages);
-            messages.sort((m1, m2) -> m1.getCreateTime().compareTo(m2.getCreateTime()));
+            messages.sort(Comparator.comparing(Base::getCreateTime));
             return messages;
             // return messages;
         } catch (Exception e) {

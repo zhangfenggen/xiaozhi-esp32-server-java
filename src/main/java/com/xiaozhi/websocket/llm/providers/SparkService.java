@@ -3,6 +3,7 @@ package com.xiaozhi.websocket.llm.providers;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.xiaozhi.websocket.llm.api.AbstractLlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
+import com.xiaozhi.websocket.llm.memory.ModelContext;
 import okhttp3.*;
 import okio.BufferedSource;
 
@@ -26,7 +27,7 @@ public class SparkService extends AbstractLlmService {
     }
 
     @Override
-    protected String chat(List<Map<String, String>> messages) throws IOException {
+    protected String chat(List<Map<String, Object>> messages) throws IOException {
         try {
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
@@ -38,7 +39,7 @@ public class SparkService extends AbstractLlmService {
 
             // 转换消息格式为讯飞要求的格式
             List<Map<String, Object>> sparkMessages = new ArrayList<>();
-            for (Map<String, String> message : messages) {
+            for (Map<String, Object> message : messages) {
                 Map<String, Object> sparkMessage = new HashMap<>();
                 sparkMessage.put("role", message.get("role"));
                 sparkMessage.put("content", message.get("content"));
@@ -91,7 +92,7 @@ public class SparkService extends AbstractLlmService {
     }
 
     @Override
-    protected void chatStream(List<Map<String, String>> messages, StreamResponseListener streamListener)
+    protected void chatStream(List<Map<String, Object>> messages, StreamResponseListener streamListener, ModelContext modelContext)
             throws IOException {
         try {
             // 构建请求体

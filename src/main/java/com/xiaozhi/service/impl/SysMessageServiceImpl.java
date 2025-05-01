@@ -28,7 +28,7 @@ public class SysMessageServiceImpl implements SysMessageService {
     /**
      * 新增聊天记录
      *
-     * @param device
+     * @param message
      * @return
      */
     @Override

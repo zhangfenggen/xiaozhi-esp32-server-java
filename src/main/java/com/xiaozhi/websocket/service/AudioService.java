@@ -64,6 +64,9 @@ public class AudioService {
     @Autowired
     private SessionManager sessionManager;
 
+    @Autowired
+    private MessageService messageService;
+
     private final DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
     /**
@@ -503,6 +506,11 @@ public class AudioService {
                         // 队列为空，重置处理状态
                         isProcessing.set(false);
                     }
+                    if(sessionManager.isCloseAfterChat(sessionId)){
+                        sessionManager.closeSession(sessionId);
+                    }else{
+                        sessionManager.setListeningState(sessionId, true);
+                    }
                 });
     }
 
@@ -557,16 +565,7 @@ public class AudioService {
      */
     public Mono<Void> sendSentenceStartMessage(WebSocketSession session, String text, int sequenceNumber) {
         try {
-            StringBuilder jsonBuilder = new StringBuilder();
-            jsonBuilder.append("{\"type\":\"tts\",\"state\":\"sentence_start\"");
-            if (text != null && !text.isEmpty()) {
-                jsonBuilder.append(",\"text\":\"").append(text.replace("\"", "\\\"")).append("\"");
-            }
-            jsonBuilder.append("}");
-
-            String message = jsonBuilder.toString();
-
-            return session.send(Mono.just(session.textMessage(message)));
+            return messageService.sendMessage(session, "tts", "sentence_start", text);
         } catch (Exception e) {
             logger.error("[消息#{}-错误] 发送句子开始消息失败", sequenceNumber, e);
             return Mono.empty();
@@ -581,8 +580,7 @@ public class AudioService {
      */
     public Mono<Void> sendTtsStartMessage(WebSocketSession session, int sequenceNumber) {
         try {
-            String message = "{\"type\":\"tts\",\"state\":\"start\"}";
-            return session.send(Mono.just(session.textMessage(message)));
+            return messageService.sendMessage(session, "tts", "start");
         } catch (Exception e) {
             return Mono.empty();
         }
@@ -625,8 +623,7 @@ public class AudioService {
 
         // 发送停止指令
         try {
-            String message = "{\"type\":\"tts\",\"state\":\"stop\"}";
-            return session.send(Mono.just(session.textMessage(message)));
+            return messageService.sendMessage(session, "tts", "stop");
         } catch (Exception e) {
             logger.error("[消息#{}-错误] 发送TTS停止消息失败", sequenceNumber, e);
             return Mono.empty();

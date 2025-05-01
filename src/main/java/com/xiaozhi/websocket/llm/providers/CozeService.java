@@ -9,6 +9,7 @@ import com.coze.openapi.service.service.CozeAPI;
 import com.xiaozhi.websocket.llm.api.AbstractLlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
 
+import com.xiaozhi.websocket.llm.memory.ModelContext;
 import io.reactivex.Flowable;
 import io.reactivex.schedulers.Schedulers;
 
@@ -63,7 +64,7 @@ public class CozeService extends AbstractLlmService {
     }
 
     @Override
-    protected String chat(List<Map<String, String>> messages) throws IOException {
+    protected String chat(List<Map<String, Object>> messages) throws IOException {
         if (messages == null || messages.isEmpty()) {
             throw new IOException("消息列表不能为空");
         }
@@ -123,7 +124,7 @@ public class CozeService extends AbstractLlmService {
     }
 
     @Override
-    protected void chatStream(List<Map<String, String>> messages, StreamResponseListener streamListener)
+    protected void chatStream(List<Map<String, Object>> messages, StreamResponseListener streamListener, ModelContext modelContext)
             throws IOException {
         if (messages == null || messages.isEmpty()) {
             throw new IOException("消息列表不能为空");
@@ -190,12 +191,12 @@ public class CozeService extends AbstractLlmService {
      * @param messages 通用格式的消息列表
      * @return Coze格式的消息列表
      */
-    private List<Message> convertToCozeMessages(List<Map<String, String>> messages) {
+    private List<Message> convertToCozeMessages(List<Map<String, Object>> messages) {
         List<Message> cozeMessages = new ArrayList<>();
 
-        for (Map<String, String> msg : messages) {
-            String role = msg.get("role");
-            String content = msg.get("content");
+        for (Map<String, Object> msg : messages) {
+            String role = String.valueOf(msg.get("role"));
+            String content = String.valueOf(msg.get("content"));
 
             if ("user".equals(role)) {
                 cozeMessages.add(Message.buildUserQuestionText(content));

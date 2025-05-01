@@ -2,6 +2,8 @@ package com.xiaozhi.websocket.service;
 
 import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
+import com.xiaozhi.websocket.iot.IotDescriptor;
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -34,6 +37,14 @@ public class SessionManager {
     // 用于存储会话和设备的映射关系
     private final ConcurrentHashMap<String, SysDevice> deviceConfigs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, SysConfig> configCache = new ConcurrentHashMap<>();
+    // 用于存储会话的设备上的Iot部件的描述信息
+    private final ConcurrentHashMap<String, Map<String, IotDescriptor>> iotDescriptors
+            = new ConcurrentHashMap<>();
+    // 用于存储会话的function_call tools
+    private final ConcurrentHashMap<String, FunctionSessionHolder> functionHolders
+            = new ConcurrentHashMap<>();
+    // 用于标识对话完成后，是否需要关闭对话
+    private final ConcurrentHashMap<String, Boolean> closeAfterChat = new ConcurrentHashMap<>();
 
     // 用于跟踪会话是否处于监听状态
     private final ConcurrentHashMap<String, Boolean> listeningState = new ConcurrentHashMap<>();
@@ -141,7 +152,9 @@ public class SessionManager {
         listeningState.remove(sessionId);
         streamingState.remove(sessionId);
         lastActivityTime.remove(sessionId); // 清理活动时间记录
-
+        iotDescriptors.remove(sessionId); // 清理Iot部件描述信息
+        functionHolders.remove(sessionId);// 清理function_call tools
+        closeAfterChat.remove(sessionId);
         // 清理音频流
         Sinks.Many<byte[]> sink = audioSinks.remove(sessionId);
         if (sink != null) {
@@ -166,6 +179,49 @@ public class SessionManager {
         deviceConfigs.put(sessionId, device);
         updateLastActivity(sessionId); // 更新活动时间
         logger.debug("设备配置已注册 - SessionId: {}, DeviceId: {}", sessionId, device.getDeviceId());
+    }
+
+    /**
+     * 注册设备iot部件描述信息
+     *
+     * @param sessionId 会话ID
+     * @param iotDescriptor iot部件描述信息
+     */
+    public void registerIot(String sessionId, IotDescriptor iotDescriptor) {
+        // 先检查是否已存在该sessionId的配置
+        Map<String, IotDescriptor> existingIotDescriptors = iotDescriptors.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>());
+        existingIotDescriptors.put(iotDescriptor.getName(), iotDescriptor);
+        logger.debug("设备iot部件已注册 - SessionId: {}, Iot: {}", sessionId, iotDescriptor.getName());
+    }
+
+    /**
+     * 注册会话的function_call
+     *
+     * @param sessionId 会话ID
+     * @param functionSessionHolder function_call工具
+     */
+    public void registerFunctionSessionHolder(String sessionId, FunctionSessionHolder functionSessionHolder) {
+        functionHolders.putIfAbsent(sessionId, functionSessionHolder);
+    }
+
+    /**
+     * 设置会话完成后是否关闭
+     *
+     * @param sessionId 会话ID
+     * @param close     是否关闭
+     */
+    public void setCloseAfterChat(String sessionId, boolean close) {
+        closeAfterChat.put(sessionId, close);
+    }
+
+    /**
+     * 获取会话完成后是否关闭
+     *
+     * @param sessionId 会话ID
+     * @return 是否关闭
+     */
+    public boolean isCloseAfterChat(String sessionId) {
+        return closeAfterChat.getOrDefault(sessionId, false);
     }
 
     /**
@@ -213,6 +269,40 @@ public class SessionManager {
      */
     public SysDevice getDeviceConfig(String sessionId) {
         return deviceConfigs.get(sessionId);
+    }
+
+    /**
+     * 获取Iot部件描述信息
+     *
+     * @param sessionId 会话ID
+     * @return 设备配置
+     */
+    public Map<String, IotDescriptor> getAllIotDescriptor(String sessionId) {
+        return iotDescriptors.get(sessionId);
+    }
+
+    /**
+     * 获取Iot部件描述信息
+     *
+     * @param sessionId 会话ID
+     * @return 设备配置
+     */
+    public IotDescriptor getIotDescriptor(String sessionId, String iotName) {
+        Map<String, IotDescriptor> descriptors = iotDescriptors.get(sessionId);
+        if (descriptors != null) {
+            return descriptors.get(iotName);
+        }
+        return null;
+    }
+
+    /**
+     * 获取会话的function holder
+     *
+     * @param sessionId 会话ID
+     * @return FunctionSessionHolder
+     */
+    public FunctionSessionHolder getFunctionSessionHolder(String sessionId) {
+        return functionHolders.get(sessionId);
     }
 
     /**
