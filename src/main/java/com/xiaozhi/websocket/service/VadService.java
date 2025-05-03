@@ -42,7 +42,7 @@ public class VadService {
     @Value("${app.vad.min-silence-duration:500}")
     private int minSilenceDuration;
 
-    @Value("${app.vad.pre-buffer-duration:300}")
+    @Value("${app.vad.pre-buffer-duration:500}")
     private int preBufferDuration;
 
     @Value("${app.vad.enable-noise-reduction:true}")
