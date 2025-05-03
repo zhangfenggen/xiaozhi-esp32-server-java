@@ -23,7 +23,7 @@ COPY ./src ./src
 COPY ./db ./db
 COPY pom.xml ./
 # 构建应用
-RUN mvn -Dmaven.repo.local=/root/.m2/repository clean package -DskipTests
+RUN mvn -Dmaven.repo.local=/root/.m2/repository package -DskipTests
 
 # 正确提取项目版本号 - 使用更精确的grep模式匹配项目版本而非父项目版本
 RUN APP_VERSION=$(grep -A1 "<artifactId>xiaozhi.server</artifactId>" pom.xml | grep "<version>" | sed -e 's/<version>//' -e 's/<\/version>//' -e 's/[[:space:]]//g') && \
