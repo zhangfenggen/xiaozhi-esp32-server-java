@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.vad.VadModel;
 
 import javax.annotation.PostConstruct;
@@ -31,7 +32,6 @@ public class SileroVadModel implements VadModel {
     private OrtSession session;
     private float[][][] state;
     private float[][] context;
-    private final int sampleRate = 16000;
     private final int windowSize = 512; // 16kHz的窗口大小
 
     @PostConstruct
@@ -72,7 +72,7 @@ public class SileroVadModel implements VadModel {
             // 创建输入张量
             OnnxTensor inputTensor = OnnxTensor.createTensor(env, x);
             OnnxTensor stateTensor = OnnxTensor.createTensor(env, state);
-            OnnxTensor srTensor = OnnxTensor.createTensor(env, new long[] { sampleRate });
+            OnnxTensor srTensor = OnnxTensor.createTensor(env, new long[] { AudioUtils.SAMPLE_RATE });
 
             // 准备输入映射
             Map<String, OnnxTensor> inputs = new HashMap<>();

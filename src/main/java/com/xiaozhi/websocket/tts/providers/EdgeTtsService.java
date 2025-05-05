@@ -4,10 +4,8 @@ import io.github.whitemagic2014.tts.TTS;
 import io.github.whitemagic2014.tts.TTSVoice;
 import io.github.whitemagic2014.tts.bean.Voice;
 
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.Paths;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -15,6 +13,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.tts.TtsService;
 
 public class EdgeTtsService implements TtsService {
@@ -41,12 +40,11 @@ public class EdgeTtsService implements TtsService {
     @Override
     public String getAudioFileName() {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        return uuid + ".mp3";
+        return uuid + ".opus";
     }
 
     @Override
     public String textToSpeech(String text) throws Exception {
-
         // 获取中文语音
         Voice voiceObj = TTSVoice.provides().stream()
                 .filter(v -> v.getShortName().equals(voiceName))
@@ -62,71 +60,19 @@ public class EdgeTtsService implements TtsService {
                 .formatMp3()
                 .trans();
 
-        // 2. 转换原始MP3为指定采样率和通道数的MP3
-        convertAndSaveAudio(outputPath + audioFilePath, 16000, 1);
+        String fullPath = outputPath + audioFilePath;
 
-        return outputPath + audioFilePath;
-    }
+        // 1. 将MP3转换为PCM (已经设置为16kHz采样率和单声道)
+        byte[] pcmData = AudioUtils.mp3ToPcm(fullPath);
 
-    /**
-     * 使用FFmpeg将原始音频转换为指定采样率和通道数的MP3
-     */
-    private void convertAndSaveAudio(String audioFilePath, int sampleRate, int channels) throws Exception {
-        // 创建临时文件路径
-        String tempFilePath = audioFilePath + ".tmp";
-        // 使用FFmpeg直接转换音频
-        String[] command = {
-                "ffmpeg",
-                "-i", audioFilePath,
-                "-ar", String.valueOf(sampleRate),
-                "-ac", String.valueOf(channels),
-                "-acodec", "libmp3lame",
-                "-q:a", "2",
-                "-f", "mp3",
-                "-y", // 覆盖已存在的文件
-                tempFilePath
-        };
+        // 2. 将PCM转换回MP3 (使用AudioUtils中的设置：16kHz, 单声道, 160kbps)
+        String resampledFileName = AudioUtils.saveAsWav(pcmData);
 
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
+        // 3. 删除原始文件
+        Files.deleteIfExists(Paths.get(fullPath));
 
-        // 等待进程完成
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            logger.error("FFmpeg转换音频失败，退出码: {}", exitCode);
-            throw new RuntimeException("音频转换失败");
-        }
-
-        // 用临时文件替换原始文件
-        File originalFile = new File(audioFilePath);
-        File tempFile = new File(tempFilePath);
-
-        try {
-            // 先尝试删除原始文件
-            if (originalFile.exists()) {
-                if (!originalFile.delete()) {
-                    // 如果删除失败，可能是文件被占用
-                    // 使用Java NIO的Files.copy方法，它支持覆盖选项
-                    Files.copy(tempFile.toPath(), originalFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    // 复制成功后删除临时文件
-                    tempFile.delete();
-                } else {
-                    // 原始文件删除成功，重命名临时文件
-                    if (!tempFile.renameTo(originalFile)) {
-                        throw new RuntimeException("文件重命名失败");
-                    }
-                }
-            } else {
-                // 原始文件不存在，直接重命名
-                if (!tempFile.renameTo(originalFile)) {
-                    throw new RuntimeException("文件重命名失败");
-                }
-            }
-        } catch (IOException e) {
-            logger.error("文件操作失败: " + e.getMessage(), e);
-            throw new RuntimeException("文件操作失败", e);
-        }
+        // 4. 返回重采样后的文件路径
+        return AudioUtils.AUDIO_PATH + resampledFileName;
     }
 
     @Override

@@ -261,7 +261,7 @@ public class VadService {
                 VadSessionState state = sessionStates.computeIfAbsent(sessionId, k -> new VadSessionState());
 
                 // 解码Opus数据为PCM
-                byte[] pcmData = opusDecoder.decodeOpusFrameToPcm(sessionId, opusData);
+                byte[] pcmData = opusDecoder.opusToPcm(sessionId, opusData);
                 if (pcmData == null || pcmData.length == 0) {
                     return new VadResult(VadStatus.NO_SPEECH, null);
                 }

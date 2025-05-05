@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.xiaozhi.entity.SysConfig;
+import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.tts.TtsService;
 
 import java.io.File;
@@ -60,7 +61,7 @@ public class VolcengineTtsService implements TtsService {
     @Override
     public String getAudioFileName() {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        return uuid + ".mp3";
+        return uuid + ".pcm";
     }
 
     @Override
@@ -112,11 +113,11 @@ public class VolcengineTtsService implements TtsService {
             // audio部分
             JsonObject audio = new JsonObject();
             audio.addProperty("voice_type", voiceName);
-            audio.addProperty("encoding", "mp3");
+            audio.addProperty("encoding", "pcm");
             audio.addProperty("speed_ratio", 1.0);
             audio.addProperty("volume_ratio", 1.0);
             audio.addProperty("pitch_ratio", 1.0);
-            audio.addProperty("rate", 16000);
+            audio.addProperty("rate", AudioUtils.SAMPLE_RATE);
             requestJson.add("audio", audio);
 
             // request部分

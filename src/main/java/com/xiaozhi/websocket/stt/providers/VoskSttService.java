@@ -76,9 +76,9 @@ public class VoskSttService implements SttService {
         }
 
         // 将原始音频数据转换为MP3格式并保存
-        String fileName = AudioUtils.saveAsMp3File(audioData);
+        String fileName = AudioUtils.saveAsWav(audioData);
 
-        try (Recognizer recognizer = new Recognizer(model, 16000)) { // 16000 是采样率
+        try (Recognizer recognizer = new Recognizer(model, AudioUtils.SAMPLE_RATE)) {
             ByteArrayInputStream audioStream = new ByteArrayInputStream(audioData);
 
             byte[] buffer = new byte[4096];
@@ -102,7 +102,7 @@ public class VoskSttService implements SttService {
 
     @Override
     public Flux<String> streamRecognition(Flux<byte[]> audioStream) {
-        return Mono.fromCallable(() -> new Recognizer(model, 16000))
+        return Mono.fromCallable(() -> new Recognizer(model, AudioUtils.SAMPLE_RATE))
                 .flatMapMany(recognizer -> {
                     return audioStream
                             .publishOn(Schedulers.boundedElastic())

@@ -14,9 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TarsosNoiseReducer {
     private static final Logger logger = LoggerFactory.getLogger(TarsosNoiseReducer.class);
 
-    // 采样率
-    private final int sampleRate = 16000;
-
     // 每个处理块的大小
     private final int bufferSize = 512;
 

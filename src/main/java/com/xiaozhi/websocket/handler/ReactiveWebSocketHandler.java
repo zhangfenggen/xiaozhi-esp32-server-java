@@ -145,7 +145,16 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                                     return Mono.empty();
                                 })
                                 .onErrorResume(e -> {
-                                    logger.error("处理WebSocket消息失败", e);
+                                    // 区分不同类型的错误
+                                    if (isConnectionClosedError(e)) {
+                                        // 连接关闭错误，这是正常的客户端断开行为
+                                        if (logger.isDebugEnabled()) {
+                                            logger.debug("客户端主动断开连接 - SessionId: {}", sessionId);
+                                        }
+                                    } else {
+                                        // 其他错误，记录为错误日志
+                                        logger.error("处理WebSocket消息失败", e);
+                                    }
                                     return Mono.empty();
                                 })
                                 .then())
@@ -168,6 +177,20 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     // 清理音频处理会话
                     audioService.cleanupSession(sessionId);
                 });
+    }
+
+    /**
+     * 判断是否为连接关闭类型的错误
+     */
+    private boolean isConnectionClosedError(Throwable error) {
+        // 检查是否是客户端主动断开连接的常见错误类型
+        if (error instanceof reactor.netty.channel.AbortedException) {
+            String message = error.getMessage();
+            return message != null && (message.contains("Connection has been closed") ||
+                    message.contains("Connection reset by peer") ||
+                    message.contains("Connection prematurely closed"));
+        }
+        return false;
     }
 
     private Mono<Void> handleTextMessage(WebSocketSession session, WebSocketMessage message) {
