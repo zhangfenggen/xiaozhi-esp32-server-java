@@ -6,12 +6,10 @@ import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.utils.EmojiUtils;
 import com.xiaozhi.websocket.llm.api.LlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
-import com.xiaozhi.websocket.llm.api.ToolCallInfo;
 import com.xiaozhi.websocket.llm.factory.LlmServiceFactory;
-import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
 import com.xiaozhi.websocket.llm.memory.ChatMemory;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
-
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
 import com.xiaozhi.websocket.service.SessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +22,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -170,6 +167,11 @@ public class LlmManager {
 
                 @Override
                 public void onComplete(String completeResponse) {
+                }
+
+                @Override
+                public void onFinal(List<Map<String, Object>> allMessages, LlmService llmService) {
+
                 }
 
                 @Override
@@ -320,25 +322,27 @@ public class LlmManager {
                 }
 
                 @Override
-                public void onFinal(List<Map<String, Object>> allMessages, LlmService llmService,
-                        ToolCallInfo toolCallInfo) {
+                public void onFinal(List<Map<String, Object>> allMessages, LlmService llmService) {
+                    if(allMessages.isEmpty()){
+                        return;
+                    }
                     List<Map<String, Object>> newMessages = new ArrayList<>();
-                    // 遍历allMessages，将未保存的user及assistant入库
-                    allMessages.forEach(message -> {
+                    //如果本轮对话是function_all或mcp调用(最后一条信息的类型)，把用户的消息类型也修正为同样类型
+                    String lastMessageType = allMessages.get(allMessages.size() - 1).get("messageType").toString();
+                    //遍历allMessages，将未保存的user及assistant入库
+                    allMessages.forEach(message ->{
                         Object messageId = message.get("messageId");
                         String role = String.valueOf(message.get("role"));
-                        String messageType = toolCallInfo != null ? toolCallInfo.getType()
-                                : String.valueOf(message.get("messageType"));
 
-                        if (!"system".equals(role) && messageId == null) {// 系统消息跳过
-                            // 这里后续看下，是否需要把messageContent为空的入库，目前不入库（这类主要是function_call的过程消息）
-                            String messageContent = message.get("content") == null ? ""
-                                    : String.valueOf(message.get("content"));
-                            if (!messageContent.isEmpty()) {
-                                modelContext.addMessage(messageContent, role, messageType);
-                                // 数据入库后，给个id，避免下次再被入库
+                        //消息入库
+                        if(!"system".equals(role) &&  messageId == null){//系统消息跳过
+                            //这里后续看下，是否需要把content为空和角色为tool的入库，目前不入库（这类主要是function_call的二次调用llm进行总结时的过程消息）
+                            String messageContent = message.get("content") == null? "" : String.valueOf(message.get("content"));
+                            if(!"tool".equals(role) && !messageContent.isEmpty() && !message.containsKey("messageId")){//非空未入库消息，则进行入库
+                                modelContext.addMessage(messageContent, role, lastMessageType);
+                                //数据入库后，给个id，避免下次再被入库
                                 message.put("messageId", 0);
-                                message.put("messageType", messageType);
+                                message.put("messageType", lastMessageType);
                                 newMessages.add(message);
                             }
                         }

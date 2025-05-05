@@ -286,12 +286,19 @@ public class IotService {
                     // 获取属性值
                     Object value = getIotStatus(sessionId, iotName, propName);
                     if (value != null) {
-                        //如果有{value}占位符，用相关参数替换
-                        if (success.contains("{value}")) {
-                            success = success.replace("{value}", String.valueOf(value));
+                        //如果有success参数，并且有{value}占位符，用相关参数替换
+                        if (success != null) {
+                            if(success.contains("{value}")){
+                                success = success.replace("{value}", String.valueOf(value));
+                            }
+                        }else{
+                            success = "当前的设置为" + value;
                         }
                         return new ToolResponse(ToolType.IOT_CTL, ActionType.RESPONSE, iotName + "的" + funcName + "操作执行成功", success);
                     } else {
+                        if(failure == null){
+                            failure = "无法获取设置";
+                        }
                         return new ToolResponse(ToolType.IOT_CTL, ActionType.ERROR, "执行" + iotName + "的" + funcName + "操作失败", failure);
                     }
                 }catch (Exception e){
@@ -351,8 +358,14 @@ public class IotService {
                     functionParams.params.remove("response_failure");
                     boolean result = sendIotMessage(sessionId, iotName, funcName, functionParams.params);
                     if (result) {
+                        if(success == null){
+                            success = "操作成功";
+                        }
                         return new ToolResponse(ToolType.IOT_CTL, ActionType.RESPONSE, iotName + "的"+funcName+"操作执行成功", success);
                     } else {
+                        if (failure == null){
+                            failure = "操作失败";
+                        }
                         return new ToolResponse(ToolType.IOT_CTL, ActionType.ERROR, "执行"+ iotName + "的"+funcName+"操作失败", failure);
                     }
                 }catch (Exception e){

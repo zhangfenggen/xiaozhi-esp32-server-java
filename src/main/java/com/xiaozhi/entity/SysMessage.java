@@ -48,7 +48,7 @@ public class SysMessage extends SysDevice {
     private String state;
 
     /**
-     * 消息类型: NORMAL-普通消息，FUNCTION_CALL-函数调用消息，MCP-多轮对话消息
+     * 消息类型: NORMAL-普通消息，FUNCTION_CALL-函数调用消息，MCP-MCP调用消息
      *
      */
     private String messageType = "NORMAL";

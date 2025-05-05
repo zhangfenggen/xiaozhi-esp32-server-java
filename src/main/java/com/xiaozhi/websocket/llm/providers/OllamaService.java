@@ -3,7 +3,9 @@ package com.xiaozhi.websocket.llm.providers;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.xiaozhi.websocket.llm.api.AbstractLlmService;
 import com.xiaozhi.websocket.llm.api.StreamResponseListener;
+import com.xiaozhi.websocket.llm.api.ToolCallInfo;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
+import com.xiaozhi.websocket.llm.tool.ToolResponse;
 import okhttp3.*;
 import okio.BufferedSource;
 
@@ -143,6 +145,7 @@ public class OllamaService extends AbstractLlmService {
 
                     // 通知完成
                     streamListener.onComplete(fullResponse.toString());
+                    streamListener.onFinal(messages, OllamaService.this);
                 }
             }
         });

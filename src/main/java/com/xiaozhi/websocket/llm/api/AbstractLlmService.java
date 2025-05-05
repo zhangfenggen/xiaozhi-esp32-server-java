@@ -3,16 +3,17 @@ package com.xiaozhi.websocket.llm.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhi.entity.SysMessage;
 import com.xiaozhi.websocket.llm.memory.ModelContext;
+import com.xiaozhi.websocket.llm.tool.ActionType;
+import com.xiaozhi.websocket.llm.tool.ToolResponse;
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
+import com.xiaozhi.websocket.llm.tool.function.bean.FunctionCallTool;
 import okhttp3.OkHttpClient;
 import okhttp3.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -276,4 +277,59 @@ public abstract class AbstractLlmService implements LlmService {
      */
     protected abstract void chatStream(List<Map<String, Object>> messages, StreamResponseListener streamListener, ModelContext modelContext)
             throws IOException;
+
+    /**
+     * 执行函数调用，返回函数调用后的消息结果
+     * @param modelContext 执行上下文
+     * @param toolCallInfo 工具信息
+     * @param streamListener 数据流监听器
+     * @param messages 历史消息记录
+     * @return
+     * @throws Exception
+     */
+    protected ToolResponse doFunctionCall(ModelContext modelContext, ToolCallInfo toolCallInfo, StreamResponseListener streamListener,
+                                  List<Map<String, Object>> messages) {
+        FunctionSessionHolder functionSessionHolder = modelContext.getFunctionSessionHolder();
+        if(functionSessionHolder != null){
+            FunctionCallTool functionCallTool = functionSessionHolder.getFunction(toolCallInfo.getName());
+            if(functionCallTool!=null){
+                FunctionCallTool.FunctionParams functionParams = new FunctionCallTool.FunctionParams(modelContext, toolCallInfo.getArguments());
+                ToolResponse toolResponse = functionCallTool.getFunction().apply(functionParams);
+                logger.debug("Function call: {} with arguments: {} result： {}", toolCallInfo.getName(), toolCallInfo.getArguments(), toolResponse);
+                if(ActionType.REQLLM.equals(toolResponse.getActionType())){
+                    try{
+                        submitFunctionResultToLlm(modelContext, toolCallInfo, streamListener, messages, toolResponse);
+                    }catch (UnsupportedOperationException e){
+                        logger.error("llm: {} 不支持function总结， 对需总结的function：{} 不进行总结，直接返回", model, toolCallInfo.getName());
+                        streamListener.onToken(toolResponse.getResponse());
+                    }
+                }else if(ActionType.RESPONSE.equals(toolResponse.getActionType())) {
+                    streamListener.onToken(toolResponse.getResponse());
+                }else if(ActionType.ERROR.equals(toolResponse.getActionType())) {
+                    streamListener.onToken(toolResponse.getResult());
+                }
+                return toolResponse;
+            }else{
+                logger.error("llm回调未找到函数: 函数名: {} with arguments: {} toolId: {} ", toolCallInfo.getName(), toolCallInfo.getArguments(), toolCallInfo.getTool_call_id());
+            }
+        }
+        return null;
+    }
+
+
+    /**
+     * 提交函数结果到LLM
+     *
+     * @param modelContext 模型上下文
+     * @param toolCallInfo 工具调用信息
+     * @param streamListener 流式响应监听器
+     * @param messages 历史消息列表
+     * @param toolResponse 工具响应
+     * @throws Exception 如果请求失败
+     */
+    protected void submitFunctionResultToLlm(ModelContext modelContext, ToolCallInfo toolCallInfo,
+                                                      StreamResponseListener streamListener, List<Map<String, Object>> messages,
+                                                      ToolResponse toolResponse) throws UnsupportedOperationException{
+        throw new UnsupportedOperationException("当前模型不支持函数调用结果提交到LLM进行总结回复");
+    }
 }

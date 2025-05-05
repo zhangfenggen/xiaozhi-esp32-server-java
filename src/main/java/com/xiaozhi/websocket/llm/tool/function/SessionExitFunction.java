@@ -39,7 +39,11 @@ public class SessionExitFunction implements FunctionGlobalRegistry.GlobalFunctio
         return new FunctionCallTool(funcName, ToolType.SYSTEM_CTL, functionLlmDescription, (functionParams) -> {
             try{
                 sessionManager.setCloseAfterChat(functionParams.context.getSessionId(), true);
-                return new ToolResponse(ToolType.IOT_CTL, ActionType.RESPONSE, "退出意图已处理", functionParams.params.get("say_goodbye").toString());
+                String goodByeMessage = "拜拜，期待下次见面！";
+                if (functionParams.params.containsKey("say_goodbye")) {
+                    goodByeMessage = functionParams.params.get("say_goodbye").toString();
+                }
+                return new ToolResponse(ToolType.IOT_CTL, ActionType.RESPONSE, "退出意图已处理", goodByeMessage);
             }catch (Exception e){
                 return new ToolResponse(ToolType.IOT_CTL, ActionType.ERROR, "退出意图处理失败", e.getMessage());
             }

@@ -1,7 +1,9 @@
 package com.xiaozhi.websocket.llm.api;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.xiaozhi.utils.JsonUtil;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -13,28 +15,33 @@ public class ToolCallInfo {
     /**
      * 工具类型
      */
-    private String type = TOOL_CALL_TYPE_FUNCTION_CALL;
+    protected String type = TOOL_CALL_TYPE_FUNCTION_CALL;
     /**
      * 工具名称
      */
-    private String name;
+    protected String name;
     /**
      * 工具调用id
      */
-    private String tool_call_id;
+    protected String tool_call_id;
     /**
      * 工具调用参数
      */
-    private Map<String, Object> arguments;
+    protected Map<String, Object> arguments = Collections.EMPTY_MAP;
+    /**
+     * 工具调用参数json串
+     */
+    protected StringBuilder argumentsJson = new StringBuilder();
 
-    public ToolCallInfo(String tool_call_id, String name, Map<String, Object> arguments) {
-        this.tool_call_id = tool_call_id;
-        this.name = name;
-        this.arguments = arguments;
+    public ToolCallInfo() {
     }
 
-    public ToolCallInfo(String type, String tool_call_id, String name, Map<String, Object> arguments) {
-        this.type = type;
+    public ToolCallInfo(String tool_call_id, String name) {
+        this.tool_call_id = tool_call_id;
+        this.name = name;
+    }
+
+    public ToolCallInfo(String tool_call_id, String name, Map<String, Object> arguments) {
         this.tool_call_id = tool_call_id;
         this.name = name;
         this.arguments = arguments;
@@ -65,6 +72,9 @@ public class ToolCallInfo {
     }
 
     public Map<String, Object> getArguments() {
+        if(argumentsJson.length() != 0){
+            buildArguments();
+        }
         return arguments;
     }
 
@@ -72,8 +82,21 @@ public class ToolCallInfo {
         this.arguments = arguments;
     }
 
+    public void appendArgumentsJson(String json) {
+        argumentsJson.append(json);
+    }
+
+    public void buildArguments() {
+        if (argumentsJson.length() != 0) {
+            arguments = JsonUtil.fromJson(argumentsJson.toString(), new TypeReference<Map<String, Object>>() {});
+        }
+    }
     @Override
     public String toString() {
         return JsonUtil.toJson(this);
+    }
+
+    public void clearArgumentsJson() {
+        argumentsJson = new StringBuilder();
     }
 }
