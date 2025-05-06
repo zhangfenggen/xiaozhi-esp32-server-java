@@ -3,7 +3,6 @@ package com.xiaozhi.websocket.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.utils.OpusProcessor;
-import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,10 +36,10 @@ public class AudioService {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private TtsServiceFactory ttsFactory;
+    private OpusProcessor opusProcessor;
 
     @Autowired
-    private OpusProcessor opusProcessor;
+    private SessionManager sessionManager;
 
     // 存储每个会话最后一次发送帧的时间戳
     private final Map<String, AtomicLong> lastFrameSentTime = new ConcurrentHashMap<>();
@@ -197,6 +196,11 @@ public class AudioService {
                             }
 
                             return Mono.empty();
+                        })
+                        .doFinally(signalType -> {
+                            if (sessionManager.isCloseAfterChat(sessionId)) {
+                                sessionManager.closeSession(sessionId);
+                            }
                         })
                         .onErrorResume(error -> {
                             logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);
