@@ -136,6 +136,10 @@ public class AudioService {
         // 标记开始播放
         isPlaying.put(sessionId, true);
 
+        if (isFirst) {
+            sendStart(session);
+        }
+
         if (audioPath == null) {
             // 如果没有音频路径但是结束消息，发送结束标记
             if (isLast) {
