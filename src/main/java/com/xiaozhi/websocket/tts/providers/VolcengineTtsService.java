@@ -61,7 +61,7 @@ public class VolcengineTtsService implements TtsService {
     @Override
     public String getAudioFileName() {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        return uuid + ".pcm";
+        return uuid + ".wav";
     }
 
     @Override
@@ -113,7 +113,7 @@ public class VolcengineTtsService implements TtsService {
             // audio部分
             JsonObject audio = new JsonObject();
             audio.addProperty("voice_type", voiceName);
-            audio.addProperty("encoding", "pcm");
+            audio.addProperty("encoding", "wav");
             audio.addProperty("speed_ratio", 1.0);
             audio.addProperty("volume_ratio", 1.0);
             audio.addProperty("pitch_ratio", 1.0);

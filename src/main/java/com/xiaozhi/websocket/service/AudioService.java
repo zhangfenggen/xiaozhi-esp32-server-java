@@ -205,6 +205,11 @@ public class AudioService {
 
                             return Mono.empty();
                         })
+                        .doFinally(signalType -> {
+                            if (sessionManager.isCloseAfterChat(sessionId)) {
+                                sessionManager.closeSession(sessionId);
+                            }
+                        })
                         .onErrorResume(error -> {
                             logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);
                             // 如果发生错误但仍然是结束消息，确保发送stop

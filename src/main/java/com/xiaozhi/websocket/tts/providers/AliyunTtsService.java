@@ -50,7 +50,7 @@ public class AliyunTtsService implements TtsService {
     @Override
     public String getAudioFileName() {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        return uuid + ".mp3";
+        return uuid + ".wav";
     }
 
     @Override
@@ -125,6 +125,7 @@ public class AliyunTtsService implements TtsService {
                             .apiKey(apiKey)
                             .model("cosyvoice-v1")
                             .voice(voiceName)
+                            .format(com.alibaba.dashscope.audio.ttsv2.SpeechSynthesisAudioFormat.WAV_16000HZ_MONO_16BIT)
                             .build();
             com.alibaba.dashscope.audio.ttsv2.SpeechSynthesizer synthesizer = new com.alibaba.dashscope.audio.ttsv2.SpeechSynthesizer(param, null);
             ByteBuffer audio = synthesizer.call(text);
@@ -151,7 +152,7 @@ public class AliyunTtsService implements TtsService {
                     .model(voiceName)
                     .text(text)
                     .sampleRate(AudioUtils.SAMPLE_RATE)
-                    .format(SpeechSynthesisAudioFormat.MP3)
+                    .format(SpeechSynthesisAudioFormat.WAV)
                     .build();
             SpeechSynthesizer synthesizer = new SpeechSynthesizer();
             ByteBuffer audio = synthesizer.call(param);
