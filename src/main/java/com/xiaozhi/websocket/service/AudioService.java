@@ -1,5 +1,6 @@
 package com.xiaozhi.websocket.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.utils.OpusProcessor;
@@ -90,15 +91,24 @@ public class AudioService {
         Map<String, Object> message = new HashMap<>();
         message.put("type", "tts");
         message.put("state", "stop");
-
         try {
             String json = objectMapper.writeValueAsString(message);
             // 标记播放结束
             isPlaying.put(sessionId, false);
-            return session.send(Mono.just(session.textMessage(json)));
-        } catch (Exception e) {
-            logger.error("发送停止消息失败", e);
+            // 发送停止消息，并检查是否需要关闭会话
+            if (sessionManager.isCloseAfterChat(sessionId)) {
+                sessionManager.closeSession(sessionId);
+                return Mono.empty();
+            } else {
+                return session.send(Mono.just(session.textMessage(json)));
+            }
+        } catch (JsonProcessingException e) {
+            logger.error("发送停止消息失败: JSON处理错误", e);
             isPlaying.put(sessionId, false);
+            // 即使JSON处理失败，也检查是否需要关闭会话
+            if (sessionManager.isCloseAfterChat(sessionId)) {
+                sessionManager.closeSession(sessionId);
+            }
             return Mono.empty();
         }
     }
@@ -200,11 +210,6 @@ public class AudioService {
                             }
 
                             return Mono.empty();
-                        })
-                        .doFinally(signalType -> {
-                            if (sessionManager.isCloseAfterChat(sessionId)) {
-                                sessionManager.closeSession(sessionId);
-                            }
                         })
                         .onErrorResume(error -> {
                             logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);
