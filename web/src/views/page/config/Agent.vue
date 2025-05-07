@@ -347,20 +347,3 @@ export default {
   }
 }
 </script>
-
-<style scoped>
-.layout-content-margin {
-  margin: 24px;
-}
-
-.table-search {
-  margin-bottom: 16px;
-  background: #fff;
-  padding: 16px;
-}
-
-.filter-flex {
-  display: flex;
-  flex-wrap: wrap;
-}
-</style>
