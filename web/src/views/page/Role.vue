@@ -182,7 +182,7 @@
                     <a-textarea v-decorator="[
                       'roleDesc',
                       {
-                        rules: [{ required: true, message: '请输入角色提示词' }],
+                        rules: [],
                       },
                     ]" :rows="10" placeholder="请输入角色提示词，描述角色的特点、知识背景和行为方式等" />
                   </a-form-item>
@@ -295,19 +295,23 @@ export default {
       // TTS配置相关
       ttsConfigs: [], // 存储TTS配置列表
       ttsConfigLoading: false, // TTS配置加载状态
-      selectedttsId: null, // 当前选择的TTS配置ID
+      selectedTtsId: null, // 当前选择的TTS配置ID
       // 缓存
       cachedTtsConfigs: {}, // 缓存TTS配置
-      cachedVoices: {} // 缓存语音列表
+      cachedVoices: {}, // 缓存语音列表
+      promptTemplates: [], // 提示词模板列表
+      allProvidersLoaded: false, // 是否已经加载了所有供应商的语音
     }
   },
   mounted() {
     this.getData()
-    this.loadEdgeVoices() // 初始只加载Edge语音
     // 初始化设置Edge默认TTS配置
     this.selectedTtsId = "edge_default";
     // 加载提示词模板列表
     this.loadTemplates();
+    
+    // 预加载所有供应商的语音列表
+    this.preloadAllProviderVoices();
   },
   computed: {
     // 获取当前选中提供商的语音列表
@@ -338,6 +342,23 @@ export default {
     }
   },
   methods: {
+    // 预加载所有供应商的语音列表
+    preloadAllProviderVoices() {
+      // 先加载Edge语音，因为它是默认的
+      this.loadEdgeVoices();
+      
+      // 设置一个短暂的延迟后加载其他供应商的语音，避免同时发起太多请求
+      setTimeout(() => {
+        this.loadAliyunVoices();
+        
+        // 再延迟一点加载火山引擎语音
+        setTimeout(() => {
+          this.loadVolcengineVoices();
+          this.allProvidersLoaded = true;
+        }, 500);
+      }, 500);
+    },
+    
     // 处理标签页切换
     handleTabChange(key) {
       this.activeTabKey = key;
@@ -417,6 +438,16 @@ export default {
     handleProviderChange(value) {
       this.selectedProvider = value;
       this.voiceLoadFailed = false; // 重置加载失败标志
+      
+      // 清空当前语音名称和TTS配置，等待加载完成后再设置
+      this.roleForm.setFieldsValue({
+        voiceName: undefined,
+        ttsId: undefined // 清空TTS配置选择
+      });
+      
+      // 清空当前TTS配置列表，避免显示上一个提供商的配置
+      this.ttsConfigs = [];
+      this.selectedTtsId = null;
 
       // 根据提供商加载语音列表（使用缓存或重新加载）
       this.loadVoicesByProvider(value);
@@ -425,7 +456,7 @@ export default {
       if (value === 'edge') {
         // 为Edge提供默认配置
         this.ttsConfigs = [];
-        this.selectedttsId = 'edge_default';
+        this.selectedTtsId = 'edge_default';
         this.$nextTick(() => {
           this.roleForm.setFieldsValue({
             ttsId: 'edge_default'
@@ -437,14 +468,15 @@ export default {
           // 使用缓存的配置
           this.ttsConfigs = this.cachedTtsConfigs[value];
           if (this.ttsConfigs.length > 0) {
-            this.selectedttsId = this.ttsConfigs[0].configId;
+            this.selectedTtsId = this.ttsConfigs[0].configId;
             this.$nextTick(() => {
               this.roleForm.setFieldsValue({
-                ttsId: this.selectedttsId
+                ttsId: this.selectedTtsId
               });
             });
           } else {
             this.$message.warning(`没有找到可用的 ${value} 语音合成配置，请先在语音合成配置中添加`);
+            this.selectedTtsId = null;
           }
         } else {
           // 加载TTS配置
@@ -457,25 +489,12 @@ export default {
       this.roleForm.setFieldsValue({
         gender: ''
       });
-
-      // 更新语音名称为新的默认值
-      this.$nextTick(() => {
-        if (this.filteredVoices && this.filteredVoices.length > 0) {
-          this.roleForm.setFieldsValue({
-            voiceName: this.filteredVoices[0].value
-          });
-        } else {
-          this.roleForm.setFieldsValue({
-            voiceName: undefined
-          });
-        }
-      });
     },
 
     // 根据提供商加载语音列表
     loadVoicesByProvider(provider) {
       // 检查是否有缓存的语音列表
-      if (this.cachedVoices[provider]) {
+      if (this.cachedVoices[provider] && this.cachedVoices[provider].length > 0) {
         // 使用缓存的语音列表
         if (provider === 'edge') {
           this.edgeVoices = this.cachedVoices[provider];
@@ -484,6 +503,15 @@ export default {
         } else if (provider === 'volcengine') {
           this.volcengineVoices = this.cachedVoices[provider];
         }
+
+        // 在设置完语音列表后，更新默认语音选择
+        this.$nextTick(() => {
+          if (this.filteredVoices && this.filteredVoices.length > 0) {
+            this.roleForm.setFieldsValue({
+              voiceName: this.filteredVoices[0].value
+            });
+          }
+        });
         return;
       }
 
@@ -506,7 +534,7 @@ export default {
 
     // 处理TTS配置选择变化
     handleTtsConfigChange(value) {
-      this.selectedttsId = value;
+      this.selectedTtsId = value;
     },
 
     // 加载TTS配置列表
@@ -514,6 +542,14 @@ export default {
       // 设置加载状态
       this.ttsConfigLoading = true;
       this.ttsConfigs = []; // 清空当前配置，避免显示上一个提供商的配置
+      this.selectedTtsId = null; // 清空当前选中的TTS配置ID
+      
+      // 清空表单中的TTS配置选择
+      this.$nextTick(() => {
+        this.roleForm.setFieldsValue({
+          ttsId: undefined
+        });
+      });
       
       axios
         .get({
@@ -534,18 +570,15 @@ export default {
             
             // 如果有配置，默认选择第一个
             if (configList.length > 0) {
-              this.selectedttsId = configList[0].configId;
+              this.selectedTtsId = configList[0].configId;
               this.$nextTick(() => {
                 this.roleForm.setFieldsValue({
-                  ttsId: this.selectedttsId
+                  ttsId: this.selectedTtsId
                 });
               });
             } else {
               this.$message.warning(`没有找到可用的 ${provider} 语音合成配置，请先在语音合成配置中添加`);
-              this.selectedttsId = null;
-              this.roleForm.setFieldsValue({
-                ttsId: undefined
-              });
+              this.selectedTtsId = null;
             }
           } else {
             this.$message.error(res.message);
@@ -908,8 +941,8 @@ export default {
           };
 
           // 为所有提供商传递TTS配置ID
-          if (this.selectedttsId) {
-            formData.ttsId = this.selectedttsId;
+          if (this.selectedTtsId) {
+            formData.ttsId = this.selectedTtsId;
           }
 
           const url = this.editingRoleId
@@ -966,11 +999,11 @@ export default {
 
         // 设置TTS配置ID
         if (this.selectedProvider === 'edge') {
-          this.selectedttsId = record.ttsId || 'edge_default';
+          this.selectedTtsId = record.ttsId || 'edge_default';
           this.ttsConfigs = [];
           this.$nextTick(() => {
             roleForm.setFieldsValue({
-              ttsId: this.selectedttsId
+              ttsId: this.selectedTtsId
             });
           });
         } else {
@@ -978,10 +1011,10 @@ export default {
           if (this.cachedTtsConfigs[this.selectedProvider]) {
             // 使用缓存的配置
             this.ttsConfigs = this.cachedTtsConfigs[this.selectedProvider];
-            this.selectedttsId = record.ttsId;
+            this.selectedTtsId = record.ttsId;
             this.$nextTick(() => {
               roleForm.setFieldsValue({
-                ttsId: this.selectedttsId
+                ttsId: this.selectedTtsId
               });
             });
           } else {
@@ -989,7 +1022,7 @@ export default {
             this.ttsConfigLoading = true;
             this.loadTtsConfigs(this.selectedProvider);
             // 设置要在加载完成后选中的TTS配置ID
-            this.selectedttsId = record.ttsId;
+            this.selectedTtsId = record.ttsId;
           }
         }
 
@@ -1043,9 +1076,11 @@ export default {
       this.selectedProvider = 'edge'; // 重置为默认语音提供商
       this.voiceLoadFailed = false; // 重置语音加载失败标志
       
-      // 设置Edge默认TTS配置
-      this.selectedttsId = 'edge_default';
+      // 清空TTS配置
       this.ttsConfigs = [];
+      
+      // 设置Edge默认TTS配置
+      this.selectedTtsId = 'edge_default';
 
       // 重置后设置默认语音
       this.$nextTick(() => {
@@ -1099,7 +1134,6 @@ export default {
         return;
       }
 
-      // Get the current voice name and provider from the form
       this.roleForm.validateFields(['voiceName', 'ttsId'], (err, values) => {
         if (err) {
           return;
@@ -1112,7 +1146,7 @@ export default {
           voiceName: values.voiceName,
           provider: this.selectedProvider,
           message: this.testText,
-          ttsId: this.selectedProvider === 'edge' ? -1 : this.selectedttsId
+          ttsId: this.selectedProvider === 'edge' ? -1 : this.selectedTtsId
         };
 
         axios
