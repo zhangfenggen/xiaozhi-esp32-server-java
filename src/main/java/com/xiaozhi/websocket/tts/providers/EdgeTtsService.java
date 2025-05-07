@@ -65,7 +65,7 @@ public class EdgeTtsService implements TtsService {
         // 1. 将MP3转换为PCM (已经设置为16kHz采样率和单声道)
         byte[] pcmData = AudioUtils.mp3ToPcm(fullPath);
 
-        // 2. 将PCM转换回MP3 (使用AudioUtils中的设置：16kHz, 单声道, 160kbps)
+        // 2. 将PCM转换回WAV (使用AudioUtils中的设置：16kHz, 单声道, 160kbps)
         String resampledFileName = AudioUtils.saveAsWav(pcmData);
 
         // 3. 删除原始文件

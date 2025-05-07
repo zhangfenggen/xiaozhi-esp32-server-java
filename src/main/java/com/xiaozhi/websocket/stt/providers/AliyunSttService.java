@@ -75,15 +75,8 @@ public class AliyunSttService implements SttService {
             try {
                 recognizer.streamCall(param, rxAudioStream)
                         .blockingForEach(result -> {
-                            if (result.isSentenceEnd()) {
                                 String text = result.getSentence().getText();
-                                logger.info("识别结果（完成）: {}", text);
                                 resultSink.tryEmitNext(text);
-                            } else {
-                                String text = result.getSentence().getText();
-                                logger.debug("识别结果（中间）: {}", text);
-                                resultSink.tryEmitNext(text);
-                            }
                         });
 
                 // 识别完成

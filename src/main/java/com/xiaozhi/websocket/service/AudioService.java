@@ -41,6 +41,9 @@ public class AudioService {
     @Autowired
     private SessionManager sessionManager;
 
+    @Autowired
+    private SessionManager sessionManager;
+
     // 存储每个会话最后一次发送帧的时间戳
     private final Map<String, AtomicLong> lastFrameSentTime = new ConcurrentHashMap<>();
 
@@ -132,6 +135,10 @@ public class AudioService {
         // 标记开始播放
         isPlaying.put(sessionId, true);
 
+        if (isFirst) {
+            sendStart(session);
+        }
+
         if (audioPath == null) {
             // 如果没有音频路径但是结束消息，发送结束标记
             if (isLast) {
@@ -140,7 +147,7 @@ public class AudioService {
             isPlaying.put(sessionId, false);
             return Mono.empty();
         }
-
+        sessionManager.updateLastActivity(sessionId); // 更新活动时间
         return sendSentenceStart(session, text)
                 .then(Mono.fromCallable(() -> {
                     String fullPath = audioPath;

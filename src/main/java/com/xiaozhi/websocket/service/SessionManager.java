@@ -366,7 +366,6 @@ public class SessionManager {
     public Sinks.Many<byte[]> createAudioSink(String sessionId) {
         Sinks.Many<byte[]> sink = Sinks.many().multicast().onBackpressureBuffer();
         audioSinks.put(sessionId, sink);
-        updateLastActivity(sessionId); // 更新活动时间
         return sink;
     }
 
@@ -390,7 +389,6 @@ public class SessionManager {
         if (sink != null) {
             sink.tryEmitComplete();
         }
-        updateLastActivity(sessionId); // 更新活动时间
     }
 
     /**
