@@ -41,9 +41,6 @@ public class AudioService {
     @Autowired
     private SessionManager sessionManager;
 
-    @Autowired
-    private SessionManager sessionManager;
-
     // 存储每个会话最后一次发送帧的时间戳
     private final Map<String, AtomicLong> lastFrameSentTime = new ConcurrentHashMap<>();
 
