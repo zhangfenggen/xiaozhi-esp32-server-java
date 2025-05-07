@@ -1,4 +1,16 @@
 # 变更日志
+## [2.7.39] - 2025-05-07
+
+### 修复
+- fix:修复退出时不会完整播放句子的问题
+- fix:修复退出时不会完整播放句子的问题
+- fix:修复意图识别退出没有正常调用问题
+
+### 其他变更
+- chore: update version to 2.7.39 [skip ci]
+- docs: update changelog for v2.7.38 [skip ci]
+- chore: update version to 2.7.38 [skip ci]
+
 ## [2.7.38] - 2025-05-06
 
 ### 其他变更
