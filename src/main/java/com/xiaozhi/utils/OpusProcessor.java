@@ -674,9 +674,9 @@ public class OpusProcessor {
 
                 // 优化设置
                 encoder.setBitrate(AudioUtils.BITRATE);
-                encoder.setSignalType(OpusSignal.OPUS_SIGNAL_AUTO); // 自动检测信号类型
-                encoder.setComplexity(7); // 复杂度高音质好，低速度快
-                encoder.setPacketLossPercent(5); // 降低丢包补偿，减少处理延迟
+                encoder.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE);
+                encoder.setComplexity(5); // 复杂度高音质好，低速度快
+                encoder.setPacketLossPercent(0); // 降低丢包补偿，减少处理延迟
                 encoder.setForceChannels(channels);
                 encoder.setUseVBR(false); // 使用CBR模式确保稳定的比特率
                 encoder.setUseDTX(false); // 禁用DTX以确保连续的帧
