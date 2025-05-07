@@ -1,6 +1,5 @@
 package com.xiaozhi.utils;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -9,10 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-import org.bytedeco.ffmpeg.global.avcodec;
 import org.bytedeco.ffmpeg.global.avutil;
-import org.bytedeco.javacv.FFmpegFrameRecorder;
-import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameRecorder;
 import org.slf4j.Logger;
 
@@ -21,7 +17,7 @@ public class AudioUtils {
     private static final Logger logger = org.slf4j.LoggerFactory.getLogger(AudioUtils.class);
     public static final int SAMPLE_RATE = 16000; // 采样率
     public static final int CHANNELS = 1; // 单声道
-    public static final int BITRATE = 160000; // 160kbps比特率
+    public static final int BITRATE = 24000; // 24kbps比特率
     public static final int SAMPLE_FORMAT = avutil.AV_SAMPLE_FMT_S16; // 16位PCM
 
     /**

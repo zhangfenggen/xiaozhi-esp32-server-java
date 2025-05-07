@@ -1,6 +1,5 @@
 package com.xiaozhi.websocket.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.utils.OpusProcessor;
@@ -10,18 +9,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
-import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
 
 /**
  * 音频服务，负责处理音频的非流式发送
@@ -30,7 +29,6 @@ import java.util.concurrent.locks.LockSupport;
 public class AudioService {
     private static final Logger logger = LoggerFactory.getLogger(AudioService.class);
 
-    // 恢复原始的帧间隔时间，与OpusProcessor中的OPUS_FRAME_DURATION_MS保持一致
     private static final long OPUS_FRAME_INTERVAL_MS = 60;
 
     @Autowired
@@ -46,7 +44,7 @@ public class AudioService {
     private final Map<String, AtomicLong> lastFrameSentTime = new ConcurrentHashMap<>();
 
     // 存储每个会话当前是否正在播放音频
-    private final Map<String, Boolean> isPlaying = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> isPlaying = new ConcurrentHashMap<>();
 
     /**
      * 发送TTS开始消息
@@ -100,11 +98,11 @@ public class AudioService {
         try {
             String json = objectMapper.writeValueAsString(message);
             // 标记播放结束
-            isPlaying.put(sessionId, false);
+            isPlaying.computeIfAbsent(sessionId, k -> new AtomicBoolean()).set(false);
             return session.send(Mono.just(session.textMessage(json)));
-        } catch (JsonProcessingException e) {
-            logger.error("发送停止消息失败: JSON处理错误", e);
-            isPlaying.put(sessionId, false);
+        } catch (Exception e) {
+            logger.error("发送停止消息失败", e);
+            isPlaying.computeIfAbsent(sessionId, k -> new AtomicBoolean()).set(false);
             return Mono.empty();
         }
     }
@@ -113,7 +111,8 @@ public class AudioService {
      * 检查会话是否正在播放音频
      */
     public boolean isPlaying(String sessionId) {
-        return Boolean.TRUE.equals(isPlaying.getOrDefault(sessionId, false));
+        return isPlaying.containsKey(sessionId) && 
+               isPlaying.get(sessionId).get();
     }
 
     /**
@@ -136,7 +135,7 @@ public class AudioService {
         String sessionId = session.getId();
 
         // 标记开始播放
-        isPlaying.put(sessionId, true);
+        isPlaying.computeIfAbsent(sessionId, k -> new AtomicBoolean()).set(true);
 
         if (isFirst) {
             sendStart(session);
@@ -147,10 +146,9 @@ public class AudioService {
             if (isLast) {
                 return sendStop(session);
             }
-            isPlaying.put(sessionId, false);
+            isPlaying.get(sessionId).set(false);
             return Mono.empty();
         }
-        sessionManager.updateLastActivity(sessionId); // 更新活动时间
         return sendSentenceStart(session, text)
                 .then(Mono.fromCallable(() -> {
                     String fullPath = audioPath;
@@ -165,12 +163,7 @@ public class AudioService {
 
                     if (audioPath.contains(".opus")) {
                         // 如果是opus文件，直接读取opus帧数据
-                        try {
-                            opusFrames = opusProcessor.readOpus(audioFile);
-                        } catch (IOException e) {
-                            logger.error("读取Opus文件失败: {}", fullPath, e);
-                            return null;
-                        }
+                        opusFrames = opusProcessor.readOpus(audioFile);
                     } else {
                         // 如果不是opus文件，按照原来的逻辑处理
                         byte[] audioData = AudioUtils.readAsPcm(fullPath);
@@ -181,122 +174,75 @@ public class AudioService {
 
                     return opusFrames;
                 })
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .flatMap(opusFrames -> {
-                            if (opusFrames == null || opusFrames.isEmpty()) {
-                                if (isLast) {
-                                    return sendStop(session);
-                                }
-                                isPlaying.put(sessionId, false);
-                                return Mono.empty();
-                            }
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(opusFrames -> {
+                    if (opusFrames == null || opusFrames.isEmpty()) {
+                        if (isLast) {
+                            return sendStop(session);
+                        }
+                        isPlaying.get(sessionId).set(false);
+                        return Mono.empty();
+                    }
 
-                            // 重置发送时间以确保第一帧立即发送
-                            lastFrameSentTime.computeIfAbsent(sessionId, k -> new AtomicLong(0)).set(0);
-
-                            // 发送所有Opus帧
-                            for (int i = 0; i < opusFrames.size(); i++) {
-                                sendOpusFrame(session, opusFrames.get(i));
-                            }
-                            isPlaying.put(sessionId, false);
-
-                            // 如果是结束消息，发送TTS结束消息
-                            if (isLast) {
-                                return sendStop(session);
-                            }
-
-                            return Mono.empty();
-                        })
-                        .onErrorResume(error -> {
-                            logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);
-                            // 如果发生错误但仍然是结束消息，确保发送stop
-                            if (isLast) {
-                                return sendStop(session);
-                            }
-                            isPlaying.put(sessionId, false);
-                            return Mono.empty();
-                        }));
+                    // 使用Flux.range创建一个发送序列
+                    return Flux.range(0, opusFrames.size())
+                            // 使用固定间隔发送帧
+                            .delayElements(Duration.ofMillis(OPUS_FRAME_INTERVAL_MS))
+                            // 确保在boundedElastic调度器上执行，以避免阻塞
+                            .publishOn(Schedulers.boundedElastic())
+                            // 只有当会话仍在播放时才发送
+                            .takeWhile(i -> isPlaying(sessionId))
+                            // 发送每一帧
+                            .flatMap(i -> {
+                                // 更新活跃时间
+                                sessionManager.updateLastActivity(sessionId); // 更新活动时间
+                                // 发送帧数据
+                                byte[] frame = opusFrames.get(i);
+                                return sendOpusFrame(session, frame);
+                            })
+                            // 完成后发送结束消息
+                            .then(Mono.fromRunnable(() -> {
+                                isPlaying.get(sessionId).set(false);
+                            }))
+                            .then(isLast ? sendStop(session) : Mono.empty());
+                })
+                .onErrorResume(error -> {
+                    logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);
+                    isPlaying.get(sessionId).set(false);
+                    // 如果发生错误但仍然是结束消息，确保发送stop
+                    if (isLast) {
+                        return sendStop(session);
+                    }
+                    return Mono.empty();
+                }));
     }
 
     /**
-     * 发送Opus帧数据，包含速率控制
+     * 发送Opus帧数据
      */
-    private void sendOpusFrame(WebSocketSession session, byte[] opusFrame) {
+    private Mono<Void> sendOpusFrame(WebSocketSession session, byte[] opusFrame) {
+        String sessionId = session.getId();
+        
         try {
-            String sessionId = session.getId();
-            AtomicLong lastSent = lastFrameSentTime.computeIfAbsent(
-                    sessionId, k -> new AtomicLong(0));
-
-            // 计算需要等待的时间
-            long currentTime = System.currentTimeMillis();
-            long lastTime = lastSent.get();
-            long waitTime = 0;
-
-            if (lastTime > 0) {
-                waitTime = OPUS_FRAME_INTERVAL_MS - (currentTime - lastTime);
-                if (waitTime > 0) {
-                    if (waitTime <= 0) {
-                        return;
-                    }
-
-                    long nanos = TimeUnit.MILLISECONDS.toNanos(waitTime);
-                    final long start = System.nanoTime();
-                    final long end = start + nanos;
-                    long sleepTime;
-
-                    // 使用分段睡眠策略，提高精度
-                    while (true) {
-                        sleepTime = end - System.nanoTime();
-                        if (sleepTime <= 0) {
-                            break;
-                        }
-
-                        if (sleepTime > 10_000_000) { // 大于10毫秒，使用Thread.sleep
-                            try {
-                                Thread.sleep(Math.max(1, sleepTime / 1_000_000 - 1));
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                return;
-                            }
-                        } else if (sleepTime > 1_000_000) { // 大于1毫秒，使用LockSupport.parkNanos
-                            LockSupport.parkNanos(sleepTime - 500_000); // 留出500微秒的余量
-                        } else { // 小于1毫秒，使用自旋
-                            // 自旋等待剩余时间
-                            long spinStart = System.nanoTime();
-                            while (System.nanoTime() - spinStart < sleepTime) {
-                                // 空循环，让CPU自旋
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
             // 直接发送原始Opus帧数据作为二进制消息
             WebSocketMessage wsMessage = session.binaryMessage(
                     factory -> factory.wrap(opusFrame));
-
-            // 使用错误处理，避免因连接关闭导致的错误日志
-            session.send(Mono.just(wsMessage))
-                    .subscribe(
-                            null,
-                            error -> {
-                                // 只有当不是连接关闭错误时才记录日志
-                                if (!(error instanceof reactor.netty.channel.AbortedException) ||
-                                        !error.getMessage()
-                                                .contains("Connection has been closed BEFORE send operation")) {
-                                    logger.error("发送Opus帧失败", error);
-                                } else {
-                                    // 标记播放已停止
-                                    isPlaying.put(sessionId, false);
-                                }
-                            });
-
-            // 更新最后发送时间
-            lastSent.set(System.currentTimeMillis());
-
+            
+            return session.send(Mono.just(wsMessage))
+                    .onErrorResume(error -> {
+                        // 只有当不是连接关闭错误时才记录日志
+                        if (!(error instanceof reactor.netty.channel.AbortedException) ||
+                                !error.getMessage().contains("Connection has been closed BEFORE send operation")) {
+                            logger.error("发送Opus帧失败", error);
+                        } else {
+                            // 标记播放已停止
+                            isPlaying.get(sessionId).set(false);
+                        }
+                        return Mono.empty();
+                    });
         } catch (Exception e) {
-            logger.error("发送Opus帧失败", e);
+            logger.error("创建Opus帧消息失败", e);
+            return Mono.empty();
         }
     }
 
@@ -306,5 +252,6 @@ public class AudioService {
     public void cleanupSession(String sessionId) {
         lastFrameSentTime.remove(sessionId);
         isPlaying.remove(sessionId);
+        opusProcessor.cleanup(sessionId);
     }
 }
