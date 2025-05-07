@@ -300,18 +300,20 @@ export default {
       cachedTtsConfigs: {}, // 缓存TTS配置
       cachedVoices: {}, // 缓存语音列表
       promptTemplates: [], // 提示词模板列表
-      allProvidersLoaded: false, // 是否已经加载了所有供应商的语音
     }
   },
   mounted() {
+    this.loadEdgeVoices();
+      
+    this.loadAliyunVoices();
+        
+    this.loadVolcengineVoices();
+
     this.getData()
     // 初始化设置Edge默认TTS配置
     this.selectedTtsId = "edge_default";
     // 加载提示词模板列表
     this.loadTemplates();
-    
-    // 预加载所有供应商的语音列表
-    this.preloadAllProviderVoices();
   },
   computed: {
     // 获取当前选中提供商的语音列表
@@ -341,24 +343,7 @@ export default {
       return undefined;
     }
   },
-  methods: {
-    // 预加载所有供应商的语音列表
-    preloadAllProviderVoices() {
-      // 先加载Edge语音，因为它是默认的
-      this.loadEdgeVoices();
-      
-      // 设置一个短暂的延迟后加载其他供应商的语音，避免同时发起太多请求
-      setTimeout(() => {
-        this.loadAliyunVoices();
-        
-        // 再延迟一点加载火山引擎语音
-        setTimeout(() => {
-          this.loadVolcengineVoices();
-          this.allProvidersLoaded = true;
-        }, 500);
-      }, 500);
-    },
-    
+  methods: {  
     // 处理标签页切换
     handleTabChange(key) {
       this.activeTabKey = key;
