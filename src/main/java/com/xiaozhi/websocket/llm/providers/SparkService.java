@@ -1,12 +1,16 @@
 package com.xiaozhi.websocket.llm.providers;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.xiaozhi.websocket.llm.api.AbstractLlmService;
+import com.xiaozhi.utils.JsonUtil;
 import com.xiaozhi.websocket.llm.api.AbstractOpenAiLlmService;
 import com.xiaozhi.websocket.llm.api.ToolCallInfo;
+import com.xiaozhi.websocket.llm.memory.ModelContext;
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
+import com.xiaozhi.websocket.llm.tool.function.bean.FunctionLlmDescription;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +97,30 @@ public class SparkService extends AbstractOpenAiLlmService {
         } catch (Exception e) {
             throw new IOException("星火API请求失败: " + e.getMessage(), e);
         }
+    }
+
+    @NotNull
+    protected String buildRequestJson(List<Map<String, Object>> messages, ModelContext modelContext) {
+        // 构建请求体
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("stream", true);
+        requestBody.put("messages", messages);
+
+        //星火只有个别模型支持tools，这里做个判断，否则会导致模型调用报错
+        if(!model.equalsIgnoreCase("4.0Ultra") && !model.equalsIgnoreCase("generalv3.5")){
+            return JsonUtil.toJson(requestBody);
+        }
+        FunctionSessionHolder functionSessionHolder = modelContext.getFunctionSessionHolder();
+        if(functionSessionHolder != null){
+            List<FunctionLlmDescription> tools = functionSessionHolder.getAllFunctionLlmDescription();
+            if(!tools.isEmpty()){
+                requestBody.put("tools", tools);
+            }
+        }
+
+        // 转换为JSON
+        return JsonUtil.toJson(requestBody);
     }
 
     protected Request buildRequest(String jsonBody) {

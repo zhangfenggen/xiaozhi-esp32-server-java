@@ -7,13 +7,16 @@ import com.xiaozhi.websocket.llm.tool.ActionType;
 import com.xiaozhi.websocket.llm.tool.ToolResponse;
 import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
 import com.xiaozhi.websocket.llm.tool.function.bean.FunctionCallTool;
-import okhttp3.OkHttpClient;
 import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -295,22 +298,23 @@ public abstract class AbstractLlmService implements LlmService {
             if(functionCallTool!=null){
                 FunctionCallTool.FunctionParams functionParams = new FunctionCallTool.FunctionParams(modelContext, toolCallInfo.getArguments());
                 ToolResponse toolResponse = functionCallTool.getFunction().apply(functionParams);
-                logger.debug("Function call: {} with arguments: {} result： {}", toolCallInfo.getName(), toolCallInfo.getArguments(), toolResponse);
+                logger.debug("Function call: Llm: {} deviceId: {} roleId: {} function: {} with arguments: {} result： {}", model,
+                        modelContext.getDeviceId(), modelContext.getRoleId(), toolCallInfo.getName(), toolCallInfo.getArguments(), toolResponse);
                 if(ActionType.REQLLM.equals(toolResponse.getActionType())){
                     try{
                         submitFunctionResultToLlm(modelContext, toolCallInfo, streamListener, messages, toolResponse);
                     }catch (UnsupportedOperationException e){
-                        logger.error("llm: {} 不支持function总结， 对需总结的function：{} 不进行总结，直接返回", model, toolCallInfo.getName());
+                        logger.error("Function call: Llm: {} 不支持function总结， 对需总结的function：{} 不进行总结，直接返回", model, toolCallInfo.getName());
                         streamListener.onToken(toolResponse.getResponse());
                     }
                 }else if(ActionType.RESPONSE.equals(toolResponse.getActionType())) {
                     streamListener.onToken(toolResponse.getResponse());
                 }else if(ActionType.ERROR.equals(toolResponse.getActionType())) {
-                    streamListener.onToken(toolResponse.getResult());
+                    streamListener.onToken(toolResponse.getResponse());
                 }
                 return toolResponse;
             }else{
-                logger.error("llm回调未找到函数: 函数名: {} with arguments: {} toolId: {} ", toolCallInfo.getName(), toolCallInfo.getArguments(), toolCallInfo.getTool_call_id());
+                logger.error("Function call: Llm: {} 回调未找到函数: 函数名: {} with arguments: {} toolId: {} ", model, toolCallInfo.getName(), toolCallInfo.getArguments(), toolCallInfo.getTool_call_id());
             }
         }
         return null;

@@ -137,8 +137,8 @@ public abstract class AbstractOpenAiLlmService extends AbstractLlmService {
                                         Object toolCallsData = delta.get("tool_calls");
                                         toolCallInfo = getToolCallInfo(toolCallInfo, toolCallsData);
                                     }
-                                    //处理普通消息内容
-                                    if(delta.containsKey("content")){
+                                    //处理普通消息内容(有的ai，比如腾讯hunyuan-lite，工具调消息里还给了总结思考文本，这里就丢弃不要了)
+                                    if(toolCallInfo == null && delta.containsKey("content")){
                                         String content = (String) delta.get("content");
                                         if (content != null && !content.isEmpty()) {
                                             streamListener.onToken(content);
