@@ -9,7 +9,7 @@
     </parent>
     <groupId>com.xiaozhi.server</groupId>
     <artifactId>xiaozhi.server</artifactId>
-    <version>2.7.40</version>
+    <version>2.7.41</version>
     <name>xiaozhi-server</name>
     <description></description>
 
