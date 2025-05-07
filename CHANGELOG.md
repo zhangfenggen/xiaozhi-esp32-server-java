@@ -1,4 +1,25 @@
 # 变更日志
+## [2.7.41] - 2025-05-07
+
+### 修复
+- fix:修复添加角色时默认没有应用的问题 update:音色缓存在进入角色页面提前加载，提高用户体验
+- fix:修复退出时不会完整播放句子的问题
+- fix:修复退出时不会完整播放句子的问题
+- fix:修复意图识别退出没有正常调用问题
+
+### 其他变更
+- chore: update version to 2.7.41 [skip ci]
+- update:处理信号输出
+- docs: update changelog for v2.7.40 [skip ci]
+- chore: update version to 2.7.40 [skip ci]
+- refactor:重构了音频播放逻辑，现在播放更加流畅了
+- update:删除重复css
+- fix:修复添加角色时默认没有应用的问题 update:音色缓存在进入角色页面提前加载，提高用户体验
+- docs: update changelog for v2.7.39 [skip ci]
+- chore: update version to 2.7.39 [skip ci]
+- docs: update changelog for v2.7.38 [skip ci]
+- chore: update version to 2.7.38 [skip ci]
+
 ## [2.7.40] - 2025-05-07
 
 ### 修复
