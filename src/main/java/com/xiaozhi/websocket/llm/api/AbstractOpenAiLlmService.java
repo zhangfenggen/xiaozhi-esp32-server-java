@@ -124,7 +124,6 @@ public abstract class AbstractOpenAiLlmService extends AbstractLlmService {
                     }
                     if (line.startsWith("data: ")) {
                         String jsonData = line.substring(6);
-                        logger.debug("jsonData: {}", jsonData);
                         try {
                             Map<String, Object> data = objectMapper.readValue(jsonData, new TypeReference<Map<String, Object>>() {});
                             List<Map<String, Object>> choices = (List<Map<String, Object>>) data.get("choices");
