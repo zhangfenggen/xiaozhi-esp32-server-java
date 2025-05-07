@@ -1,9 +1,9 @@
 package com.xiaozhi.websocket.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.utils.OpusProcessor;
-import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,9 +35,6 @@ public class AudioService {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private TtsServiceFactory ttsFactory;
 
     @Autowired
     private OpusProcessor opusProcessor;
@@ -91,6 +88,11 @@ public class AudioService {
      */
     public Mono<Void> sendStop(WebSocketSession session) {
         String sessionId = session.getId();
+        // 检查是否需要关闭会话
+        if (sessionManager.isCloseAfterChat(sessionId)) {
+            sessionManager.closeSession(sessionId);
+            return Mono.empty();
+        }
         Map<String, Object> message = new HashMap<>();
         message.put("type", "tts");
         message.put("state", "stop");
@@ -100,8 +102,8 @@ public class AudioService {
             // 标记播放结束
             isPlaying.put(sessionId, false);
             return session.send(Mono.just(session.textMessage(json)));
-        } catch (Exception e) {
-            logger.error("发送停止消息失败", e);
+        } catch (JsonProcessingException e) {
+            logger.error("发送停止消息失败: JSON处理错误", e);
             isPlaying.put(sessionId, false);
             return Mono.empty();
         }
@@ -204,11 +206,6 @@ public class AudioService {
                             }
 
                             return Mono.empty();
-                        })
-                        .doFinally(signalType -> {
-                            if (sessionManager.isCloseAfterChat(sessionId)) {
-                                sessionManager.closeSession(sessionId);
-                            }
                         })
                         .onErrorResume(error -> {
                             logger.error("处理音频消息时发生错误 - SessionId: {}", sessionId, error);

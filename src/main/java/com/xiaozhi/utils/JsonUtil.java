@@ -1,6 +1,7 @@
 package com.xiaozhi.utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +33,17 @@ public class JsonUtil {
 
         try {
             pojo = OBJECT_MAPPER.readValue(json, type);
+        } catch (Exception e) {
+            logger.error("JsonUtil.toJson error", e);
+        }
+        return pojo;
+    }
+
+    public static <T> T fromJson(String json, TypeReference<T> valueTypeRef) {
+        T pojo = null;
+
+        try {
+            pojo = OBJECT_MAPPER.readValue(json, valueTypeRef);
         } catch (Exception e) {
             logger.error("JsonUtil.toJson error", e);
         }

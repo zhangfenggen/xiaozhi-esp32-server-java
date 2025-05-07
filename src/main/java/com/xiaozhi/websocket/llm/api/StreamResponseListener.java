@@ -34,11 +34,8 @@ public interface StreamResponseListener {
      *
      * @param allMessages 当前交互的所有消息列表内容
      * @param llmService 当前处理消息的llmService
-     * @param toolCallInfo 如果对话触发了工具调用，则会传入toolCallInfo
      */
-    default void onFinal(List<Map<String, Object>> allMessages, LlmService llmService, ToolCallInfo toolCallInfo) {
-        //do nothing
-    }
+    void onFinal(List<Map<String, Object>> allMessages, LlmService llmService);
 
     /**
      * 当发生错误时调用

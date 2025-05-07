@@ -17,7 +17,6 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import javax.annotation.Resource;
 import java.util.Map;
 
-// Change to NONE to avoid starting a web server
 @SpringBootTest
 @WebAppConfiguration
 public class IotServiceTest {
@@ -96,44 +95,49 @@ public class IotServiceTest {
         JsonNode descriptorJsonNode = objectMapper.readTree(descriptorMessage);
         iotService.handleDeviceDescriptors(session_id, descriptorJsonNode);
         Map<String, IotDescriptor> allIotDescriptor = sessionManager.getAllIotDescriptor(session_id);
-        logger.info("allIotDescriptor: {}", allIotDescriptor);
+//        logger.info("allIotDescriptor: {}", allIotDescriptor);
 
         //test statesMessage
-        String statesMessage = "[{\"name\":\"Speaker\",\"state\":{\"volume\":70}},{\"name\":\"Screen\",\"state\":{\"theme\":\"dark\",\"brightness\":75}}]";
+        String statesMessage = "[{\"name\":\"Screen\",\"state\":{\"theme\":\"dark\",\"brightness\":55}}]";
         iotService.handleDeviceStates(session_id, objectMapper.readTree(statesMessage));
-        logger.info("after statesMessage allIotDescriptor: {}", allIotDescriptor);
+//        logger.info("after statesMessage allIotDescriptor: {}", allIotDescriptor);
 
         //test getIotStatus
-        logger.info("iotDescriptor Speaker volume: {}", iotService.getIotStatus(session_id, "Speaker", "volume"));
-        logger.info("iotDescriptor Screen brightness: {}", iotService.getIotStatus(session_id, "Screen", "brightness"));
-        logger.info("iotDescriptor Screen theme: {}", iotService.getIotStatus(session_id, "Screen", "theme"));
+//        logger.info("iotDescriptor Speaker volume: {}", iotService.getIotStatus(session_id, "Speaker", "volume"));
+//        logger.info("iotDescriptor Screen brightness: {}", iotService.getIotStatus(session_id, "Screen", "brightness"));
+//        logger.info("iotDescriptor Screen theme: {}", iotService.getIotStatus(session_id, "Screen", "theme"));
 
         //test setIotStatus
-        iotService.setIotStatus(session_id, "Speaker", "volume", 80);
-        iotService.setIotStatus(session_id, "Screen", "brightness", 80);
-        iotService.setIotStatus(session_id, "Screen", "theme", "dark");
-        logger.info("after statesMessage allIotDescriptor: {}", allIotDescriptor);
+//        iotService.setIotStatus(session_id, "Speaker", "volume", 80);
+//        iotService.setIotStatus(session_id, "Screen", "brightness", 80);
+//        iotService.setIotStatus(session_id, "Screen", "theme", "dark");
+//        logger.info("after statesMessage allIotDescriptor: {}", allIotDescriptor);
 
         //test FunctionSessionHolder
         FunctionSessionHolder functionSessionHolder = sessionManager.getFunctionSessionHolder(session_id);
-        logger.info("functionSessionHolder getAllFunctionName: {}", functionSessionHolder.getAllFunctionName());
-        logger.info("functionSessionHolder getAllFunctions: {}", functionSessionHolder.getAllFunction());
-        logger.info("functionSessionHolder getAllFunctionLlmDesc: {}", functionSessionHolder.getAllFunctionLlmDescription());
+//        logger.info("functionSessionHolder getAllFunctionName: {}", functionSessionHolder.getAllFunctionName());
+//        logger.info("functionSessionHolder getAllFunctions: {}", functionSessionHolder.getAllFunction());
+//        logger.info("functionSessionHolder getAllFunctionLlmDesc: {}", functionSessionHolder.getAllFunctionLlmDescription());
 
         //发起函数调用
         SysDevice sysDevice = new SysDevice();
         sysDevice.setSessionId(session_id);
         sysDevice.setDeviceId("94:a9:90:2b:de:fc");
-        sysDevice.setModelId(6);
-//        llmManager.chatStream(sysDevice, "现在屏幕亮度多少？", response -> {
+        sysDevice.setRoleId(1);
+        sysDevice.setModelId(8);
+        llmManager.chatStream(sysDevice, "查询当前屏幕的亮度", response -> {
+            logger.info("response: {}", response);
+        });
+//        llmManager.chatStream(sysDevice, "小智，再见", response -> {
 //            logger.info("response: {}", response);
 //        });
+
 //        llmManager.chatStream(sysDevice, "请设置屏幕的主题为dark", response -> {
 //            logger.info("response: {}", response);
 //        });
-        llmManager.chatStream(sysDevice, "我累了，去睡觉了，拜拜", response -> {
-            logger.info("response: {}", response);
-        });
+//        llmManager.chatStream(sysDevice, "我累了，去睡觉了，拜拜", response -> {
+//            logger.info("response: {}", response);
+//        });
 //        llmManager.chatStream(sysDevice, "你好，小智", response -> {
 //            logger.info("response: {}", response);
 //        });
