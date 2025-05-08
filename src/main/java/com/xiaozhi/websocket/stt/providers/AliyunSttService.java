@@ -6,7 +6,6 @@ import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.utils.AudioUtils;
 import com.xiaozhi.websocket.stt.SttService;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,16 +47,15 @@ public class AliyunSttService implements SttService {
 
     public Flux<String> streamRecognition(Flux<byte[]> audioStream) {
         Sinks.Many<String> resultSink = Sinks.many().multicast().onBackpressureBuffer();
-        
+
         Flowable<ByteBuffer> rxAudioStream = Flowable.create(emitter -> {
             audioStream.subscribe(
-                bytes -> {
-                    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                    emitter.onNext(buffer);
-                },
-                emitter::onError,
-                emitter::onComplete
-            );
+                    bytes -> {
+                        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                        emitter.onNext(buffer);
+                    },
+                    emitter::onError,
+                    emitter::onComplete);
         }, BackpressureStrategy.BUFFER);
 
         // 创建识别参数
@@ -70,24 +68,17 @@ public class AliyunSttService implements SttService {
 
         // 创建识别器
         Recognition recognizer = new Recognition();
-        
+
         // 在单独的线程中执行流式识别，避免阻塞
         // 使用Reactor的Schedulers来管理线程
         Schedulers.boundedElastic().schedule(() -> {
             try {
                 recognizer.streamCall(param, rxAudioStream)
-                    .blockingForEach(result -> {
-                        if (result.isSentenceEnd()) {
-                            String text = result.getSentence().getText();
-                            logger.info("识别结果（完成）: {}", text);
-                            resultSink.tryEmitNext(text);
-                        } else {
-                            String text = result.getSentence().getText();
-                            logger.debug("识别结果（中间）: {}", text);
-                            resultSink.tryEmitNext(text);
-                        }
-                    });
-                
+                        .blockingForEach(result -> {
+                                String text = result.getSentence().getText();
+                                resultSink.tryEmitNext(text);
+                        });
+
                 // 识别完成
                 resultSink.tryEmitComplete();
             } catch (Exception e) {

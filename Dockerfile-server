@@ -23,11 +23,12 @@ COPY ./src ./src
 COPY ./db ./db
 COPY pom.xml ./
 # 构建应用
-RUN mvn -Dmaven.repo.local=/root/.m2/repository clean package -DskipTests
+RUN mvn -Dmaven.repo.local=/root/.m2/repository package -DskipTests
 
-# 提取版本号以便后续使用
-RUN APP_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) && \
-    echo "APP_VERSION=${APP_VERSION}" > /build/app_version.env
+# 正确提取项目版本号 - 使用更精确的grep模式匹配项目版本而非父项目版本
+RUN APP_VERSION=$(grep -A1 "<artifactId>xiaozhi.server</artifactId>" pom.xml | grep "<version>" | sed -e 's/<version>//' -e 's/<\/version>//' -e 's/[[:space:]]//g') && \
+    echo "APP_VERSION=${APP_VERSION}" > /build/app_version.env && \
+    cat /build/app_version.env
 
 # 确保模型目录存在
 RUN mkdir -p /build/models
@@ -77,11 +78,14 @@ COPY --from=builder /build/app_version.env /app/
 # 复制模型文件夹
 COPY --from=builder /build/models /app/models
 
-# 设置启动脚本
-RUN echo '#!/bin/sh\n\
-source /app/app_version.env\n\
+# 设置启动脚本 - 使用 . 代替 source，并确保使用 bash
+RUN echo '#!/bin/bash\n\
+if [ -f /app/app_version.env ]; then\n\
+  . /app/app_version.env\n\
+fi\n\
+echo "Starting application version: ${APP_VERSION}"\n\
 java -Xms512m -Xmx1024m -jar /app/xiaozhi.server-${APP_VERSION}.jar\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# 使用启动脚本
-CMD ["/app/start.sh"]
+# 使用 bash 执行启动脚本
+CMD ["/bin/bash", "/app/start.sh"]

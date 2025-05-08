@@ -4,6 +4,8 @@ import io.github.jaredmdobson.concentus.OpusEncoder;
 import io.github.jaredmdobson.concentus.OpusApplication;
 import io.github.jaredmdobson.concentus.OpusDecoder;
 import io.github.jaredmdobson.concentus.OpusException;
+import io.github.jaredmdobson.concentus.OpusSignal;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -12,154 +14,688 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.PreDestroy;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 
 @Component
 public class OpusProcessor {
     private static final Logger logger = LoggerFactory.getLogger(OpusProcessor.class);
 
-    // 存储每个会话的解码器
-    private final ConcurrentHashMap<String, OpusDecoder> sessionDecoders = new ConcurrentHashMap<>();
+    // 缓存
+    private final ConcurrentHashMap<String, OpusDecoder> decoders = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, OpusEncoder> encoders = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, short[]> overlaps = new ConcurrentHashMap<>();
 
-    // 默认的帧大小
-    private static final int DEFAULT_FRAME_SIZE = 960; // Opus典型帧大小
-
-    // 默认采样率和通道数
-    private static final int DEFAULT_SAMPLE_RATE = 16000;
-    private static final int DEFAULT_CHANNELS = 1;
+    // 常量
+    private static final int FRAME_SIZE = 960;
+    private static final int SAMPLE_RATE = AudioUtils.SAMPLE_RATE;
+    private static final int CHANNELS = AudioUtils.CHANNELS;
+    public static final int OPUS_FRAME_DURATION_MS = 60;
+    private static final int MAX_SIZE = 1275;
+    
+    // 预热帧数量 - 添加几个静音帧来预热编解码器
+    private static final int PREWARM_FRAMES = 2;
 
     /**
-     * 解码Opus帧为PCM数据
-     * 
-     * @param sessionId 会话ID，用于复用解码器
-     * @param opusData  Opus编码数据
-     * @return 解码后的PCM字节数组
+     * Opus转PCM字节数组
      */
-    public byte[] decodeOpusFrameToPcm(String sessionId, byte[] opusData) throws OpusException {
-        OpusDecoder decoder = getSessionDecoder(sessionId);
-        short[] pcmBuffer = new short[DEFAULT_FRAME_SIZE];
-        int samplesDecoded = decoder.decode(opusData, 0, opusData.length, pcmBuffer, 0, DEFAULT_FRAME_SIZE, false);
-
-        // 只为实际解码的样本分配内存
-        byte[] pcmBytes = new byte[samplesDecoded * 2];
-        for (int i = 0; i < samplesDecoded; i++) {
-            pcmBytes[i * 2] = (byte) (pcmBuffer[i] & 0xFF);
-            pcmBytes[i * 2 + 1] = (byte) ((pcmBuffer[i] >> 8) & 0xFF);
+    public byte[] opusToPcm(String sid, byte[] data) throws OpusException {
+        if (data == null || data.length == 0) {
+            return new byte[0];
         }
 
-        return pcmBytes;
+        try {
+            OpusDecoder decoder = getDecoder(sid);
+            short[] buf = new short[FRAME_SIZE * 6];
+            int samples = decoder.decode(data, 0, data.length, buf, 0, buf.length, false);
+
+            byte[] pcm = new byte[samples * 2];
+            for (int i = 0; i < samples; i++) {
+                pcm[i * 2] = (byte) (buf[i] & 0xFF);
+                pcm[i * 2 + 1] = (byte) ((buf[i] >> 8) & 0xFF);
+            }
+
+            return pcm;
+        } catch (OpusException e) {
+            logger.warn("解码失败: {}", e.getMessage());
+            resetDecoder(sid);
+            throw e;
+        }
     }
 
     /**
-     * 解码Opus帧为PCM数据（返回short数组）
-     * 
-     * @param sessionId 会话ID，用于复用解码器
-     * @param opusData  Opus编码数据
-     * @return 解码后的PCM short数组
+     * Opus转short数组
      */
-    public short[] decodeOpusFrame(String sessionId, byte[] opusData) throws OpusException {
-        OpusDecoder decoder = getSessionDecoder(sessionId);
-        short[] pcmBuffer = new short[DEFAULT_FRAME_SIZE];
-        int samplesDecoded = decoder.decode(opusData, 0, opusData.length, pcmBuffer, 0, DEFAULT_FRAME_SIZE, false);
-
-        // 如果解码的样本数小于缓冲区大小，创建一个适当大小的数组
-        if (samplesDecoded < DEFAULT_FRAME_SIZE) {
-            short[] rightSizedBuffer = new short[samplesDecoded];
-            System.arraycopy(pcmBuffer, 0, rightSizedBuffer, 0, samplesDecoded);
-            return rightSizedBuffer;
+    public short[] opusToShort(String sid, byte[] data) throws OpusException {
+        if (data == null || data.length == 0) {
+            return new short[0];
         }
 
-        return pcmBuffer;
+        try {
+            OpusDecoder decoder = getDecoder(sid);
+            short[] buf = new short[FRAME_SIZE * 6];
+            int samples = decoder.decode(data, 0, data.length, buf, 0, buf.length, false);
+
+            if (samples < buf.length) {
+                short[] result = new short[samples];
+                System.arraycopy(buf, 0, result, 0, samples);
+                return result;
+            }
+
+            return buf;
+        } catch (OpusException e) {
+            logger.warn("解码失败: {}", e.getMessage());
+            resetDecoder(sid);
+            throw e;
+        }
     }
 
     /**
-     * 获取会话的Opus解码器（如果不存在则创建）
+     * OGG转PCM
      */
-    public OpusDecoder getSessionDecoder(String sessionId) {
-        return sessionDecoders.computeIfAbsent(sessionId, k -> {
+    public byte[] oggToPcm(String sid, byte[] data) {
+        if (data == null || data.length == 0) {
+            return new byte[0];
+        }
+
+        try {
+            // 检查OGG格式
+            if (data.length < 4 || data[0] != 'O' || data[1] != 'g' || data[2] != 'g' || data[3] != 'S') {
+                try {
+                    // 尝试直接解码
+                    return opusToPcm(sid, data);
+                } catch (OpusException e) {
+                    logger.warn("非OGG格式解码失败: {}", e.getMessage());
+                    return new byte[0];
+                }
+            }
+
+            // 解析OGG
+            List<byte[]> packets = parseOgg(data);
+
+            if (packets.isEmpty()) {
+                logger.warn("OGG中无数据包");
+                return new byte[0];
+            }
+
+            // 解码所有包
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            int count = 0;
+
+            for (byte[] packet : packets) {
+                try {
+                    // 跳过Opus头
+                    if (packet.length > 8 && packet[0] == 'O' && packet[1] == 'p'
+                            && packet[2] == 'u' && packet[3] == 's') {
+                        continue;
+                    }
+
+                    byte[] pcm = opusToPcm(sid, packet);
+                    if (pcm.length > 0) {
+                        out.write(pcm);
+                        count++;
+                    }
+                } catch (OpusException e) {
+                    logger.warn("包解码失败: {}", e.getMessage());
+                }
+            }
+
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            logger.error("OGG解码错误", e);
+            return new byte[0];
+        }
+    }
+
+    /**
+     * 解析OGG格式
+     */
+    private List<byte[]> parseOgg(byte[] data) {
+        List<byte[]> packets = new ArrayList<>();
+        ByteArrayInputStream in = new ByteArrayInputStream(data);
+
+        byte[] pattern = new byte[4];
+        byte[] segments = new byte[255];
+
+        while (in.available() > 0) {
             try {
-                return new OpusDecoder(DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS);
+                // 读取OGG标识
+                if (in.read(pattern, 0, 4) < 4)
+                    break;
+
+                // 检查标识
+                if (pattern[0] != 'O' || pattern[1] != 'g' || pattern[2] != 'g' || pattern[3] != 'S') {
+                    // 查找下一个标识
+                    int b;
+                    boolean found = false;
+                    while ((b = in.read()) != -1) {
+                        if (b == 'O') {
+                            if (in.read(pattern, 0, 3) < 3)
+                                break;
+                            if (pattern[0] == 'g' && pattern[1] == 'g' && pattern[2] == 'S') {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!found)
+                        break;
+                }
+
+                // 跳过版本和标志
+                in.skip(2);
+
+                // 跳过粒度位置、序列号、页序号、校验和
+                in.skip(16);
+
+                // 读取分段数
+                int segCount = in.read();
+                if (segCount == -1)
+                    break;
+
+                // 读取分段表
+                if (in.read(segments, 0, segCount) < segCount)
+                    break;
+
+                // 计算数据长度
+                int dataLen = 0;
+                for (int i = 0; i < segCount; i++) {
+                    dataLen += segments[i] & 0xFF;
+                }
+
+                // 读取数据
+                byte[] pageData = new byte[dataLen];
+                int read = in.read(pageData, 0, dataLen);
+                if (read < dataLen) {
+                    byte[] actual = new byte[read];
+                    System.arraycopy(pageData, 0, actual, 0, read);
+                    pageData = actual;
+                }
+
+                // 解析数据包
+                int offset = 0;
+                int packetLen = 0;
+
+                for (int i = 0; i < segCount; i++) {
+                    int segLen = segments[i] & 0xFF;
+                    packetLen += segLen;
+
+                    // 如果段长不是255，表示包结束
+                    if (segLen != 255) {
+                        if (packetLen > 0 && offset + packetLen <= pageData.length) {
+                            byte[] packet = new byte[packetLen];
+                            System.arraycopy(pageData, offset, packet, 0, packetLen);
+                            packets.add(packet);
+                        }
+                        offset += packetLen;
+                        packetLen = 0;
+                    }
+                }
+
+                // 处理最后一个包
+                if (packetLen > 0 && offset + packetLen <= pageData.length) {
+                    byte[] packet = new byte[packetLen];
+                    System.arraycopy(pageData, offset, packet, 0, packetLen);
+                    packets.add(packet);
+                }
+            } catch (Exception e) {
+                logger.warn("OGG解析错误: {}", e.getMessage());
+            }
+        }
+
+        return packets;
+    }
+
+    /**
+     * 读取Opus文件
+     */
+    public List<byte[]> readOpus(File file) throws IOException {
+        List<byte[]> frames = new ArrayList<>();
+
+        // 检查文件大小
+        long size = file.length();
+        if (size <= 0) {
+            logger.warn("空文件: {}", file.getPath());
+            return frames;
+        }
+
+        try (FileInputStream fis = new FileInputStream(file)) {
+            // 检查文件格式
+            byte[] header = new byte[8];
+            fis.read(header, 0, Math.min(8, (int) size));
+            fis.getChannel().position(0);
+
+            // 检查OGG格式
+            if (isOgg(header)) {
+                return readOgg(file);
+            }
+
+            // 检查原始Opus格式
+            if (isOpusHead(header)) {
+                return readRaw(fis);
+            }
+
+            // 尝试帧格式
+            frames = readFramed(fis);
+            if (!frames.isEmpty()) {
+                return frames;
+            }
+
+            return readWhole(file);
+        } catch (Exception e) {
+            logger.error("读取失败: {}", file.getName(), e);
+            return readWhole(file);
+        }
+    }
+
+    /**
+     * 检查OGG格式
+     */
+    private boolean isOgg(byte[] data) {
+        return data.length >= 4 &&
+                data[0] == 'O' && data[1] == 'g' &&
+                data[2] == 'g' && data[3] == 'S';
+    }
+
+    /**
+     * 检查Opus头
+     */
+    private boolean isOpusHead(byte[] data) {
+        return data.length >= 8 &&
+                data[0] == 'O' && data[1] == 'p' &&
+                data[2] == 'u' && data[3] == 's' &&
+                data[4] == 'H' && data[5] == 'e' &&
+                data[6] == 'a' && data[7] == 'd';
+    }
+
+    /**
+     * 读取OGG文件
+     */
+    private List<byte[]> readOgg(File file) throws IOException {
+        // 使用Files.readAllBytes代替FileInputStream.readAllBytes
+        byte[] data = Files.readAllBytes(file.toPath());
+        return parseOgg(data);
+    }
+
+    /**
+     * 读取原始Opus文件
+     */
+    private List<byte[]> readRaw(FileInputStream fis) throws IOException {
+        List<byte[]> frames = new ArrayList<>();
+
+        // 跳过头部
+        fis.skip(19);
+
+        byte[] buffer = new byte[4096];
+        int read;
+
+        while ((read = fis.read(buffer)) > 0) {
+            byte[] frame = new byte[read];
+            System.arraycopy(buffer, 0, frame, 0, read);
+            frames.add(frame);
+        }
+
+        return frames;
+    }
+
+    /**
+     * 读取帧格式文件
+     */
+    private List<byte[]> readFramed(FileInputStream fis) throws IOException {
+        // 尝试2字节帧头
+        fis.getChannel().position(0);
+        List<byte[]> frames = readFrames(fis, 2);
+
+        if (!frames.isEmpty()) {
+            logger.info("2字节帧头成功: {} 帧", frames.size());
+            return frames;
+        }
+
+        // 尝试4字节帧头
+        fis.getChannel().position(0);
+        frames = readFrames(fis, 4);
+
+        if (!frames.isEmpty()) {
+            logger.info("4字节帧头成功: {} 帧", frames.size());
+            return frames;
+        }
+
+        // 尝试固定大小帧
+        fis.getChannel().position(0);
+        frames = readFixed(fis, 80);
+
+        if (!frames.isEmpty()) {
+            logger.info("固定帧成功: {} 帧", frames.size());
+        }
+
+        return frames;
+    }
+
+    /**
+     * 读取带帧头的文件
+     */
+    private List<byte[]> readFrames(FileInputStream fis, int headerSize) throws IOException {
+        List<byte[]> frames = new ArrayList<>();
+        byte[] buffer = new byte[MAX_SIZE];
+        byte[] sizeBytes = new byte[headerSize];
+        int good = 0;
+        int bad = 0;
+
+        while (fis.read(sizeBytes, 0, headerSize) == headerSize) {
+            int frameSize = getFrameSize(sizeBytes, headerSize);
+
+            // 检查帧大小
+            if (frameSize <= 0 || frameSize > MAX_SIZE) {
+                bad++;
+                if (bad > 3)
+                    break;
+                continue;
+            }
+
+            // 读取帧
+            int read = fis.read(buffer, 0, frameSize);
+            if (read != frameSize)
+                break;
+
+            byte[] frame = new byte[frameSize];
+            System.arraycopy(buffer, 0, frame, 0, frameSize);
+            frames.add(frame);
+            good++;
+
+            // 5个有效帧就认为格式正确
+            if (good >= 5)
+                return frames;
+        }
+
+        // 帧太少，可能不是正确格式
+        if (good < 5)
+            frames.clear();
+
+        return frames;
+    }
+
+    /**
+     * 获取帧大小
+     */
+    private int getFrameSize(byte[] bytes, int size) {
+        if (size == 2) {
+            return ((bytes[1] & 0xFF) << 8) | (bytes[0] & 0xFF);
+        } else if (size == 4) {
+            return ((bytes[3] & 0xFF) << 24) |
+                    ((bytes[2] & 0xFF) << 16) |
+                    ((bytes[1] & 0xFF) << 8) |
+                    (bytes[0] & 0xFF);
+        }
+        return -1;
+    }
+
+    /**
+     * 读取固定大小帧
+     */
+    private List<byte[]> readFixed(FileInputStream fis, int frameSize) throws IOException {
+        List<byte[]> frames = new ArrayList<>();
+        byte[] buffer = new byte[frameSize];
+
+        int read;
+        while ((read = fis.read(buffer)) == frameSize) {
+            byte[] frame = new byte[frameSize];
+            System.arraycopy(buffer, 0, frame, 0, frameSize);
+            frames.add(frame);
+
+            // 足够多的帧
+            if (frames.size() >= 5)
+                return frames;
+        }
+
+        // 处理最后一帧
+        if (read > 0) {
+            byte[] last = new byte[read];
+            System.arraycopy(buffer, 0, last, 0, read);
+            frames.add(last);
+        }
+
+        return frames;
+    }
+
+    /**
+     * 读取整个文件作为单帧
+     */
+    private List<byte[]> readWhole(File file) throws IOException {
+        List<byte[]> frames = new ArrayList<>();
+
+        // 使用Files.readAllBytes代替FileInputStream.readAllBytes
+        byte[] data = Files.readAllBytes(file.toPath());
+        if (data.length > 0) {
+            frames.add(data);
+            logger.info("整个文件作为单帧: {} 字节", data.length);
+        }
+
+        return frames;
+    }
+
+    /**
+     * 获取解码器
+     */
+    public OpusDecoder getDecoder(String sid) {
+        return decoders.computeIfAbsent(sid, k -> {
+            try {
+                OpusDecoder decoder = new OpusDecoder(SAMPLE_RATE, CHANNELS);
+                decoder.setGain(0);
+                return decoder;
             } catch (OpusException e) {
-                logger.error("创建Opus解码器失败", e);
-                throw new RuntimeException("创建Opus解码器失败", e);
+                logger.error("创建解码器失败", e);
+                throw new RuntimeException("创建解码器失败", e);
             }
         });
     }
 
     /**
-     * 创建一个新的Opus编码器
-     * 
-     * @param sampleRate 采样率
-     * @param channels   通道数
-     * @return 新创建的Opus编码器
+     * 重置解码器
      */
-    private OpusEncoder createEncoder(int sampleRate, int channels) {
+    public void resetDecoder(String sid) {
+        decoders.remove(sid);
         try {
-            OpusEncoder encoder = new OpusEncoder(sampleRate, channels, OpusApplication.OPUS_APPLICATION_AUDIO);
-            encoder.setBitrate(sampleRate); // 设置比特率与采样率相同，更合理
-            return encoder;
-        } catch (OpusException e) {
-            logger.error("创建Opus编码器失败 - 采样率: {}, 通道数: {}", sampleRate, channels, e);
-            throw new RuntimeException("创建Opus编码器失败", e);
+            getDecoder(sid);
+        } catch (Exception e) {
+            logger.error("重置解码器失败", e);
         }
     }
 
     /**
-     * 将PCM数据转换为Opus格式
+     * PCM转Opus
      */
-    public List<byte[]> convertPcmToOpus(String sessionId, byte[] pcmData, int sampleRate, int channels, int frameDurationMs)
-            throws OpusException {
-        // 获取或创建Opus编码器
-        OpusEncoder encoder = createEncoder(sampleRate, channels);
+    public List<byte[]> pcmToOpus(String sid, byte[] pcm) throws OpusException {
+        if (pcm == null || pcm.length == 0) {
+            return new ArrayList<>();
+        }
+
+        // 确保PCM长度是偶数
+        int pcmLen = pcm.length;
+        if (pcmLen % 2 != 0) {
+            pcmLen--;
+        }
 
         // 每帧样本数
-        int frameSize = sampleRate * frameDurationMs / 1000;
+        int frameSize = (SAMPLE_RATE * OPUS_FRAME_DURATION_MS) / 1000;
+        
+        // 确保frameSize与FRAME_SIZE一致
+        if (frameSize != FRAME_SIZE) {
+            frameSize = FRAME_SIZE; // 使用常量值
+        }
 
-        // 处理PCM数据
-        List<byte[]> opusFrames = new ArrayList<>();
-        short[] shortBuffer = new short[frameSize * channels];
-        byte[] opusBuffer = new byte[1275]; // 最大Opus帧大小
+        // 获取编码器
+        OpusEncoder encoder = getEncoder(sid, SAMPLE_RATE, CHANNELS);
 
-        for (int i = 0; i < pcmData.length / 2; i += frameSize * channels) {
-            // 将字节数据转换为short
-            int samplesRead = 0;
-            for (int j = 0; j < frameSize * channels && (i + j) < pcmData.length / 2; j++) {
-                int byteIndex = (i + j) * 2;
-                if (byteIndex + 1 < pcmData.length) {
-                    shortBuffer[j] = (short) ((pcmData[byteIndex] & 0xFF) | (pcmData[byteIndex + 1] << 8));
-                    samplesRead++;
-                }
+        // 处理PCM
+        List<byte[]> frames = new ArrayList<>();
+
+        // 字节序处理
+        ByteBuffer pcmBuf = ByteBuffer.wrap(pcm, 0, pcmLen);
+        pcmBuf.order(ByteOrder.LITTLE_ENDIAN);
+        ShortBuffer shorts = pcmBuf.asShortBuffer();
+
+        int totalShorts = pcmLen / 2;
+        int frameCount = (totalShorts + frameSize - 1) / frameSize;
+
+        // 缓冲区
+        short[] shortBuf = new short[frameSize];
+        byte[] opusBuf = new byte[MAX_SIZE];
+
+        // 添加预热帧 - 渐入效果，解决开头破音问题
+        addPrewarmFrames(frames, encoder, frameSize, opusBuf);
+        
+        // 添加淡入效果到第一帧
+        if (totalShorts > 0) {
+            // 创建第一帧的拷贝，并应用淡入效果
+            short[] firstFrameBuf = new short[frameSize];
+            Arrays.fill(firstFrameBuf, (short) 0);
+            
+            int firstFrameSamples = Math.min(frameSize, totalShorts);
+            shorts.position(0);
+            shorts.get(firstFrameBuf, 0, firstFrameSamples);
+            
+            // 应用淡入效果 - 前20毫秒（大约320个样本）
+            int fadeInSamples = Math.min(320, firstFrameSamples);
+            for (int i = 0; i < fadeInSamples; i++) {
+                // 线性淡入
+                float gain = (float)i / fadeInSamples;
+                firstFrameBuf[i] = (short)(firstFrameBuf[i] * gain);
             }
-
-            // 只有当有足够的样本时才编码
-            if (samplesRead > 0) {
-                // 编码
-                int opusLength = encoder.encode(shortBuffer, 0, frameSize, opusBuffer, 0, opusBuffer.length);
-
-                // 创建正确大小的帧并添加到列表
-                byte[] opusFrame = new byte[opusLength];
-                System.arraycopy(opusBuffer, 0, opusFrame, 0, opusLength);
-                opusFrames.add(opusFrame);
+            
+            try {
+                // 编码第一帧
+                int opusLen = encoder.encode(firstFrameBuf, 0, frameSize, opusBuf, 0, opusBuf.length);
+                if (opusLen > 0) {
+                    byte[] frame = new byte[opusLen];
+                    System.arraycopy(opusBuf, 0, frame, 0, opusLen);
+                    frames.add(frame);
+                }
+            } catch (OpusException e) {
+                logger.warn("淡入帧编码失败: {}", e.getMessage());
+            }
+            
+            // 从第二帧开始编码剩余的帧
+            for (int i = 1; i < frameCount; i++) {
+                // 当前帧起始位置
+                int start = i * frameSize;
+                
+                // 当前帧样本数
+                int samples = Math.min(frameSize, totalShorts - start);
+                
+                // 重置缓冲区
+                Arrays.fill(shortBuf, (short) 0);
+                
+                // 读取样本
+                if (start < totalShorts) {
+                    shorts.position(start);
+                    int actual = Math.min(samples, shorts.remaining());
+                    shorts.get(shortBuf, 0, actual);
+                    
+                    try {
+                        // 编码
+                        int opusLen = encoder.encode(shortBuf, 0, frameSize, opusBuf, 0, opusBuf.length);
+                        
+                        if (opusLen > 0) {
+                            // 创建帧
+                            byte[] frame = new byte[opusLen];
+                            System.arraycopy(opusBuf, 0, frame, 0, opusLen);
+                            frames.add(frame);
+                        }
+                    } catch (OpusException e) {
+                        logger.warn("帧 #{} 编码失败: {}", i, e.getMessage());
+                    }
+                }
             }
         }
 
-        return opusFrames;
+        return frames;
     }
 
     /**
-     * 清理会话资源
+     * 添加预热帧 - 解决开头破音问题
      */
-    public void cleanupSession(String sessionId) {
-        sessionDecoders.remove(sessionId);
+    private void addPrewarmFrames(List<byte[]> frames, OpusEncoder encoder, int frameSize, byte[] opusBuf) {
+        // 创建静音帧
+        short[] silenceBuf = new short[frameSize];
+        Arrays.fill(silenceBuf, (short) 0);
+        
+        // 添加几个静音帧来预热编码器
+        for (int i = 0; i < PREWARM_FRAMES; i++) {
+            try {
+                int opusLen = encoder.encode(silenceBuf, 0, frameSize, opusBuf, 0, opusBuf.length);
+                if (opusLen > 0) {
+                    byte[] frame = new byte[opusLen];
+                    System.arraycopy(opusBuf, 0, frame, 0, opusLen);
+                    frames.add(frame);
+                }
+            } catch (OpusException e) {
+                logger.warn("预热帧 #{} 编码失败: {}", i, e.getMessage());
+            }
+        }
     }
 
     /**
-     * 在应用关闭时释放所有资源
+     * 清理会话
+     */
+    public void cleanup(String sid) {
+        decoders.remove(sid);
+        overlaps.remove(sid);
+
+        // 清理编码器
+        List<String> toRemove = new ArrayList<>();
+        for (String key : encoders.keySet()) {
+            if (key.startsWith(sid + "_")) {
+                toRemove.add(key);
+            }
+        }
+
+        for (String key : toRemove) {
+            encoders.remove(key);
+        }
+    }
+
+    /**
+     * 获取编码器
+     */
+    private OpusEncoder getEncoder(String sid, int rate, int channels) {
+        String key = sid + "_" + rate + "_" + channels;
+        return encoders.computeIfAbsent(key, k -> {
+            try {
+                OpusEncoder encoder = new OpusEncoder(rate, channels, OpusApplication.OPUS_APPLICATION_VOIP);
+
+                // 优化设置
+                encoder.setBitrate(AudioUtils.BITRATE);
+                encoder.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE);
+                encoder.setComplexity(5); // 复杂度高音质好，低速度快
+                encoder.setPacketLossPercent(0); // 降低丢包补偿，减少处理延迟
+                encoder.setForceChannels(channels);
+                encoder.setUseVBR(false); // 使用CBR模式确保稳定的比特率
+                encoder.setUseDTX(false); // 禁用DTX以确保连续的帧
+                
+                return encoder;
+            } catch (OpusException e) {
+                logger.error("创建编码器失败: 采样率={}, 通道={}", rate, channels, e);
+                throw new RuntimeException("创建编码器失败", e);
+            }
+        });
+    }
+
+    /**
+     * 释放资源
      */
     @PreDestroy
     public void cleanup() {
-        sessionDecoders.clear();
+        decoders.clear();
+        encoders.clear();
+        overlaps.clear();
     }
 }

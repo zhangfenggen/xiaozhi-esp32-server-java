@@ -57,7 +57,7 @@
 
     <insert id="add" useGeneratedKeys="true" keyProperty="roleName" parameterType="com.xiaozhi.entity.SysRole">
         INSERT INTO sys_role ( roleName, roleDesc, voiceName, ttsId, userId, isDefault ) VALUES (
-            #{roleName}, #{roleDesc}, #{voiceName}, #{ttsId}, #{userId}, isDefault
+            #{roleName}, #{roleDesc}, #{voiceName}, #{ttsId}, #{userId}, #{isDefault}
         )
     </insert>
 

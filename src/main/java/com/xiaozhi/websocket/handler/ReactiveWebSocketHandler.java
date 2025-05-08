@@ -7,10 +7,7 @@ import com.xiaozhi.entity.SysConfig;
 import com.xiaozhi.entity.SysDevice;
 import com.xiaozhi.service.SysConfigService;
 import com.xiaozhi.service.SysDeviceService;
-import com.xiaozhi.websocket.service.AudioService;
-import com.xiaozhi.websocket.service.DialogueService;
-import com.xiaozhi.websocket.service.SessionManager;
-import com.xiaozhi.websocket.service.VadService;
+import com.xiaozhi.websocket.service.*;
 import com.xiaozhi.websocket.tts.factory.TtsServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,9 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
 
     @Autowired
     private DialogueService dialogueService;
+
+    @Autowired
+    private IotService iotService;
 
     private static final Logger logger = LoggerFactory.getLogger(ReactiveWebSocketHandler.class);
 
@@ -145,7 +145,16 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                                     return Mono.empty();
                                 })
                                 .onErrorResume(e -> {
-                                    logger.error("处理WebSocket消息失败", e);
+                                    // 区分不同类型的错误
+                                    if (isConnectionClosedError(e)) {
+                                        // 连接关闭错误，这是正常的客户端断开行为
+                                        if (logger.isDebugEnabled()) {
+                                            logger.debug("客户端主动断开连接 - SessionId: {}", sessionId);
+                                        }
+                                    } else {
+                                        // 其他错误，记录为错误日志
+                                        logger.error("处理WebSocket消息失败", e);
+                                    }
                                     return Mono.empty();
                                 })
                                 .then())
@@ -168,6 +177,20 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
                     // 清理音频处理会话
                     audioService.cleanupSession(sessionId);
                 });
+    }
+
+    /**
+     * 判断是否为连接关闭类型的错误
+     */
+    private boolean isConnectionClosedError(Throwable error) {
+        // 检查是否是客户端主动断开连接的常见错误类型
+        if (error instanceof reactor.netty.channel.AbortedException) {
+            String message = error.getMessage();
+            return message != null && (message.contains("Connection has been closed") ||
+                    message.contains("Connection reset by peer") ||
+                    message.contains("Connection prematurely closed"));
+        }
+        return false;
     }
 
     private Mono<Void> handleTextMessage(WebSocketSession session, WebSocketMessage message) {
@@ -393,6 +416,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             JsonNode descriptors = jsonNode.path("descriptors");
             logger.info("收到设备描述信息: {}", descriptors);
             // 处理设备描述信息的逻辑
+            iotService.handleDeviceDescriptors(sessionId, descriptors);
         }
 
         // 处理设备状态更新
@@ -400,6 +424,7 @@ public class ReactiveWebSocketHandler implements WebSocketHandler {
             JsonNode states = jsonNode.path("states");
             logger.info("收到设备状态更新: {}", states);
             // 处理设备状态更新的逻辑
+            iotService.handleDeviceStates(sessionId, states);
         }
 
         return Mono.empty();

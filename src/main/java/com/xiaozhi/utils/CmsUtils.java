@@ -28,6 +28,22 @@ public class CmsUtils {
     private static final Logger logger = LoggerFactory.getLogger(CmsUtils.class);
     public static final String USER_ATTRIBUTE_KEY = "user";
 
+    // 缓存服务器IP地址 - 只在第一次调用getServerIp时初始化
+    private static String serverIp = null;
+    private static boolean initializing = false;
+
+    // 静态初始化块，应用启动时自动执行一次
+    static {
+        // 在后台线程中预热IP缓存，避免第一次调用时的延迟
+        new Thread(() -> {
+            try {
+                getServerIp(); // 触发IP地址初始化
+            } catch (Exception e) {
+                logger.error("预热服务器IP缓存失败", e);
+            }
+        }).start();
+    }
+
     public static SysUser getUser(ServerWebExchange exchange) {
         return exchange.getAttribute(USER_ATTRIBUTE_KEY);
     }
@@ -63,9 +79,10 @@ public class CmsUtils {
         }
     }
 
-    // 以下是改进的 IP 检测相关代码
+    // 以下是 IP 检测相关代码
 
     private static final String[] IP_INFO_SERVICES = {
+            "https://www.cip.cc/", // CIP.CC，返回详细信息
             "https://myip.ipip.net/json", // IPIP.net，返回详细信息
     };
 
@@ -149,29 +166,377 @@ public class CmsUtils {
             "cloud.google.com", "oracle.com", "ibm.com", "salesforce.com", "sap.com",
             "vmware.com", "rackspace.com", "digitalocean.com", "linode.com", "vultr.com",
             "ovh.com", "hetzner.com", "scaleway.com", "heroku.com", "cloudflare.com",
-            "akamai.com", "fastly.com", "volcengine.com", "bytecdn.com", "byted.org"
+            "akamai.com", "fastly.com", "volcengine.com", "bytecdn.com", "byted.org",
+            "bytedance.com"
+    };
+
+    // 环境变量名，用于配置宿主机IP
+    private static final String[] HOST_IP_ENV_VARS = {
+            "HOST_IP", "DOCKER_HOST_IP", "HOST_ADDR", "LOCAL_IP", "XIAOZHI_HOST_IP"
+    };
+
+    // Docker网关默认IP (常见的Docker网关地址)
+    private static final String[] DOCKER_DEFAULT_GATEWAYS = {
+            "172.17.0.1", "172.18.0.1", "172.19.0.1", "172.20.0.1", "172.21.0.1",
+            "192.168.0.1", "192.168.1.1", "10.0.0.1", "10.0.2.2", "10.0.75.1"
     };
 
     /**
      * 获取服务器IP地址
      * 智能判断当前环境并返回合适的IP地址
+     * 结果会被缓存，应用生命周期内只计算一次
      * 
      * @return 合适的IP地址
      */
     public static String getServerIp() {
-        // 获取IP信息
-        IPInfo ipInfo = getIPInfo();
-
-        // 如果获取到了IP信息并且判断为服务器环境，使用该IP
-        if (ipInfo != null && ipInfo.isServerEnvironment()) {
-            logger.info("检测到服务器环境，使用公网IP: {}", ipInfo.getIp());
-            return ipInfo.getIp();
+        // 如果IP已经初始化，直接返回
+        if (serverIp != null) {
+            return serverIp;
         }
 
-        // 如果没有获取到IP信息或者不是服务器环境，使用本地IP
-        String localIp = getLocalIpAddress();
-        logger.info("使用本地IP: {}", localIp);
-        return localIp;
+        // 如果正在初始化中，等待初始化完成
+        if (initializing) {
+            // 等待初始化完成，最多等待5秒
+            long startTime = System.currentTimeMillis();
+            while (initializing && System.currentTimeMillis() - startTime < 5000) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+
+            // 如果等待后IP已初始化，返回结果
+            if (serverIp != null) {
+                return serverIp;
+            }
+
+            // 如果等待超时，继续执行初始化
+        }
+
+        // 防止多线程同时初始化
+        synchronized (CmsUtils.class) {
+            // 再次检查是否已初始化
+            if (serverIp != null) {
+                return serverIp;
+            }
+
+            initializing = true;
+            try {
+                long startTime = System.currentTimeMillis();
+
+                // 执行IP地址检测逻辑
+                serverIp = determineServerIp();
+
+                long endTime = System.currentTimeMillis();
+
+                return serverIp;
+            } finally {
+                initializing = false;
+            }
+        }
+    }
+
+    /**
+     * 确定服务器IP地址
+     */
+    private static String determineServerIp() {
+        try {
+            boolean isDocker = isRunningInDocker();
+
+            // 1. 首先检查是否设置了HOST_IP环境变量
+            String hostIp = getHostIpFromEnv();
+            if (hostIp != null) {
+                return hostIp;
+            }
+
+            // 2. 获取公网IP信息
+            IPInfo ipInfo = getIPInfo();
+
+            // 3. 如果获取到了公网IP信息并且判断为服务器环境，使用该IP
+            if (ipInfo != null && ipInfo.isServerEnvironment()) {
+                return ipInfo.getIp();
+            }
+
+            // 4. 如果在Docker环境中运行，尝试获取宿主机IP
+            if (isDocker) {
+                // 尝试从Docker网关获取宿主机IP
+                String dockerHostIp = getDockerHostIp();
+                if (dockerHostIp != null) {
+                    return dockerHostIp;
+                }
+            }
+
+            // 5. 如果以上方法都失败，使用本地IP
+            String localIp = getLocalIpAddress();
+
+            // 6. 如果本地IP是Docker容器内部IP，尝试使用默认网关
+            if (isDocker && isDockerInternalIp(localIp)) {
+                for (String gateway : DOCKER_DEFAULT_GATEWAYS) {
+                    if (isReachable(gateway)) {
+                        return gateway;
+                    }
+                }
+            }
+
+            return localIp;
+        } catch (Exception e) {
+            logger.error("确定服务器IP时发生错误", e);
+            return "127.0.0.1"; // 如果发生错误，返回本地回环地址
+        }
+    }
+
+    /**
+     * 检查IP是否为Docker内部IP
+     */
+    private static boolean isDockerInternalIp(String ip) {
+        return ip != null && (ip.startsWith("172.17.") ||
+                ip.startsWith("172.18.") ||
+                ip.startsWith("172.19.") ||
+                ip.startsWith("172.20.") ||
+                ip.startsWith("172.21.") ||
+                ip.startsWith("172.22."));
+    }
+
+    /**
+     * 检查IP是否可达
+     */
+    private static boolean isReachable(String ip) {
+        try {
+            InetAddress address = InetAddress.getByName(ip);
+            return address.isReachable(1000); // 1秒超时
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 从环境变量获取宿主机IP
+     */
+    private static String getHostIpFromEnv() {
+        for (String envVar : HOST_IP_ENV_VARS) {
+            String hostIp = System.getenv(envVar);
+            if (hostIp != null && !hostIp.trim().isEmpty()) {
+                return hostIp.trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 尝试获取Docker宿主机IP
+     */
+    private static String getDockerHostIp() {
+        try {
+            // 方法1: 尝试从环境变量获取
+            String hostIp = getHostIpFromEnv();
+            if (hostIp != null) {
+                return hostIp;
+            }
+
+            // 方法2: 检查特殊主机名
+            try {
+                InetAddress dockerHost = InetAddress.getByName("host.docker.internal");
+                return dockerHost.getHostAddress();
+            } catch (Exception e) {
+                // 忽略错误，继续尝试其他方法
+            }
+
+            try {
+                InetAddress dockerHost = InetAddress.getByName("docker.host.internal");
+                return dockerHost.getHostAddress();
+            } catch (Exception e) {
+                // 忽略错误，继续尝试其他方法
+            }
+
+            // 方法3: 尝试从/etc/hosts文件中查找host.docker.internal或docker.host.internal
+            File hostsFile = new File("/etc/hosts");
+            if (hostsFile.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(hostsFile))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.contains("host.docker.internal") || line.contains("docker.host.internal")) {
+                            String[] parts = line.trim().split("\\s+");
+                            if (parts.length >= 1) {
+                                return parts[0];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 方法4: 尝试获取默认网关IP
+            String gatewayIp = getDockerGatewayIp();
+            if (gatewayIp != null) {
+                return gatewayIp;
+            }
+
+            // 方法5: 尝试通过网络接口获取非Docker网络的IP
+            String nonDockerIp = getNonDockerLocalIp();
+            if (nonDockerIp != null) {
+                return nonDockerIp;
+            }
+
+            // 方法6: 尝试默认网关
+            for (String gateway : DOCKER_DEFAULT_GATEWAYS) {
+                if (isReachable(gateway)) {
+                    return gateway;
+                }
+            }
+
+        } catch (Exception e) {
+            logger.warn("获取Docker宿主机IP失败: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * 尝试获取Docker网关IP
+     */
+    private static String getDockerGatewayIp() {
+        List<String[]> commands = new ArrayList<>();
+        commands.add(new String[] { "ip", "route", "|", "grep", "default" });
+        commands.add(new String[] { "route", "-n" });
+        commands.add(new String[] { "netstat", "-rn" });
+        commands.add(new String[] { "cat", "/proc/net/route" });
+
+        for (String[] cmdArray : commands.toArray(new String[0][0])) {
+            try {
+                Process process = Runtime.getRuntime().exec(cmdArray);
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        // 尝试提取网关IP
+                        String gatewayIp = extractGatewayIp(line, cmdArray[0]);
+                        if (gatewayIp != null) {
+                            return gatewayIp;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略错误，尝试下一个命令
+            }
+        }
+
+        // 尝试直接读取路由表
+        try {
+            File routeFile = new File("/proc/net/route");
+            if (routeFile.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(routeFile))) {
+                    String line;
+                    // 跳过标题行
+                    reader.readLine();
+                    while ((line = reader.readLine()) != null) {
+                        String[] parts = line.trim().split("\\s+");
+                        if (parts.length > 2 && parts[1].equals("00000000")) {
+                            // 找到默认路由，解析网关地址
+                            String hex = parts[2];
+                            // 转换小端字节序的十六进制为IP地址
+                            if (hex.length() == 8) {
+                                int a = Integer.parseInt(hex.substring(6, 8), 16);
+                                int b = Integer.parseInt(hex.substring(4, 6), 16);
+                                int c = Integer.parseInt(hex.substring(2, 4), 16);
+                                int d = Integer.parseInt(hex.substring(0, 2), 16);
+                                return a + "." + b + "." + c + "." + d;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("读取路由表失败: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * 从命令输出中提取网关IP
+     */
+    private static String extractGatewayIp(String line, String command) {
+        try {
+            if ("ip".equals(command)) {
+                // 解析类似 "default via 172.17.0.1 dev eth0" 的输出
+                Pattern pattern = Pattern.compile("default via (\\d+\\.\\d+\\.\\d+\\.\\d+)");
+                Matcher matcher = pattern.matcher(line);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+            } else if ("route".equals(command) || "netstat".equals(command)) {
+                // 解析route -n或netstat -rn的输出
+                // 通常格式为: Destination Gateway Genmask Flags ...
+                // 0.0.0.0 192.168.1.1 0.0.0.0 UG ...
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length >= 3) {
+                    if (parts[0].equals("0.0.0.0") || parts[0].equals("default")) {
+                        // 第二列通常是网关
+                        String gateway = parts[1];
+                        if (gateway.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+                            return gateway;
+                        }
+                    }
+                }
+            } else if ("cat".equals(command)) {
+                // 已在主方法中处理
+            }
+        } catch (Exception e) {
+            // 忽略解析错误
+        }
+        return null;
+    }
+
+    /**
+     * 获取非Docker网络的本地IP
+     */
+    private static String getNonDockerLocalIp() {
+        try {
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+
+            while (networkInterfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = networkInterfaces.nextElement();
+
+                // 跳过Docker相关的网络接口
+                String name = networkInterface.getName();
+                if (name.startsWith("docker") || name.startsWith("br-") ||
+                        name.equals("docker0") || name.contains("veth")) {
+                    continue;
+                }
+
+                // 跳过禁用的接口和回环接口
+                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                    continue;
+                }
+
+                // 获取接口的IPv4地址
+                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress address = addresses.nextElement();
+                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                        String ip = address.getHostAddress();
+
+                        // 检查是否为私有IP
+                        boolean isPrivate = false;
+                        for (String pattern : PRIVATE_IP_PATTERNS) {
+                            if (ip.matches(pattern)) {
+                                isPrivate = true;
+                                break;
+                            }
+                        }
+
+                        // 如果是私有IP且不是Docker网络的IP，可能是宿主机IP
+                        if (isPrivate && !isDockerInternalIp(ip)) {
+                            return ip;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("获取非Docker网络IP失败: {}", e.getMessage());
+        }
+
+        return null;
     }
 
     /**
@@ -282,35 +647,75 @@ public class CmsUtils {
      */
     private static IPInfo getIPInfo() {
         for (String service : IP_INFO_SERVICES) {
+            HttpURLConnection connection = null;
+            BufferedReader reader = null;
+            long startTime = System.currentTimeMillis();
+
             try {
                 URL url = new URL(service);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(3000);
-                connection.setReadTimeout(3000);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(3000); // 3秒连接超时
+                connection.setReadTimeout(3000); // 3秒读取超时
                 connection.setRequestProperty("User-Agent",
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
 
+                // 开始连接
+                connection.connect();
+
+                // 检查是否超时
+                if (System.currentTimeMillis() - startTime > 3000) {
+                    continue;
+                }
+
                 if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                    BufferedReader reader = new BufferedReader(
+                    reader = new BufferedReader(
                             new InputStreamReader(connection.getInputStream(), "UTF-8"));
                     StringBuilder response = new StringBuilder();
                     String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
-                    }
-                    reader.close();
-                    String content = response.toString();
 
-                    // 解析IP信息
-                    IPInfo ipInfo = parseIPInfo(service, content);
-                    if (ipInfo != null) {
-                        return ipInfo;
+                    // 设置最大读取时间
+                    long maxReadTime = startTime + 3000;
+
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line).append("\n");
+
+                        // 检查是否超过最大读取时间
+                        if (System.currentTimeMillis() > maxReadTime) {
+                            break;
+                        }
                     }
+
+                    // 如果超时了但已经读取了部分数据，继续处理
+                    if (System.currentTimeMillis() <= maxReadTime || response.length() > 0) {
+                        String content = response.toString();
+
+                        // 解析IP信息
+                        IPInfo ipInfo = parseIPInfo(service, content);
+                        if (ipInfo != null) {
+                            return ipInfo;
+                        }
+                    }
+                } else {
+                    logger.warn("IP信息服务返回非200状态码: {} - {}", service, connection.getResponseCode());
                 }
+            } catch (java.net.SocketTimeoutException e) {
+                logger.warn("获取IP信息超时，切换到下一个服务: {} - {}", service, e.getMessage());
             } catch (Exception e) {
-                logger.warn("获取IP信息失败: {}", e.getMessage());
-                // 忽略异常，尝试下一个服务
+                logger.warn("获取IP信息失败: {} - {}", service, e.getMessage());
+            } finally {
+                // 关闭资源
+                try {
+                    if (reader != null) {
+                        reader.close();
+                    }
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                } catch (Exception e) {
+                    logger.warn("关闭资源失败: {}", e.getMessage());
+                }
             }
+
         }
 
         return null;
@@ -321,7 +726,73 @@ public class CmsUtils {
      */
     private static IPInfo parseIPInfo(String service, String content) {
         try {
-            if (service.contains("ipip.net")) {
+            if (service.contains("cip.cc")) {
+                // 提取IP
+                Pattern patternIp = Pattern.compile("IP\\s*:\\s*([\\d.]+)");
+                Matcher matcherIp = patternIp.matcher(content);
+
+                if (matcherIp.find()) {
+                    String ip = matcherIp.group(1);
+
+                    // 提取地址和运营商信息 - 改进解析逻辑
+                    String location = "";
+                    String isp = "";
+
+                    // 解析地址信息 - 查找格式为 "地址 : xxx" 的行
+                    Pattern patternAddr = Pattern.compile("地址\\s*:\\s*([^\n]+)");
+                    Matcher matcherAddr = patternAddr.matcher(content);
+                    if (matcherAddr.find()) {
+                        location = matcherAddr.group(1).trim();
+                        // 只保留基本地理位置信息，通常是"国家 省份 城市"格式
+                        if (location.contains(" ")) {
+                            String[] parts = location.split("\\s+");
+                            // 取前三个部分作为地址信息
+                            StringBuilder sb = new StringBuilder();
+                            for (int i = 0; i < Math.min(parts.length, 3); i++) {
+                                if (!parts[i].isEmpty()) {
+                                    if (sb.length() > 0) {
+                                        sb.append(" ");
+                                    }
+                                    sb.append(parts[i]);
+                                }
+                            }
+                            location = sb.toString();
+                        }
+                    }
+
+                    // 解析运营商信息 - 查找格式为 "运营商 : xxx" 的行
+                    Pattern patternIsp = Pattern.compile("运营商\\s*:\\s*([^\n]+)");
+                    Matcher matcherIsp = patternIsp.matcher(content);
+                    if (matcherIsp.find()) {
+                        isp = matcherIsp.group(1).trim();
+                        // 只保留运营商名称，去除可能的额外信息
+                        for (String keyword : ISP_KEYWORDS) {
+                            if (isp.contains(keyword)) {
+                                isp = keyword;
+                                break;
+                            }
+                        }
+
+                        // 如果没有匹配到关键词，则取第一个词作为运营商名称
+                        if (isp.contains(" ")) {
+                            isp = isp.split("\\s+")[0];
+                        }
+                    }
+
+                    // 如果无法提取运营商，尝试从地址中提取
+                    if (isp.isEmpty()) {
+                        String originalLocation = matcherAddr.group(1).trim();
+                        for (String keyword : ISP_KEYWORDS) {
+                            if (originalLocation.contains(keyword)) {
+                                isp = keyword;
+                                break;
+                            }
+                        }
+                    }
+
+                    return new IPInfo(ip, location, isp);
+                }
+            } else if (service.contains("ipip.net")) {
                 // IPIP.net
                 // {"ret":"ok","data":{"ip":"139.226.72.136","location":["中国","上海","上海","","联通"]}}
                 Pattern patternIp = Pattern.compile("\"ip\":\"([\\d.]+)\"");
@@ -344,6 +815,7 @@ public class CmsUtils {
                     String isp = matcherIsp.find() ? matcherIsp.group(1) : "";
 
                     String location = country + " " + province + " " + city;
+                    location = location.trim().replaceAll("\\s+", " ");
                     return new IPInfo(ip, location, isp);
                 }
             }
@@ -375,11 +847,20 @@ public class CmsUtils {
     }
 
     /**
-     * 获取本地IP地址（非Docker网桥、非回环）
+     * 获取本地IP地址（非回环）
+     * 在Docker环境中会考虑获取非Docker网络的IP
      */
     public static String getLocalIpAddress() {
         try {
             boolean isInDocker = isRunningInDocker();
+
+            // 如果在Docker环境中，先尝试获取宿主机IP
+            if (isInDocker) {
+                String dockerHostIp = getDockerHostIp();
+                if (dockerHostIp != null) {
+                    return dockerHostIp;
+                }
+            }
 
             // 获取所有网络接口
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
@@ -393,32 +874,31 @@ public class CmsUtils {
                     continue;
                 }
 
-                // 如果在Docker中运行，不要跳过Docker网桥
-                if (!isInDocker) {
-                    // 跳过Docker网桥接口
-                    String name = networkInterface.getName();
-                    if (name.startsWith("docker") || name.startsWith("br-") ||
-                            name.equals("docker0") || name.contains("veth")) {
-                        continue;
-                    }
-                }
+                // 如果在Docker中运行，优先选择非Docker网络接口
+                String name = networkInterface.getName();
+                boolean isDockerInterface = name.startsWith("docker") || name.startsWith("br-") ||
+                        name.equals("docker0") || name.contains("veth");
 
-                // 获取接口的IPv4地址
-                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress address = addresses.nextElement();
-                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
-                        String ip = address.getHostAddress();
+                if (isInDocker && isDockerInterface) {
+                    // 在Docker环境中，将Docker接口放低优先级，但不完全排除
+                    // 稍后处理
+                } else {
+                    // 获取接口的IPv4地址
+                    Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        InetAddress address = addresses.nextElement();
+                        if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                            String ip = address.getHostAddress();
 
-                        // 优先返回无线或有线接口的IP
-                        String name = networkInterface.getName();
-                        if (name.startsWith("wl") || name.startsWith("en") ||
-                                name.startsWith("eth") || name.startsWith("wlan") ||
-                                name.startsWith("wifi")) {
-                            return ip;
+                            // 优先返回无线或有线接口的IP
+                            if (name.startsWith("wl") || name.startsWith("en") ||
+                                    name.startsWith("eth") || name.startsWith("wlan") ||
+                                    name.startsWith("wifi")) {
+                                return ip;
+                            }
+
+                            candidateAddresses.add(address);
                         }
-
-                        candidateAddresses.add(address);
                     }
                 }
             }
@@ -426,6 +906,25 @@ public class CmsUtils {
             // 如果没有找到优先接口，但有其他候选地址，返回第一个
             if (!candidateAddresses.isEmpty()) {
                 return candidateAddresses.get(0).getHostAddress();
+            }
+
+            // 如果没有找到非Docker接口，再次遍历，这次包括Docker接口
+            if (isInDocker) {
+                networkInterfaces = NetworkInterface.getNetworkInterfaces();
+                while (networkInterfaces.hasMoreElements()) {
+                    NetworkInterface networkInterface = networkInterfaces.nextElement();
+                    if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                        continue;
+                    }
+
+                    Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        InetAddress address = addresses.nextElement();
+                        if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                            return address.getHostAddress();
+                        }
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -491,9 +990,32 @@ public class CmsUtils {
         // 基本环境判断
         boolean isDocker = isRunningInDocker();
         String localIp = getLocalIpAddress();
+        String dockerHostIp = isDocker ? getDockerHostIp() : null;
 
         details.put("isRunningInDocker", isDocker);
         details.put("localIpAddress", localIp);
+
+        if (isDocker) {
+            details.put("dockerHostIp", dockerHostIp);
+            details.put("dockerGatewayIp", getDockerGatewayIp());
+
+            // 检查所有可能的环境变量
+            Map<String, String> envVars = new HashMap<>();
+            for (String envVar : HOST_IP_ENV_VARS) {
+                String value = System.getenv(envVar);
+                if (value != null) {
+                    envVars.put(envVar, value);
+                }
+            }
+            details.put("hostIpEnvVars", envVars);
+
+            // 检查默认网关是否可达
+            Map<String, Boolean> gatewayReachability = new HashMap<>();
+            for (String gateway : DOCKER_DEFAULT_GATEWAYS) {
+                gatewayReachability.put(gateway, isReachable(gateway));
+            }
+            details.put("defaultGatewaysReachable", gatewayReachability);
+        }
 
         if (ipInfo != null) {
             details.put("publicIp", ipInfo.getIp());
@@ -508,6 +1030,7 @@ public class CmsUtils {
         }
 
         details.put("recommendedIpAddress", getServerIp());
+        details.put("serverIp", serverIp);
 
         return details;
     }

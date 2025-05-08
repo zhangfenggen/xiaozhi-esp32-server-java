@@ -206,17 +206,18 @@ export default {
           typeFields: {
             openai: [
               { name: 'apiKey', label: 'API Key', required: true, span: 12 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions' },
+              { name: 'apiUrl', label: 'API URL', required: true, span: 12, suffix: '/chat/completions' },
             ],
             ollama: [
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/api/chat' }
+              { name: 'apiUrl', label: 'API URL', required: true, span: 12, suffix: '/api/chat' }
             ],
             spark: [
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://spark-api-open.xf-yun.com/v2" }
+              { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
+              { name: 'apiUrl', label: 'API URL', required: true, span: 12, suffix: '/chat/completions', defaultUrl:"https://spark-api-open.xf-yun.com/v1" }
             ],
             zhipu: [
               { name: 'apiSecret', label: 'API Secret', required: true, span: 8 },
-              { name: 'apiUrl', label: 'API URL', required: false, span: 12, suffix: '/chat/completions', defaultUrl:"https://open.bigmodel.cn/api/paas/v4" }
+              { name: 'apiUrl', label: 'API URL', required: true, span: 12, suffix: '/chat/completions', defaultUrl:"https://open.bigmodel.cn/api/paas/v4" }
             ]
           }
         },
@@ -448,6 +449,22 @@ export default {
       this.configForm.validateFields((err, values) => {
         if (!err) {
           this.loading = true
+
+          // 处理可能的URL后缀重复问题
+          if (values.apiUrl) {
+            const currentType = values.provider;
+            const typeFields = this.configTypeInfo.typeFields || {};
+            const apiUrlField = (typeFields[currentType] || []).find(field => field.name === 'apiUrl');
+            
+            if (apiUrlField && apiUrlField.suffix) {
+              const suffix = apiUrlField.suffix;
+              // 检查URL是否已经以后缀结尾，如果是则不再添加
+              if (values.apiUrl.endsWith(suffix)) {
+                // 移除URL末尾的后缀部分
+                values.apiUrl = values.apiUrl.substring(0, values.apiUrl.length - suffix.length);
+              }
+            }
+          }
 
           // 将开关值转换为数字，但TTS不需要处理isDefault
           const formData = {

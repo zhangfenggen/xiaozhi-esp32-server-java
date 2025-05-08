@@ -3,7 +3,7 @@
 <mapper namespace="com.xiaozhi.dao.TemplateMapper">
     
     <sql id="templateSql">
-        sys_template.templateId, sys_template.templateName, sys_template.templateDesc, sys_template.templateContent, sys_template.category, sys_template.isDefault, sys_template.state, sys_template.createTime, sys_template.updateTime
+        sys_template.userId, sys_template.templateId, sys_template.templateName, sys_template.templateDesc, sys_template.templateContent, sys_template.category, sys_template.isDefault, sys_template.state, sys_template.createTime, sys_template.updateTime
     </sql>
     
     <select id="query" resultType="com.xiaozhi.entity.SysTemplate">

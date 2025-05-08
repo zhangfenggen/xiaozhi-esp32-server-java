@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+import java.util.Map;
+
 @Service("WebSocketMessageService")
 public class MessageService {
 
@@ -91,6 +94,26 @@ public class MessageService {
             String jsonMessage = response.toString();
             logger.info("发送消息 - SessionId: {}, Message: {}", session.getId(), jsonMessage);
 
+            return session.send(Mono.just(session.textMessage(jsonMessage)));
+        } catch (Exception e) {
+            logger.error("发送消息时发生异常 - SessionId: {}, Error: {}", session.getId(), e.getMessage());
+            return Mono.error(e);
+        }
+    }
+
+    public Mono<Void> sendIotCommandMessage(WebSocketSession session, List<Map<String, Object>> commands) {
+        if (session == null || !session.isOpen()) {
+            logger.warn("无法发送消息 - 会话已关闭或为null");
+            return Mono.empty();
+        }
+
+        try {
+            ObjectNode response = objectMapper.createObjectNode();
+            response.put("session_id", session.getId());
+            response.put("type", "iot");
+            response.set("commands", objectMapper.valueToTree(commands));
+            String jsonMessage = response.toString();
+            logger.debug("发送iot消息 - SessionId: {}, Message: {}", session.getId(), response);
             return session.send(Mono.just(session.textMessage(jsonMessage)));
         } catch (Exception e) {
             logger.error("发送消息时发生异常 - SessionId: {}, Error: {}", session.getId(), e.getMessage());

@@ -1,6 +1,9 @@
 package com.xiaozhi.service.impl;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.github.pagehelper.PageHelper;
 import com.xiaozhi.dao.ConfigMapper;
@@ -15,6 +18,7 @@ import com.xiaozhi.service.SysDeviceService;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
 
 import javax.annotation.Resource;
 
@@ -53,21 +57,45 @@ public class SysDeviceServiceImpl implements SysDeviceService {
         SysConfig queryConfig = new SysConfig();
         queryConfig.setUserId(device.getUserId());
         queryConfig.setIsDefault("1");
+        // 该配置中不包含 coze 智能体
         List<SysConfig> configs = configMapper.query(queryConfig);
-        // 查询是否有默认角色
-        SysRole queryRole = new SysRole();
-        queryRole.setUserId(device.getUserId());
-        queryRole.setIsDefault("1");
-        List<SysRole> roles = roleMapper.query(queryRole);
-        // 遍历查询是否有默认配置
+        // 单独查询智能体
+        List<SysConfig> agents = configMapper.query(queryConfig.setProvider("coze").setConfigType("llm"));
+        // 合并去重，按照 configId 去重
+        List<SysConfig> mergedConfigs = new ArrayList<>();
+
+        // 使用LinkedHashMap保持插入顺序，以configId为键去重
+        Map<Integer, SysConfig> configMap = new LinkedHashMap<>();
+
+        // 先添加configs中的配置
         for (SysConfig config : configs) {
+            configMap.put(config.getConfigId(), config);
+        }
+
+        // 再添加agents中的配置，如果有相同configId则会覆盖
+        for (SysConfig agent : agents) {
+            configMap.put(agent.getConfigId(), agent);
+        }
+
+        // 转换回List
+        mergedConfigs = new ArrayList<>(configMap.values());
+
+        // 遍历查询是否有默认配置
+        for (SysConfig config : mergedConfigs) {
             if (config.getConfigType().equals("llm")) {
                 device.setModelId(config.getConfigId());
             } else if (config.getConfigType().equals("stt")) {
                 device.setSttId(config.getConfigId());
             }
         }
-        if (roles != null) {
+
+        // 查询是否有默认角色
+        SysRole queryRole = new SysRole();
+        queryRole.setUserId(device.getUserId());
+        queryRole.setIsDefault("1");
+        List<SysRole> roles = roleMapper.query(queryRole);
+
+        if (roles.size() > 0) {
             device.setRoleId(roles.get(0).getRoleId());
         }
         // 添加设备
@@ -148,6 +176,23 @@ public class SysDeviceServiceImpl implements SysDeviceService {
     @Override
     @Transactional
     public int update(SysDevice device) {
+        if (!ObjectUtils.isEmpty(device.getRoleId())) {
+            SysRole role = roleMapper.selectRoleById(device.getRoleId());
+            if (role != null) {
+                List<SysDevice> currentDevices = deviceMapper.query(device);
+                if (currentDevices != null && !currentDevices.isEmpty()) {
+                    SysDevice currentDevice = currentDevices.get(0);
+                    // 如果当前设备角色和修改的角色不一致，需要清空聊天记录
+                    if (currentDevice.getRoleId() != null && !currentDevice.getRoleId().equals(role.getRoleId())) {
+                        SysMessage message = new SysMessage();
+                        message.setUserId(device.getUserId());
+                        message.setDeviceId(device.getDeviceId());
+                        // 清空设备聊天记录
+                        messageMapper.delete(message);
+                    }
+                }
+            }
+        }
         return deviceMapper.update(device);
     }
 

@@ -42,7 +42,7 @@ public class VadService {
     @Value("${app.vad.min-silence-duration:500}")
     private int minSilenceDuration;
 
-    @Value("${app.vad.pre-buffer-duration:300}")
+    @Value("${app.vad.pre-buffer-duration:500}")
     private int preBufferDuration;
 
     @Value("${app.vad.enable-noise-reduction:true}")
@@ -261,7 +261,7 @@ public class VadService {
                 VadSessionState state = sessionStates.computeIfAbsent(sessionId, k -> new VadSessionState());
 
                 // 解码Opus数据为PCM
-                byte[] pcmData = opusDecoder.decodeOpusFrameToPcm(sessionId, opusData);
+                byte[] pcmData = opusDecoder.opusToPcm(sessionId, opusData);
                 if (pcmData == null || pcmData.length == 0) {
                     return new VadResult(VadStatus.NO_SPEECH, null);
                 }

@@ -1,18 +1,27 @@
 package com.xiaozhi.websocket.llm.providers;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.xiaozhi.websocket.llm.api.AbstractLlmService;
-import com.xiaozhi.websocket.llm.api.StreamResponseListener;
-import okhttp3.*;
-import okio.BufferedSource;
+import com.xiaozhi.utils.JsonUtil;
+import com.xiaozhi.websocket.llm.api.AbstractOpenAiLlmService;
+import com.xiaozhi.websocket.llm.api.ToolCallInfo;
+import com.xiaozhi.websocket.llm.memory.ModelContext;
+import com.xiaozhi.websocket.llm.tool.function.FunctionSessionHolder;
+import com.xiaozhi.websocket.llm.tool.function.bean.FunctionLlmDescription;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 讯飞星火 LLM服务实现
  */
-public class SparkService extends AbstractLlmService {
+public class SparkService extends AbstractOpenAiLlmService {
 
     /**
      * 构造函数
@@ -26,7 +35,7 @@ public class SparkService extends AbstractLlmService {
     }
 
     @Override
-    protected String chat(List<Map<String, String>> messages) throws IOException {
+    protected String chat(List<Map<String, Object>> messages) throws IOException {
         try {
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
@@ -38,7 +47,7 @@ public class SparkService extends AbstractLlmService {
 
             // 转换消息格式为讯飞要求的格式
             List<Map<String, Object>> sparkMessages = new ArrayList<>();
-            for (Map<String, String> message : messages) {
+            for (Map<String, Object> message : messages) {
                 Map<String, Object> sparkMessage = new HashMap<>();
                 sparkMessage.put("role", message.get("role"));
                 sparkMessage.put("content", message.get("content"));
@@ -90,101 +99,59 @@ public class SparkService extends AbstractLlmService {
         }
     }
 
-    @Override
-    protected void chatStream(List<Map<String, String>> messages, StreamResponseListener streamListener)
-            throws IOException {
-        try {
-            // 构建请求体
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
-            requestBody.put("stream", true);
-            requestBody.put("messages", messages);
+    @NotNull
+    protected String buildRequestJson(List<Map<String, Object>> messages, ModelContext modelContext) {
+        // 构建请求体
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("stream", true);
+        requestBody.put("messages", messages);
 
-            // 转换为JSON
-            String jsonBody = objectMapper.writeValueAsString(requestBody);
-            // 构建请求 - 使用简单的Bearer token认证
-            Request request = new Request.Builder()
-                    .url(endpoint + "/chat/completions")
-                    .post(RequestBody.create(jsonBody, JSON))
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("Authorization", "Bearer " + apiSecret) // 使用apiSecret作为Bearer token
-                    .build();
-
-            // 通知开始
-            streamListener.onStart();
-
-            // 发送请求
-            client.newCall(request).enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
-                    logger.error("流式请求失败: {}", e.getMessage(), e);
-                    streamListener.onError(e);
-                }
-
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    if (!response.isSuccessful()) {
-                        String errorMsg = "流式请求响应失败: " + response;
-                        logger.error(errorMsg);
-                        streamListener.onError(new IOException(errorMsg));
-                        return;
-                    }
-
-                    try (ResponseBody responseBody = response.body()) {
-                        if (responseBody == null) {
-                            String errorMsg = "响应体为空";
-                            logger.error(errorMsg);
-                            streamListener.onError(new IOException(errorMsg));
-                            return;
-                        }
-
-                        BufferedSource source = responseBody.source();
-                        StringBuilder fullResponse = new StringBuilder();
-
-                        while (!source.exhausted()) {
-                            String line = source.readUtf8Line();
-                            if (line == null) {
-                                break;
-                            }
-                            if (line.isEmpty() || line.equals("data: [DONE]")) {
-                                continue;
-                            }
-                            if (line.startsWith("data:")) {
-                                String jsonData = line.substring(6);
-
-                                try {
-                                    Map<String, Object> data = objectMapper.readValue(jsonData,
-                                            new TypeReference<Map<String, Object>>() {
-                                            });
-
-                                    // 解析内容
-                                    List<Map<String, Object>> choices = (List<Map<String, Object>>) data.get("choices");
-                                    if (choices != null && !choices.isEmpty()) {
-                                        Map<String, Object> delta = (Map<String, Object>) choices.get(0).get("delta");
-
-                                        if (delta != null && delta.containsKey("content")) {
-                                            String content = (String) delta.get("content");
-                                            if (content != null && !content.isEmpty()) {
-                                                streamListener.onToken(content);
-                                                fullResponse.append(content);
-                                            }
-                                        }
-                                    }
-                                } catch (Exception e) {
-                                    logger.error("解析流式响应失败: {}", e.getMessage(), e);
-                                    streamListener.onError(e);
-                                }
-                            }
-                        }
-
-                        // 通知完成
-                        streamListener.onComplete(fullResponse.toString());
-                    }
-                }
-            });
-        } catch (Exception e) {
-            throw new IOException("星火API流式请求失败: " + e.getMessage(), e);
+        //星火只有个别模型支持tools，这里做个判断，否则会导致模型调用报错
+        if(!model.equalsIgnoreCase("4.0Ultra") && !model.equalsIgnoreCase("generalv3.5")){
+            return JsonUtil.toJson(requestBody);
         }
+        FunctionSessionHolder functionSessionHolder = modelContext.getFunctionSessionHolder();
+        if(functionSessionHolder != null){
+            List<FunctionLlmDescription> tools = functionSessionHolder.getAllFunctionLlmDescription();
+            if(!tools.isEmpty()){
+                requestBody.put("tools", tools);
+            }
+        }
+
+        // 转换为JSON
+        return JsonUtil.toJson(requestBody);
+    }
+
+    protected Request buildRequest(String jsonBody) {
+        // 构建请求
+        return new Request.Builder()
+                .url(endpoint + "/chat/completions")
+                .post(RequestBody.create(jsonBody, JSON))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer " + apiSecret) // 使用apiSecret作为Bearer token
+                .build();
+    }
+
+    /**
+     * 从toolCallsData中抽取工具调用信息
+     * @param toolCallInfo
+     * @param toolCallsData
+     */
+    protected ToolCallInfo getToolCallInfo(ToolCallInfo toolCallInfo, Object toolCallsData) {
+        if(toolCallInfo == null){
+            toolCallInfo = new ToolCallInfo();
+        }
+        Map<String, Object> toolInfo = (Map<String, Object>) toolCallsData;//讯飞星火模型返回的不是数组，这里做个适配
+        Map<String, String> toolCall = (Map<String, String>)toolInfo.get("function");
+        if(toolCall.get("name") != null){
+            toolCallInfo.setName(toolCall.get("name"));
+        }
+        String arguments = toolCall.get("arguments");
+        if (arguments != null && !arguments.isEmpty()) {
+            toolCallInfo.appendArgumentsJson(arguments);
+        }
+        return toolCallInfo;
     }
 
     @Override

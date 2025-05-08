@@ -2,8 +2,6 @@ package com.xiaozhi;
 
 import com.xiaozhi.websocket.config.WebFluxWebSocketConfig;
 
-import java.util.Map;
-
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -1,5 +1,8 @@
 package com.xiaozhi.websocket.llm.api;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 流式响应监听器接口
  * 用于处理LLM的流式响应
@@ -24,7 +27,16 @@ public interface StreamResponseListener {
      * @param fullResponse 完整的响应内容
      */
     void onComplete(String fullResponse);
-    
+
+
+    /**
+     * 当流式响应完成时调用
+     *
+     * @param allMessages 当前交互的所有消息列表内容
+     * @param llmService 当前处理消息的llmService
+     */
+    void onFinal(List<Map<String, Object>> allMessages, LlmService llmService);
+
     /**
      * 当发生错误时调用
      * 
